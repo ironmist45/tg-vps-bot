@@ -18,58 +18,79 @@ jobs:
       # =========================
       - name: Build in Ubuntu 18.04 container
         run: |
-          docker run --rm -v $PWD:/app -w /app ubuntu:18.04 bash <<'EOF'
-          set -e
+          docker run --rm -v $PWD:/app -w /app ubuntu:18.04 bash -c "
+            set -e
 
-          apt update
-          apt install -y \
-            build-essential \
-            libcurl4-openssl-dev \
-            git \
-            cmake
+            apt update
+            apt install -y \
+              build-essential \
+              libcurl4-openssl-dev \
+              git \
+              cmake
 
-          # ===== build cJSON =====
-          cd /tmp
-          git clone --depth 1 --branch v1.7.15 https://github.com/DaveGamble/cJSON.git
-          cd cJSON
-          mkdir build && cd build
-          cmake ..
-          make
-          make install
-          ldconfig
+            # ===== build cJSON =====
+            cd /tmp
+            git clone --depth 1 --branch v1.7.15 https://github.com/DaveGamble/cJSON.git
+            cd cJSON
+            mkdir build && cd build
+            cmake ..
+            make
+            make install
+            ldconfig
 
-          # ===== build tg-bot =====
-          cd /app
+            # ===== build tg-bot =====
+            cd /app
 
-          make LDFLAGS='-Wl,-rpath,$ORIGIN'
+            make LDFLAGS='-Wl,-rpath,\$ORIGIN'
 
-          # копируем .so рядом
-          cp /usr/local/lib/libcjson.so* /app/
+            # делаем исполняемым (на всякий случай)
+            chmod +x tg-bot || true
 
-          echo "[OK] build complete"
-          EOF
+            # копируем .so рядом
+            cp /usr/local/lib/libcjson.so* /app/ || true
+
+            echo '[OK] build complete'
+
+            echo '[DEBUG] contents of /app:'
+            ls -l /app
+          "
 
       # =========================
       # DEBUG
       # =========================
-      - name: List files
-        run: ls -l
+      - name: Debug build output
+        run: |
+          echo "=== ls ==="
+          ls -l
 
-      - name: Check dependencies
-        run: ldd tg-bot || true
+          echo "=== file ==="
+          file tg-bot || true
+
+          echo "=== ldd ==="
+          ldd tg-bot || true
+
+      # =========================
+      # VALIDATION
+      # =========================
+      - name: Ensure binary exists
+        run: |
+          if [ ! -f tg-bot ]; then
+            echo "ERROR: tg-bot not built"
+            exit 1
+          fi
 
       # =========================
       # SMOKE TESTS
       # =========================
       - name: Run version
-        run: LD_LIBRARY_PATH=. ./tg-bot --version
+        run: env LD_LIBRARY_PATH=. ./tg-bot --version
 
       - name: Run help
-        run: LD_LIBRARY_PATH=. ./tg-bot --help
+        run: env LD_LIBRARY_PATH=. ./tg-bot --help
 
       - name: Run without config (should fail)
         run: |
-          if LD_LIBRARY_PATH=. ./tg-bot 2>/dev/null; then
+          if env LD_LIBRARY_PATH=. ./tg-bot 2>/dev/null; then
             echo "ERROR: bot should not start without config"
             exit 1
           else
@@ -78,6 +99,8 @@ jobs:
 
       - name: Run with fake config
         run: |
+          rm -f test.conf test.log
+
           echo "TOKEN=TEST" >> test.conf
           echo "CHAT_ID=123" >> test.conf
           echo "LOG_FILE=./test.log" >> test.conf
@@ -85,7 +108,7 @@ jobs:
           echo "TOKEN_TTL=10" >> test.conf
 
           timeout 3s env LD_LIBRARY_PATH=. ./tg-bot -c test.conf || true
-          
+
       - name: Check log file created
         run: |
           if [ ! -f test.log ]; then
