@@ -8,8 +8,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define MAX_ARGS 8
+#define TOKEN_TTL 60  // секунды
 
 typedef int (*command_handler_t)(int argc, char *argv[],
                                 char *response, size_t resp_size);
@@ -19,6 +21,11 @@ typedef struct {
     command_handler_t handler;
     const char *description;
 } command_t;
+
+// ===== reboot token state =====
+
+static char reboot_token[16] = {0};
+static time_t reboot_token_time = 0;
 
 // ===== утилиты =====
 
@@ -36,6 +43,10 @@ static int split_args(char *input, char *argv[], int max_args) {
 
 static void safe_write(char *dst, size_t size, const char *text) {
     snprintf(dst, size, "%s", text);
+}
+
+static void generate_token(char *out, size_t size) {
+    snprintf(out, size, "%06d", rand() % 1000000);
 }
 
 // ===== команды =====
@@ -78,8 +89,7 @@ static int cmd_echo(int argc, char *argv[], char *resp, size_t size) {
 // ===== STATUS =====
 
 static int cmd_status(int argc, char *argv[], char *resp, size_t size) {
-    (void)argc;
-    (void)argv;
+    (void)argc; (void)argv;
 
     if (system_get_status(resp, size) != 0) {
         snprintf(resp, size, "Failed to get system status");
@@ -92,8 +102,7 @@ static int cmd_status(int argc, char *argv[], char *resp, size_t size) {
 // ===== SERVICES =====
 
 static int cmd_services(int argc, char *argv[], char *resp, size_t size) {
-    (void)argc;
-    (void)argv;
+    (void)argc; (void)argv;
 
     if (services_get_status(resp, size) != 0) {
         snprintf(resp, size, "Failed to get services status");
@@ -106,8 +115,7 @@ static int cmd_services(int argc, char *argv[], char *resp, size_t size) {
 // ===== USERS =====
 
 static int cmd_users(int argc, char *argv[], char *resp, size_t size) {
-    (void)argc;
-    (void)argv;
+    (void)argc; (void)argv;
 
     if (users_get_logged(resp, size) != 0) {
         snprintf(resp, size, "Failed to get users");
@@ -117,7 +125,7 @@ static int cmd_users(int argc, char *argv[], char *resp, size_t size) {
     return 0;
 }
 
-// ===== LOGS (через logs.c) =====
+// ===== LOGS =====
 
 static int cmd_logs(int argc, char *argv[], char *resp, size_t size) {
     if (argc < 2) {
@@ -128,20 +136,50 @@ static int cmd_logs(int argc, char *argv[], char *resp, size_t size) {
     return logs_get(argv[1], resp, size);
 }
 
-// ===== REBOOT =====
+// ===== REBOOT (с токеном) =====
 
 static int cmd_reboot(int argc, char *argv[], char *resp, size_t size) {
     (void)argc; (void)argv;
 
-    safe_write(resp, size,
-        "Reboot requested.\n"
-        "Confirm with /reboot_confirm");
+    generate_token(reboot_token, sizeof(reboot_token));
+    reboot_token_time = time(NULL);
+
+    log_msg(LOG_WARN, "Reboot requested, token=%s", reboot_token);
+
+    snprintf(resp, size,
+        "⚠ Reboot requested\n\n"
+        "Confirm with:\n"
+        "/reboot_confirm %s\n\n"
+        "Token valid for %d seconds",
+        reboot_token, TOKEN_TTL);
 
     return 0;
 }
 
 static int cmd_reboot_confirm(int argc, char *argv[], char *resp, size_t size) {
-    (void)argc; (void)argv;
+
+    if (argc < 2) {
+        snprintf(resp, size, "Usage: /reboot_confirm <token>");
+        return -1;
+    }
+
+    time_t now = time(NULL);
+
+    // проверка токена
+    if (strcmp(argv[1], reboot_token) != 0) {
+        log_msg(LOG_WARN, "Invalid reboot token");
+        snprintf(resp, size, "❌ Invalid token");
+        return -1;
+    }
+
+    // проверка TTL
+    if ((now - reboot_token_time) > TOKEN_TTL) {
+        log_msg(LOG_WARN, "Expired reboot token");
+        snprintf(resp, size, "❌ Token expired");
+        return -1;
+    }
+
+    log_msg(LOG_WARN, "Reboot confirmed");
 
     if (system("reboot") == -1) {
         log_msg(LOG_ERROR, "Failed to execute reboot");
@@ -149,7 +187,7 @@ static int cmd_reboot_confirm(int argc, char *argv[], char *resp, size_t size) {
         return -1;
     }
 
-    snprintf(resp, size, "Rebooting...");
+    snprintf(resp, size, "🔄 Rebooting...");
     return 0;
 }
 
