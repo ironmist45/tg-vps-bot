@@ -7,6 +7,7 @@
 #include <time.h>
 
 static FILE *log_file = NULL;
+static int log_to_stderr = 0;  // fallback
 
 // ===== уровень → строка =====
 
@@ -20,13 +21,14 @@ static const char *level_to_string(log_level_t level) {
     }
 }
 
-// ===== timestamp =====
+// ===== timestamp (thread-safe) =====
 
 static void get_timestamp(char *buf, size_t size) {
     time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
+    struct tm tm_info;
 
-    strftime(buf, size, "%Y-%m-%d %H:%M:%S", tm_info);
+    localtime_r(&now, &tm_info);
+    strftime(buf, size, "%Y-%m-%d %H:%M:%S", &tm_info);
 }
 
 // ===== init =====
@@ -36,10 +38,15 @@ int logger_init(const char *path) {
     log_file = fopen(path, "a");
 
     if (!log_file) {
+        // fallback на stderr
+        log_to_stderr = 1;
+        fprintf(stderr, "logger: failed to open %s, using stderr\n", path);
         return -1;
     }
 
-    // отключаем буферизацию (важно для логов)
+    log_to_stderr = 0;
+
+    // line buffered (лучше для логов)
     setvbuf(log_file, NULL, _IOLBF, 0);
 
     return 0;
@@ -58,12 +65,17 @@ void logger_close() {
 
 void log_msg(log_level_t level, const char *fmt, ...) {
 
-    if (!log_file) return;
+    FILE *out = log_file;
+
+    if (!out && log_to_stderr) {
+        out = stderr;
+    }
+
+    if (!out) return;
 
     char timestamp[32];
     get_timestamp(timestamp, sizeof(timestamp));
 
-    // форматируем сообщение
     char message[1024];
 
     va_list args;
@@ -71,11 +83,10 @@ void log_msg(log_level_t level, const char *fmt, ...) {
     vsnprintf(message, sizeof(message), fmt, args);
     va_end(args);
 
-    // финальный вывод
-    fprintf(log_file, "[%s] [%s] %s\n",
+    fprintf(out, "[%s] [%s] %s\n",
             timestamp,
             level_to_string(level),
             message);
 
-    fflush(log_file);
+    fflush(out);
 }
