@@ -14,9 +14,9 @@ jobs:
         uses: actions/checkout@v3
 
       # =========================
-      # BUILD (Ubuntu 18.04)
+      # BUILD (Ubuntu 18.04 STATIC)
       # =========================
-      - name: Build in Ubuntu 18.04 container
+      - name: Build static binary
         run: |
           docker run --rm -v $PWD:/app -w /app ubuntu:18.04 bash -c "
             set -e
@@ -28,9 +28,10 @@ jobs:
               libssl-dev \
               zlib1g-dev \
               git \
-              cmake
+              cmake \
+              pkg-config
 
-            # ===== build cJSON =====
+            # ===== build cJSON STATIC =====
             cd /tmp
             git clone --depth 1 --branch v1.7.15 https://github.com/DaveGamble/cJSON.git
             cd cJSON
@@ -40,21 +41,28 @@ jobs:
             make install
             ldconfig
 
-            # ===== build tg-bot =====
+            # ===== build tg-bot STATIC =====
             cd /app
 
-            make LDFLAGS='-Wl,-rpath,\$ORIGIN'
+            make clean || true
 
-            # делаем исполняемым (на всякий случай)
-            chmod +x tg-bot || true
+            make \
+              CFLAGS='-O2 -static -Iinclude' \
+              LDFLAGS='-static' \
+              LDLIBS='-lcurl -lcjson -lssl -lcrypto -lz -lpthread'
 
-            # копируем .so рядом
-            # cp /usr/local/lib/libcjson.so* /app/ || true
+            chmod +x tg-bot
 
-            echo '[OK] build complete'
+            echo '[OK] static build complete'
 
-            echo '[DEBUG] contents of /app:'
-            ls -l /app
+            echo '[DEBUG] file:'
+            file tg-bot
+
+            echo '[DEBUG] ldd:'
+            ldd tg-bot || true
+
+            echo '[DEBUG] size:'
+            ls -lh tg-bot
           "
 
       # =========================
@@ -66,10 +74,10 @@ jobs:
           ls -l
 
           echo "=== file ==="
-          file tg-bot || true
+          file tg-bot
 
-          echo "=== ldd ==="
-          ldd tg-bot || true
+          echo "=== ldd (should fail for static) ==="
+          ldd tg-bot || echo "OK: static binary"
 
       # =========================
       # VALIDATION
@@ -82,17 +90,17 @@ jobs:
           fi
 
       # =========================
-      # SMOKE TESTS
+      # SMOKE TESTS (NO LD_LIBRARY_PATH!)
       # =========================
       - name: Run version
-        run: env LD_LIBRARY_PATH=. ./tg-bot --version
+        run: ./tg-bot --version
 
       - name: Run help
-        run: env LD_LIBRARY_PATH=. ./tg-bot --help
+        run: ./tg-bot --help
 
       - name: Run without config (should fail)
         run: |
-          if env LD_LIBRARY_PATH=. ./tg-bot 2>/dev/null; then
+          if ./tg-bot 2>/dev/null; then
             echo "ERROR: bot should not start without config"
             exit 1
           else
@@ -109,7 +117,7 @@ jobs:
           echo "POLL_TIMEOUT=1" >> test.conf
           echo "TOKEN_TTL=10" >> test.conf
 
-          timeout 3s env LD_LIBRARY_PATH=. ./tg-bot -c test.conf || true
+          timeout 3s ./tg-bot -c test.conf || true
 
       - name: Check log file created
         run: |
@@ -121,16 +129,10 @@ jobs:
           fi
 
       # =========================
-      # ARTIFACTS
+      # ARTIFACT
       # =========================
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: tg-bot
+          name: tg-bot-static
           path: tg-bot
-
-      - name: Upload libs
-        uses: actions/upload-artifact@v4
-        with:
-          name: tg-bot-libs
-          path: libcjson.so*
