@@ -16,6 +16,23 @@
 static char g_token[128];
 static char g_base_url[512];
 
+// ===== escape MarkdownV2 =====
+
+static void escape_markdown(const char *src, char *dst, size_t size) {
+    const char *special = "_*[]()~`>#+-=|{}.!";
+
+    size_t j = 0;
+
+    for (size_t i = 0; src[i] != '\0' && j + 2 < size; i++) {
+        if (strchr(special, src[i])) {
+            dst[j++] = '\\';
+        }
+        dst[j++] = src[i];
+    }
+
+    dst[j] = '\0';
+}
+
 // ===== curl buffer =====
 
 struct memory {
@@ -73,25 +90,23 @@ int telegram_send_message(long chat_id, const char *text) {
 
     char url[URL_MAX];
 
-    if (strlen(g_base_url) + sizeof("/sendMessage") >= sizeof(url)) {
-        log_msg(LOG_ERROR, "URL buffer too small (sendMessage)");
-        curl_easy_cleanup(curl);
-        return -1;
-    }
-
     snprintf(url, sizeof(url), "%s/sendMessage", g_base_url);
 
-    struct memory chunk = {0};
+    // 🔥 escape markdown
+    char escaped[RESP_MAX];
+    escape_markdown(text, escaped, sizeof(escaped));
 
     char post_fields[RESP_MAX];
 
     snprintf(post_fields, sizeof(post_fields),
-             "chat_id=%ld&text=%s",
-             chat_id, text);
+             "chat_id=%ld&text=%s&parse_mode=MarkdownV2",
+             chat_id, escaped);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+
+    struct memory chunk = {0};
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
 
     CURLcode res = curl_easy_perform(curl);
@@ -118,12 +133,6 @@ int telegram_poll() {
 
     char url[URL_MAX];
 
-    if (strlen(g_base_url) + 64 >= sizeof(url)) {
-        log_msg(LOG_ERROR, "URL buffer too small (getUpdates)");
-        curl_easy_cleanup(curl);
-        return -1;
-    }
-
     snprintf(url, sizeof(url),
              "%s/getUpdates?timeout=30&offset=%ld",
              g_base_url, last_update_id);
@@ -143,11 +152,9 @@ int telegram_poll() {
         return -1;
     }
 
-    // ===== parse JSON =====
-
     cJSON *json = cJSON_Parse(chunk.data);
     if (!json) {
-        log_msg(LOG_ERROR, "Failed to parse JSON");
+        log_msg(LOG_ERROR, "JSON parse error");
         curl_easy_cleanup(curl);
         free(chunk.data);
         return -1;
@@ -162,7 +169,6 @@ int telegram_poll() {
         for (int i = 0; i < count; i++) {
 
             cJSON *update = cJSON_GetArrayItem(result, i);
-            if (!update) continue;
 
             cJSON *update_id = cJSON_GetObjectItem(update, "update_id");
             if (update_id)
@@ -172,8 +178,6 @@ int telegram_poll() {
             if (!message) continue;
 
             cJSON *chat = cJSON_GetObjectItem(message, "chat");
-            if (!chat) continue;
-
             cJSON *chat_id = cJSON_GetObjectItem(chat, "id");
             cJSON *text = cJSON_GetObjectItem(message, "text");
 
@@ -183,7 +187,6 @@ int telegram_poll() {
             long cid = (long)chat_id->valuedouble;
             const char *msg_text = text->valuestring;
 
-            // 🔐 security
             if (!security_is_allowed_chat(cid))
                 continue;
 
