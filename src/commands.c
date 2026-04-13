@@ -5,14 +5,19 @@
 #include "users.h"
 #include "logs.h"
 #include "security.h"
-#include "version.h"   // ✅ ДОБАВИЛИ
+#include "version.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <time.h>
+#include <unistd.h>
 
 #define MAX_ARGS 8
+
+// uptime из main.c
+extern time_t g_start_time;
 
 typedef int (*command_handler_t)(int argc, char *argv[],
                                 long chat_id,
@@ -70,6 +75,38 @@ static int cmd_start(int argc, char *argv[],
 static int cmd_help(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size);
+
+static int cmd_about(int argc, char *argv[],
+                    long chat_id,
+                    char *resp, size_t size) {
+    (void)argc; (void)argv; (void)chat_id;
+
+    time_t now = time(NULL);
+    long uptime = now - g_start_time;
+
+    int days = uptime / 86400;
+    int hours = (uptime % 86400) / 3600;
+    int mins = (uptime % 3600) / 60;
+
+    snprintf(resp, size,
+        "*%s v%s (%s)*\n\n"
+        "👤 Author: %s\n"
+        "📅 Year: %s\n\n"
+        "⚙️ Build: %s\n"
+        "🆔 PID: %d\n"
+        "⏱ Uptime: %dd %dh %dm",
+        APP_NAME,
+        APP_VERSION,
+        APP_CODENAME,
+        APP_AUTHOR,
+        APP_YEAR,
+        TARGET_OS,
+        getpid(),
+        days, hours, mins
+    );
+
+    return 0;
+}
 
 static int cmd_ping(int argc, char *argv[],
                    long chat_id,
@@ -230,6 +267,7 @@ static int cmd_reboot_confirm(int argc, char *argv[],
 static command_t commands[] = {
     {"/start", cmd_start, "Start bot"},
     {"/help", cmd_help, "Show help"},
+    {"/about", cmd_about, "About bot"},   // ✅ ДОБАВИЛИ
     {"/ping", cmd_ping, "Ping test"},
     {"/echo", cmd_echo, "Echo text"},
     {"/status", cmd_status, "System status"},
