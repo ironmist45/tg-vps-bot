@@ -2,6 +2,7 @@
 #include "logger.h"
 #include "system.h"
 #include "services.h"
+#include "users.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -101,6 +102,20 @@ static int cmd_services(int argc, char *argv[], char *resp, size_t size) {
     return 0;
 }
 
+// ===== USERS =====
+
+static int cmd_users(int argc, char *argv[], char *resp, size_t size) {
+    (void)argc;
+    (void)argv;
+
+    if (users_get_logged(resp, size) != 0) {
+        snprintf(resp, size, "Failed to get users");
+        return -1;
+    }
+
+    return 0;
+}
+
 // ===== LOGS =====
 
 static int cmd_logs(int argc, char *argv[], char *resp, size_t size) {
@@ -169,6 +184,7 @@ static command_t commands[] = {
     {"/echo", cmd_echo, "Echo text"},
     {"/status", cmd_status, "System status"},
     {"/services", cmd_services, "Services status"},
+    {"/users", cmd_users, "Logged users"},
     {"/logs", cmd_logs, "Show logs"},
     {"/reboot", cmd_reboot, "Reboot server"},
     {"/reboot_confirm", cmd_reboot_confirm, "Confirm reboot"},
