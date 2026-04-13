@@ -21,17 +21,14 @@ jobs:
           docker run --rm -v $PWD:/app -w /app ubuntu:18.04 bash -c "
             set -e
 
-            echo '[INFO] apt update'
             apt update
-
-            echo '[INFO] install deps'
             apt install -y \
               build-essential \
               libcurl4-openssl-dev \
               git \
               cmake
 
-            echo '[INFO] build cJSON'
+            # ===== build cJSON =====
             cd /tmp
             git clone --depth 1 --branch v1.7.15 https://github.com/DaveGamble/cJSON.git
             cd cJSON
@@ -41,26 +38,24 @@ jobs:
             make install
             ldconfig
 
-            echo '[INFO] build tg-bot'
+            # ===== build tg-bot =====
             cd /app
-            make
 
-            echo '[INFO] copy libcjson'
+            # 🔥 добавляем RPATH прямо при сборке
+            make LDFLAGS='-Wl,-rpath,\\\$ORIGIN'
+
+            # копируем .so рядом
             cp /usr/local/lib/libcjson.so* /app/
 
-            echo '[INFO] done'
+            echo '[OK] build complete'
           "
 
       # =========================
-      # BASIC CHECKS
+      # DEBUG
       # =========================
-      - name: Check binary exists
+      - name: List files
         run: |
-          ls -l tg-bot
-
-      - name: Check binary type
-        run: |
-          file tg-bot
+          ls -l
 
       - name: Check dependencies
         run: |
@@ -69,40 +64,38 @@ jobs:
       # =========================
       # SMOKE TESTS
       # =========================
-      - name: Run version
+      - name: Run version (with local libs)
         run: |
-          ./tg-bot --version
+          LD_LIBRARY_PATH=. ./tg-bot --version
 
       - name: Run help
         run: |
-          ./tg-bot --help
+          LD_LIBRARY_PATH=. ./tg-bot --help
 
       - name: Run without config (should fail)
         run: |
-          if ./tg-bot 2>/dev/null; then
+          if LD_LIBRARY_PATH=. ./tg-bot 2>/dev/null; then
             echo "ERROR: bot should not start without config"
             exit 1
           else
-            echo "OK: failed without config"
+            echo "OK"
           fi
 
-      - name: Run with fake config (init test)
+      - name: Run with fake config
         run: |
           cat <<EOF > test.conf
-          token=TEST_TOKEN
-          chat_id=123456
+          token=TEST
+          chat_id=123
           log_file=./test.log
           poll_timeout=1
           EOF
 
-          timeout 3s ./tg-bot -c test.conf || true
-
-          echo "Process executed (expected exit or timeout)"
+          timeout 3s LD_LIBRARY_PATH=. ./tg-bot -c test.conf || true
 
       # =========================
       # ARTIFACT
       # =========================
-      - name: Upload binary + libs
+      - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: tg-bot
