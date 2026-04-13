@@ -25,6 +25,8 @@ jobs:
             apt install -y \
               build-essential \
               libcurl4-openssl-dev \
+              libssl-dev \
+              zlib1g-dev \
               git \
               cmake
 
