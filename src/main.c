@@ -55,6 +55,12 @@ static void log_exec_args(char *const argv[]) {
 }
 
 static int exec_command(const char *path, char *const argv[]) {
+
+    if (access(path, X_OK) != 0) {
+        log_msg(LOG_ERROR, "Executable not found or not executable: %s", path);
+        return -1;
+    }
+
     pid_t pid = fork();
 
     if (pid < 0) {
@@ -67,6 +73,8 @@ static int exec_command(const char *path, char *const argv[]) {
         perror("exec failed");
         _exit(127);
     }
+
+    log_msg(LOG_INFO, "Spawned PID: %d", pid);
 
     int status = 0;
 
@@ -98,6 +106,7 @@ static void handle_shutdown() {
     if (handled) return;
     handled = 1;
 
+    // ===== RESTART =====
     if (g_shutdown_requested == 1) {
 
         log_msg(LOG_WARN, "Restarting bot via systemd...");
@@ -119,6 +128,7 @@ static void handle_shutdown() {
         }
     }
 
+    // ===== REBOOT =====
     if (g_shutdown_requested == 2) {
 
         log_msg(LOG_WARN, "Rebooting system...");
@@ -138,7 +148,9 @@ static void handle_shutdown() {
         }
     }
 
-    // даём логгеру дописать
+    // гарантируем flush логов
+    logger_close();
+
     sleep(1);
 }
 
@@ -276,7 +288,7 @@ int main(int argc, char *argv[]) {
 
     security_set_allowed_chat(cfg.chat_id);
     security_set_token_ttl(cfg.token_ttl);
-    security_init(); // 🔥 новый шаг
+    security_init();
 
     if (telegram_init(cfg.token) != 0) {
         log_msg(LOG_ERROR, "Telegram init failed");
