@@ -65,7 +65,9 @@ int main(int argc, char *argv[]) {
     }
 
     // ===== временный логгер =====
-    if (logger_init("/var/log/tg-bot.log") != 0) {
+    const char *fallback_log = "/var/log/tg-bot.log";
+
+    if (logger_init(fallback_log) != 0) {
         printf("ERROR: cannot open log file\n");
         return 1;
     }
@@ -73,9 +75,10 @@ int main(int argc, char *argv[]) {
     log_msg(LOG_INFO, "========================================");
     log_msg(LOG_INFO, "Starting %s v%s (%s)",
             APP_NAME, APP_VERSION, APP_CODENAME);
-    log_msg(LOG_INFO, "Build: %s %s", BUILD_DATE, BUILD_TIME);   // 🔥 ДОБАВИЛИ
+    log_msg(LOG_INFO, "Build: %s %s", BUILD_DATE, BUILD_TIME);
     log_msg(LOG_INFO, "Target: %s", TARGET_OS);
     log_msg(LOG_INFO, "Config: %s", args.config_path);
+    log_msg(LOG_INFO, "Logger initialized (bootstrap): %s", fallback_log);
 
     // ===== загрузка конфига =====
     config_t cfg;
