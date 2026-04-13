@@ -13,6 +13,10 @@
 #define APP_YEAR     "2026"
 #define APP_AUTHOR   "dedoverde"
 
+// ===== build info =====
+#define BUILD_DATE __DATE__
+#define BUILD_TIME __TIME__
+
 // ===== runtime =====
 // uptime бота (инициализируется в main.c)
 extern time_t g_start_time;
