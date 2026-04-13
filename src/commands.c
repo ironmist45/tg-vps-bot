@@ -107,7 +107,7 @@ static int cmd_about(int argc, char *argv[],
     return 0;
 }
 
-// ===== PING =====
+// ===== PING (latency) =====
 
 static int cmd_ping(int argc, char *argv[],
                    long chat_id,
@@ -115,8 +115,22 @@ static int cmd_ping(int argc, char *argv[],
 
     (void)argc; (void)argv; (void)chat_id;
 
+    struct timespec start, end;
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    usleep(1000); // минимальная задержка
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    long ms =
+        (end.tv_sec - start.tv_sec) * 1000 +
+        (end.tv_nsec - start.tv_nsec) / 1000000;
+
     snprintf(resp, size,
-        "*🏓 PING*\n\npong");
+        "*🏓 PING*\n\n"
+        "Response: `pong`\n"
+        "Latency: `%ld ms`",
+        ms
+    );
 
     return 0;
 }
@@ -232,9 +246,9 @@ static int cmd_logs(int argc, char *argv[],
     if (argc < 2) {
         snprintf(resp, size,
             "*📜 LOGS MENU*\n\n"
-            "`/logs ssh` — SSH logs\n"
-            "`/logs mtg` — MTProto logs\n"
-            "`/logs shadowsocks` — Shadowsocks logs\n\n"
+            "`/logs ssh` — SSH (auth, login)\n"
+            "`/logs mtg` — MTProto proxy\n"
+            "`/logs shadowsocks` — Shadowsocks\n\n"
             "`/logs <service> <N>` — last N lines\n"
             "`/logs <service> error` — filter\n"
         );
@@ -242,10 +256,18 @@ static int cmd_logs(int argc, char *argv[],
     }
 
     char args[256] = {0};
+    size_t used = 0;
 
     for (int i = 1; i < argc; i++) {
-        strcat(args, argv[i]);
-        if (i < argc - 1) strcat(args, " ");
+        int written = snprintf(args + used, sizeof(args) - used,
+                               "%s%s",
+                               argv[i],
+                               (i < argc - 1) ? " " : "");
+
+        if (written < 0 || (size_t)written >= sizeof(args) - used)
+            break;
+
+        used += written;
     }
 
     char tmp[RESP_MAX];
@@ -290,16 +312,24 @@ static int cmd_reboot_confirm(int argc, char *argv[],
         return -1;
     }
 
-    int token = atoi(argv[1]);
+    char *endptr = NULL;
+    long token = strtol(argv[1], &endptr, 10);
 
-    if (security_validate_reboot_token(chat_id, token) != 0) {
+    if (*endptr != '\0') {
+        snprintf(resp, size, "Invalid token format");
+        return -1;
+    }
+
+    if (security_validate_reboot_token(chat_id, (int)token) != 0) {
         snprintf(resp, size, "Invalid token");
         return -1;
     }
 
     log_msg(LOG_WARN, "REBOOT by chat_id=%ld", chat_id);
 
-    if (system("reboot") == -1) {
+    int rc = system("reboot");
+
+    if (rc == -1) {
         log_msg(LOG_ERROR, "Failed to execute reboot");
         snprintf(resp, size, "Reboot failed");
         return -1;
@@ -315,7 +345,7 @@ static command_t commands[] = {
     {"/start", cmd_start, "Start bot"},
     {"/help", cmd_help, "Show help"},
     {"/about", cmd_about, "About bot"},
-    {"/ping", cmd_ping, "Ping"},
+    {"/ping", cmd_ping, "Ping + latency"},
     {"/echo", cmd_echo, "Echo text"},
     {"/status", cmd_status, "System status"},
     {"/services", cmd_services, "Services"},
