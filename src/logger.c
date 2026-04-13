@@ -27,7 +27,11 @@ static void get_timestamp(char *buf, size_t size) {
     time_t now = time(NULL);
     struct tm tm_info;
 
-    localtime_r(&now, &tm_info);
+    if (localtime_r(&now, &tm_info) == NULL) {
+        snprintf(buf, size, "0000-00-00 00:00:00");
+        return;
+    }
+
     strftime(buf, size, "%Y-%m-%d %H:%M:%S", &tm_info);
 }
 
@@ -60,7 +64,7 @@ void logger_close() {
         log_file = NULL;
     }
 
-    // 🔥 важно: сбрасываем fallback
+    // сбрасываем fallback
     log_to_stderr = 0;
 }
 
@@ -86,15 +90,20 @@ void log_msg(log_level_t level, const char *fmt, ...) {
     int written = vsnprintf(message, sizeof(message), fmt, args);
     va_end(args);
 
-    // 🔥 защита от обрезки
+    // защита от ошибок форматирования
     if (written < 0) {
         strncpy(message, "log formatting error", sizeof(message) - 1);
         message[sizeof(message) - 1] = '\0';
-    } else if ((size_t)written >= sizeof(message)) {
-        // строка была обрезана
-        message[sizeof(message) - 2] = '.';
-        message[sizeof(message) - 3] = '.';
-        message[sizeof(message) - 4] = '.';
+    }
+    // защита от обрезки
+    else if ((size_t)written >= sizeof(message)) {
+        size_t len = sizeof(message);
+        if (len > 4) {
+            message[len - 4] = '.';
+            message[len - 3] = '.';
+            message[len - 2] = '.';
+            message[len - 1] = '\0';
+        }
     }
 
     fprintf(out, "[%s] [%s] %s\n",
