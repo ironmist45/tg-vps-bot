@@ -6,7 +6,7 @@
 #include <utmp.h>
 #include <time.h>
 
-#define MAX_LINE 128
+#define MAX_LINE 512
 
 // ===== формат времени =====
 
