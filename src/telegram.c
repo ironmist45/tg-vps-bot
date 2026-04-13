@@ -7,10 +7,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
 #include <curl/curl.h>
 #include <cjson/cJSON.h>
 
 #define URL_MAX 512
+#define TG_MAX_MSG 4000
 
 static char base_url[URL_MAX];
 static long allowed_chat_id = 0;
@@ -126,6 +129,59 @@ int telegram_send_message(const char *text) {
     return http_post(url, post);
 }
 
+// ===== LONG MESSAGE =====
+
+int telegram_send_long_message(const char *text) {
+
+    if (!text) return -1;
+
+    size_t len = strlen(text);
+    size_t offset = 0;
+
+    while (offset < len) {
+
+        size_t chunk_size = TG_MAX_MSG;
+
+        if (offset + chunk_size > len) {
+            chunk_size = len - offset;
+        }
+
+        size_t end = offset + chunk_size;
+
+        // стараемся резать по строкам
+        if (end < len) {
+            for (size_t i = end; i > offset; i--) {
+                if (text[i] == '\n') {
+                    end = i;
+                    break;
+                }
+            }
+        }
+
+        size_t final_size = end - offset;
+
+        char chunk[TG_MAX_MSG + 1];
+        memcpy(chunk, text + offset, final_size);
+        chunk[final_size] = '\0';
+
+        if (telegram_send_message(chunk) != 0) {
+            log_msg(LOG_ERROR, "Failed to send chunk");
+            return -1;
+        }
+
+        offset = end;
+
+        if (text[offset] == '\n') {
+            offset++;
+        }
+
+        // чуть притормаживаем (анти-спам Telegram)
+        usleep(200000); // 200 ms
+    }
+
+    return 0;
+}
+
 // ===== обработка update =====
 
 static void handle_update(cJSON *update) {
@@ -147,14 +203,13 @@ static void handle_update(cJSON *update) {
 
     long cid = chat_id->valuedouble;
 
-    // ===== SECURITY: chat =====
+    // ===== SECURITY =====
     if (!security_is_allowed_chat(cid)) {
         return;
     }
 
     const char *msg = text->valuestring;
 
-    // ===== SECURITY: text =====
     if (security_validate_text(msg) != 0) {
         log_msg(LOG_WARN, "Blocked invalid message");
         return;
@@ -165,7 +220,9 @@ static void handle_update(cJSON *update) {
     char response[4096];
 
     commands_handle(msg, response, sizeof(response));
-    telegram_send_message(response);
+
+    // 👇 ВАЖНО: теперь всегда используем long version
+    telegram_send_long_message(response);
 }
 
 // ===== polling =====
