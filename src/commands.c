@@ -155,12 +155,11 @@ static int cmd_logs(int argc, char *argv[],
     if (argc < 2) {
         snprintf(resp, size,
             "*📜 LOGS MENU*\n\n"
-            "`/logs ssh` — SSH (auth, login logs)\n"
-            "`/logs mtg` — MTProto proxy logs\n"
-            "`/logs shadowsocks` — Shadowsocks logs\n\n"
-            "*Examples:*\n"
-            "`/logs ssh 100`\n"
-            "`/logs ssh error`\n"
+            "`/logs ssh`\n"
+            "`/logs mtg`\n"
+            "`/logs shadowsocks`\n\n"
+            "`/logs <service> <N>`\n"
+            "`/logs <service> error`\n"
         );
         return 0;
     }
@@ -201,6 +200,13 @@ static int cmd_reboot(int argc, char *argv[],
 
     (void)argc; (void)argv;
 
+    // 🔐 проверка доступа
+    if (!security_is_allowed_chat(chat_id)) {
+        log_msg(LOG_WARN, "Unauthorized reboot attempt: %ld", chat_id);
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
+    }
+
     int token = security_generate_reboot_token(chat_id);
 
     if (token < 0) {
@@ -208,12 +214,17 @@ static int cmd_reboot(int argc, char *argv[],
         return -1;
     }
 
+    log_msg(LOG_INFO, "Issued reboot token %d for chat_id=%ld",
+            token, chat_id);
+
     snprintf(resp, size,
         "⚠️ REBOOT\nConfirm:\n/reboot_confirm %d",
         token);
 
     return 0;
 }
+
+// ===== REBOOT CONFIRM =====
 
 static int cmd_reboot_confirm(int argc, char *argv[],
                              long chat_id,
@@ -224,8 +235,18 @@ static int cmd_reboot_confirm(int argc, char *argv[],
         return -1;
     }
 
+    if (!security_is_allowed_chat(chat_id)) {
+        log_msg(LOG_WARN, "Unauthorized confirm: %ld", chat_id);
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
+    }
+
     char *endptr = NULL;
     long token = strtol(argv[1], &endptr, 10);
+
+    log_msg(LOG_INFO,
+        "Reboot confirm attempt: chat_id=%ld token=%ld raw='%s'",
+        chat_id, token, argv[1]);
 
     if (*endptr != '\0') {
         snprintf(resp, size, "Invalid token format");
@@ -233,11 +254,11 @@ static int cmd_reboot_confirm(int argc, char *argv[],
     }
 
     if (security_validate_reboot_token(chat_id, (int)token) != 0) {
-        snprintf(resp, size, "Invalid token");
+        snprintf(resp, size, "❌ Invalid or expired token");
         return -1;
     }
 
-    log_msg(LOG_WARN, "REBOOT requested by chat_id=%ld", chat_id);
+    log_msg(LOG_WARN, "REBOOT CONFIRMED by chat_id=%ld", chat_id);
 
     g_shutdown_requested = 2;
 
@@ -251,9 +272,9 @@ static command_t commands[] = {
     {"/start", cmd_start, "Start bot"},
     {"/help", cmd_help, "Show help"},
     {"/about", cmd_about, "About bot"},
-    {"/ping", cmd_ping, "Ping + latency"},
-    {"/logs", cmd_logs, "Show logs"},
-    {"/reboot", cmd_reboot, "Reboot server"},
+    {"/ping", cmd_ping, "Ping"},
+    {"/logs", cmd_logs, "Logs"},
+    {"/reboot", cmd_reboot, "Reboot"},
     {"/reboot_confirm", cmd_reboot_confirm, "Confirm reboot"},
 };
 
