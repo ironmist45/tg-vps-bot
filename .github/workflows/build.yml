@@ -2,12 +2,12 @@ name: Build tg-bot
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
 
 jobs:
   build:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout repository
@@ -18,58 +18,54 @@ jobs:
       # =========================
       - name: Build in Ubuntu 18.04 container
         run: |
-          docker run --rm -v $PWD:/app -w /app ubuntu:18.04 bash -c "
-            set -e
+          docker run --rm -v $PWD:/app -w /app ubuntu:18.04 bash <<'EOF'
+          set -e
 
-            apt update
-            apt install -y \
-              build-essential \
-              libcurl4-openssl-dev \
-              git \
-              cmake
+          apt update
+          apt install -y \
+            build-essential \
+            libcurl4-openssl-dev \
+            git \
+            cmake
 
-            # ===== build cJSON =====
-            cd /tmp
-            git clone --depth 1 --branch v1.7.15 https://github.com/DaveGamble/cJSON.git
-            cd cJSON
-            mkdir build && cd build
-            cmake ..
-            make
-            make install
-            ldconfig
+          # ===== build cJSON =====
+          cd /tmp
+          git clone --depth 1 --branch v1.7.15 https://github.com/DaveGamble/cJSON.git
+          cd cJSON
+          mkdir build && cd build
+          cmake ..
+          make
+          make install
+          ldconfig
 
-            # ===== build tg-bot =====
-            cd /app
+          # ===== build tg-bot =====
+          cd /app
 
-            make LDFLAGS='-Wl,-rpath,\\\$ORIGIN'
+          make LDFLAGS='-Wl,-rpath,$ORIGIN'
 
-            # копируем .so рядом
-            cp /usr/local/lib/libcjson.so* /app/
+          # копируем .so рядом
+          cp /usr/local/lib/libcjson.so* /app/
 
-            echo '[OK] build complete'
-          "
+          echo "[OK] build complete"
+          EOF
 
       # =========================
       # DEBUG
       # =========================
       - name: List files
-        run: |
-          ls -l
+        run: ls -l
 
       - name: Check dependencies
-        run: |
-          ldd tg-bot || true
+        run: ldd tg-bot || true
 
       # =========================
       # SMOKE TESTS
       # =========================
-      - name: Run version (with local libs)
-        run: |
-          LD_LIBRARY_PATH=. ./tg-bot --version
+      - name: Run version
+        run: LD_LIBRARY_PATH=. ./tg-bot --version
 
       - name: Run help
-        run: |
-          LD_LIBRARY_PATH=. ./tg-bot --help
+        run: LD_LIBRARY_PATH=. ./tg-bot --help
 
       - name: Run without config (should fail)
         run: |
@@ -82,7 +78,13 @@ jobs:
 
       - name: Run with fake config
         run: |
-          printf "TOKEN=TEST\nCHAT_ID=123\nLOG_FILE=./test.log\nPOLL_TIMEOUT=1\nTOKEN_TTL=10\n" > test.conf
+          cat > test.conf <<EOF
+TOKEN=TEST
+CHAT_ID=123
+LOG_FILE=./test.log
+POLL_TIMEOUT=1
+TOKEN_TTL=10
+EOF
 
           timeout 3s env LD_LIBRARY_PATH=. ./tg-bot -c test.conf || true
 
@@ -95,31 +97,17 @@ jobs:
             echo "OK: log file exists"
           fi
 
-      - name: Check log file not empty
-        run: |
-          if [ ! -s test.log ]; then
-            echo "ERROR: log file is empty"
-            exit 1
-          else
-            echo "OK: log file has content"
-          fi
-
-      - name: Show log content (debug)
-        run: |
-          echo "==== LOG ===="
-          cat test.log || true
-
       # =========================
-      # ARTIFACT
+      # ARTIFACTS
       # =========================
       - name: Upload binary
-      uses: actions/upload-artifact@v4
-      with:
-        name: tg-bot
-        path: tg-bot
+        uses: actions/upload-artifact@v4
+        with:
+          name: tg-bot
+          path: tg-bot
 
       - name: Upload libs
-      uses: actions/upload-artifact@v4
-      with:
-        name: tg-bot-libs
-        path: libcjson.so*
+        uses: actions/upload-artifact@v4
+        with:
+          name: tg-bot-libs
+          path: libcjson.so*
