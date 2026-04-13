@@ -24,3 +24,9 @@ jobs:
       - name: Check binary
         run: |
           ls -l tg-bot
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: tg-bot
+          path: tg-bot
