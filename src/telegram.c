@@ -71,7 +71,6 @@ int telegram_send_message(long chat_id, const char *text) {
 
     char url[URL_MAX];
 
-    // ✅ защита от truncation
     if (strlen(g_base_url) + sizeof("/sendMessage") >= sizeof(url)) {
         log_msg(LOG_ERROR, "URL buffer too small (sendMessage)");
         curl_easy_cleanup(curl);
@@ -117,7 +116,6 @@ int telegram_poll() {
 
     char url[URL_MAX];
 
-    // ✅ защита от truncation
     if (strlen(g_base_url) + 64 >= sizeof(url)) {
         log_msg(LOG_ERROR, "URL buffer too small (getUpdates)");
         curl_easy_cleanup(curl);
@@ -190,7 +188,8 @@ int telegram_poll() {
 
             char response[RESP_MAX];
 
-            if (commands_handle(msg_text, response, sizeof(response)) == 0) {
+            // 🔥 ВОТ ГЛАВНОЕ ИЗМЕНЕНИЕ
+            if (commands_handle(cid, msg_text, response, sizeof(response)) == 0) {
                 telegram_send_message(cid, response);
             }
         }
