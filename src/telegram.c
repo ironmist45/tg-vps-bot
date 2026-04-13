@@ -1,5 +1,6 @@
 #include "telegram.h"
 #include "logger.h"
+#include "commands.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,13 +9,12 @@
 #include <cjson/cJSON.h>
 
 #define URL_MAX 512
-#define RESPONSE_MAX 65536
 
 static char base_url[URL_MAX];
 static long allowed_chat_id = 0;
 static long last_update_id = 0;
 
-// ===== buffer для curl =====
+// ===== buffer =====
 struct memory {
     char *data;
     size_t size;
@@ -53,7 +53,7 @@ void telegram_cleanup() {
     curl_global_cleanup();
 }
 
-// ===== HTTP GET =====
+// ===== HTTP =====
 
 static int http_get(const char *url, struct memory *chunk) {
     CURL *curl = curl_easy_init();
@@ -80,8 +80,6 @@ static int http_get(const char *url, struct memory *chunk) {
     return 0;
 }
 
-// ===== HTTP POST =====
-
 static int http_post(const char *url, const char *post_fields) {
     CURL *curl = curl_easy_init();
     if (!curl) return -1;
@@ -106,10 +104,11 @@ static int http_post(const char *url, const char *post_fields) {
 
 int telegram_send_message(const char *text) {
     char url[URL_MAX];
-    char post[1024];
+    char post[2048];
 
     snprintf(url, sizeof(url), "%s/sendMessage", base_url);
 
+    // ⚠️ упрощённо (без URL encoding)
     snprintf(post, sizeof(post),
              "chat_id=%ld&text=%s",
              allowed_chat_id, text);
@@ -117,7 +116,7 @@ int telegram_send_message(const char *text) {
     return http_post(url, post);
 }
 
-// ===== обработка сообщений =====
+// ===== обработка update =====
 
 static void handle_update(cJSON *update) {
     cJSON *update_id = cJSON_GetObjectItem(update, "update_id");
@@ -138,7 +137,7 @@ static void handle_update(cJSON *update) {
 
     long cid = chat_id->valuedouble;
 
-    // фильтр по CHAT_ID
+    // ===== безопасность =====
     if (cid != allowed_chat_id) {
         log_msg(LOG_WARN, "Unauthorized chat: %ld", cid);
         return;
@@ -148,16 +147,13 @@ static void handle_update(cJSON *update) {
 
     log_msg(LOG_INFO, "Received: %s", msg);
 
-    // ===== простейшие команды =====
+    // ===== интеграция commands =====
+    char response[4096];
 
-    if (strcmp(msg, "/start") == 0) {
-        telegram_send_message("Bot is running");
-    }
-    else if (strcmp(msg, "/ping") == 0) {
-        telegram_send_message("pong");
-    }
-    else {
-        telegram_send_message("Unknown command");
+    if (commands_handle(msg, response, sizeof(response)) == 0) {
+        telegram_send_message(response);
+    } else {
+        telegram_send_message(response);
     }
 }
 
