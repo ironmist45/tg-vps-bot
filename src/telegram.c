@@ -189,7 +189,7 @@ int telegram_poll() {
             char response[RESP_MAX];
 
             // 🔥 ВОТ ГЛАВНОЕ ИЗМЕНЕНИЕ
-            if (commands_handle(cid, msg_text, response, sizeof(response)) == 0) {
+            if commands_handle(msg_text, cid, response, sizeof(response)); == 0) {
                 telegram_send_message(cid, response);
             }
         }
