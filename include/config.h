@@ -1,14 +1,15 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define MAX_TOKEN_LEN 256
-#define MAX_PATH_LEN 256
+#include <stddef.h>
 
 typedef struct {
-    char token[MAX_TOKEN_LEN];
+    char token[128];
     long chat_id;
     int poll_timeout;
-    char log_file[MAX_PATH_LEN];
+    char log_file[256];
+
+    int token_ttl;   // ✅ ДОБАВИЛИ
 } config_t;
 
 int config_load(const char *path, config_t *cfg);
