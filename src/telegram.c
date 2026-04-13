@@ -2,6 +2,7 @@
 #include "logger.h"
 #include "commands.h"
 #include "utils.h"
+#include "security.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,7 @@ static long allowed_chat_id = 0;
 static long last_update_id = 0;
 
 // ===== buffer =====
+
 struct memory {
     char *data;
     size_t size;
@@ -43,6 +45,8 @@ int telegram_init(const config_t *cfg) {
              "https://api.telegram.org/bot%s", cfg->token);
 
     allowed_chat_id = cfg->chat_id;
+
+    security_init(cfg->chat_id);
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
@@ -143,12 +147,18 @@ static void handle_update(cJSON *update) {
 
     long cid = chat_id->valuedouble;
 
-    if (cid != allowed_chat_id) {
-        log_msg(LOG_WARN, "Unauthorized chat: %ld", cid);
+    // ===== SECURITY: chat =====
+    if (!security_is_allowed_chat(cid)) {
         return;
     }
 
     const char *msg = text->valuestring;
+
+    // ===== SECURITY: text =====
+    if (security_validate_text(msg) != 0) {
+        log_msg(LOG_WARN, "Blocked invalid message");
+        return;
+    }
 
     log_msg(LOG_INFO, "Received: %s", msg);
 
