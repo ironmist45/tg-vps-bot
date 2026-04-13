@@ -18,6 +18,9 @@
 
 extern time_t g_start_time;
 
+// 🔥 флаг graceful shutdown
+extern volatile sig_atomic_t g_shutdown_requested;
+
 typedef int (*command_handler_t)(int argc, char *argv[],
                                 long chat_id,
                                 char *response, size_t resp_size);
@@ -77,7 +80,7 @@ static int cmd_help(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size);
 
-// ===== ABOUT (🔥 улучшенный) =====
+// ===== ABOUT =====
 
 static int cmd_about(int argc, char *argv[],
                     long chat_id,
@@ -116,7 +119,7 @@ static int cmd_about(int argc, char *argv[],
     return 0;
 }
 
-// ===== PING (latency) =====
+// ===== PING =====
 
 static int cmd_ping(int argc, char *argv[],
                    long chat_id,
@@ -144,106 +147,6 @@ static int cmd_ping(int argc, char *argv[],
     return 0;
 }
 
-// ===== ECHO =====
-
-static int cmd_echo(int argc, char *argv[],
-                   long chat_id,
-                   char *resp, size_t size) {
-
-    (void)chat_id;
-
-    if (argc < 2) {
-        safe_write(resp, size, "*Usage:* `/echo <text>`");
-        return -1;
-    }
-
-    size_t used = 0;
-    resp[0] = '\0';
-
-    for (int i = 1; i < argc; i++) {
-        int written = snprintf(resp + used, size - used,
-                               "%s%s",
-                               argv[i],
-                               (i < argc - 1) ? " " : "");
-
-        if (written < 0 || (size_t)written >= size - used)
-            break;
-
-        used += written;
-    }
-
-    return 0;
-}
-
-// ===== STATUS =====
-
-static int cmd_status(int argc, char *argv[],
-                     long chat_id,
-                     char *resp, size_t size) {
-
-    (void)argc; (void)argv; (void)chat_id;
-
-    char tmp[1024];
-
-    if (system_get_status(tmp, sizeof(tmp)) != 0) {
-        snprintf(resp, size, "❌ Failed to get system status");
-        return -1;
-    }
-
-    snprintf(resp, size,
-        "*📊 STATUS*\n\n%s",
-        tmp
-    );
-
-    return 0;
-}
-
-// ===== SERVICES =====
-
-static int cmd_services(int argc, char *argv[],
-                       long chat_id,
-                       char *resp, size_t size) {
-
-    (void)argc; (void)argv; (void)chat_id;
-
-    char tmp[1024];
-
-    if (services_get_status(tmp, sizeof(tmp)) != 0) {
-        snprintf(resp, size, "❌ Failed to get services status");
-        return -1;
-    }
-
-    snprintf(resp, size,
-        "*🧩 SERVICES*\n\n%s",
-        tmp
-    );
-
-    return 0;
-}
-
-// ===== USERS =====
-
-static int cmd_users(int argc, char *argv[],
-                    long chat_id,
-                    char *resp, size_t size) {
-
-    (void)argc; (void)argv; (void)chat_id;
-
-    char tmp[1024];
-
-    if (users_get_logged(tmp, sizeof(tmp)) != 0) {
-        snprintf(resp, size, "❌ Failed to get users");
-        return -1;
-    }
-
-    snprintf(resp, size,
-        "*👥 USERS*\n\n%s",
-        tmp
-    );
-
-    return 0;
-}
-
 // ===== LOGS =====
 
 static int cmd_logs(int argc, char *argv[],
@@ -255,9 +158,9 @@ static int cmd_logs(int argc, char *argv[],
     if (argc < 2) {
         snprintf(resp, size,
             "*📜 LOGS MENU*\n\n"
-            "`/logs ssh` — SSH (auth, login)\n"
-            "`/logs mtg` — MTProto proxy\n"
-            "`/logs shadowsocks` — Shadowsocks\n\n"
+            "`/logs ssh` — SSH logs\n"
+            "`/logs mtg` — MTProto logs\n"
+            "`/logs shadowsocks` — Shadowsocks logs\n\n"
             "`/logs <service> <N>` — last N lines\n"
             "`/logs <service> error` — filter\n"
         );
@@ -334,17 +237,12 @@ static int cmd_reboot_confirm(int argc, char *argv[],
         return -1;
     }
 
-    log_msg(LOG_WARN, "REBOOT by chat_id=%ld", chat_id);
+    log_msg(LOG_WARN, "REBOOT requested by chat_id=%ld", chat_id);
 
-    int rc = system("reboot");
+    // 🔥 graceful shutdown trigger
+    g_shutdown_requested = 2; // 2 = reboot
 
-    if (rc == -1) {
-        log_msg(LOG_ERROR, "Failed to execute reboot");
-        snprintf(resp, size, "Reboot failed");
-        return -1;
-    }
-
-    snprintf(resp, size, "Rebooting...");
+    snprintf(resp, size, "♻️ Reboot scheduled...");
     return 0;
 }
 
@@ -355,12 +253,8 @@ static command_t commands[] = {
     {"/help", cmd_help, "Show help"},
     {"/about", cmd_about, "About bot"},
     {"/ping", cmd_ping, "Ping + latency"},
-    {"/echo", cmd_echo, "Echo text"},
-    {"/status", cmd_status, "System status"},
-    {"/services", cmd_services, "Services"},
-    {"/users", cmd_users, "Users"},
     {"/logs", cmd_logs, "Logs"},
-    {"/reboot", cmd_reboot, "Reboot"},
+    {"/reboot", cmd_reboot, "Reboot server"},
     {"/reboot_confirm", cmd_reboot_confirm, "Confirm reboot"},
 };
 
