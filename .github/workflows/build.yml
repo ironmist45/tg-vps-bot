@@ -41,7 +41,6 @@ jobs:
             # ===== build tg-bot =====
             cd /app
 
-            # 🔥 добавляем RPATH прямо при сборке
             make LDFLAGS='-Wl,-rpath,\\\$ORIGIN'
 
             # копируем .so рядом
@@ -84,13 +83,23 @@ jobs:
       - name: Run with fake config
         run: |
           cat <<EOF > test.conf
-          token=TEST
-          chat_id=123
-          log_file=./test.log
-          poll_timeout=1
-          EOF
+TOKEN=TEST
+CHAT_ID=123
+LOG_FILE=./test.log
+POLL_TIMEOUT=1
+TOKEN_TTL=10
+EOF
 
-          timeout 3s LD_LIBRARY_PATH=. ./tg-bot -c test.conf || true
+          timeout 3s env LD_LIBRARY_PATH=. ./tg-bot -c test.conf || true
+
+      - name: Check log file created
+        run: |
+          if [ ! -f test.log ]; then
+            echo "ERROR: log file not created"
+            exit 1
+          else
+            echo "OK: log file exists"
+          fi
 
       # =========================
       # ARTIFACT
