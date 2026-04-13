@@ -81,12 +81,13 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // ===== временный логгер =====
+    // ===== bootstrap логгер =====
     const char *fallback_log = "/var/log/tg-bot.log";
 
     if (logger_init(fallback_log) != 0) {
-        printf("ERROR: cannot open log file\n");
-        return 1;
+        fprintf(stderr,
+                "WARNING: cannot open %s, using stderr\n",
+                fallback_log);
     }
 
     log_msg(LOG_INFO, "========================================");
