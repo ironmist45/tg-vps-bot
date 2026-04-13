@@ -48,6 +48,7 @@ int telegram_init(const char *token) {
         return -1;
 
     strncpy(g_token, token, sizeof(g_token) - 1);
+    g_token[sizeof(g_token) - 1] = '\0';
 
     snprintf(g_base_url, sizeof(g_base_url),
              "https://api.telegram.org/bot%s", g_token);
@@ -63,7 +64,8 @@ int telegram_init(const char *token) {
 
 int telegram_send_message(long chat_id, const char *text) {
 
-    if (!text) return -1;
+    if (!text)
+        return -1;
 
     CURL *curl = curl_easy_init();
     if (!curl)
@@ -160,17 +162,19 @@ int telegram_poll() {
         for (int i = 0; i < count; i++) {
 
             cJSON *update = cJSON_GetArrayItem(result, i);
+            if (!update) continue;
 
             cJSON *update_id = cJSON_GetObjectItem(update, "update_id");
             if (update_id)
-                last_update_id = update_id->valuedouble + 1;
+                last_update_id = (long)update_id->valuedouble + 1;
 
             cJSON *message = cJSON_GetObjectItem(update, "message");
             if (!message) continue;
 
             cJSON *chat = cJSON_GetObjectItem(message, "chat");
-            cJSON *chat_id = cJSON_GetObjectItem(chat, "id");
+            if (!chat) continue;
 
+            cJSON *chat_id = cJSON_GetObjectItem(chat, "id");
             cJSON *text = cJSON_GetObjectItem(message, "text");
 
             if (!chat_id || !text || !cJSON_IsString(text))
@@ -179,7 +183,7 @@ int telegram_poll() {
             long cid = (long)chat_id->valuedouble;
             const char *msg_text = text->valuestring;
 
-            // 🔐 security check
+            // 🔐 security
             if (!security_is_allowed_chat(cid))
                 continue;
 
@@ -188,8 +192,7 @@ int telegram_poll() {
 
             char response[RESP_MAX];
 
-            // 🔥 ВОТ ГЛАВНОЕ ИЗМЕНЕНИЕ
-            if commands_handle(msg_text, cid, response, sizeof(response)); == 0) {
+            if (commands_handle(msg_text, cid, response, sizeof(response)) == 0) {
                 telegram_send_message(cid, response);
             }
         }
