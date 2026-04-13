@@ -49,7 +49,7 @@ static int cmd_start(int argc, char *argv[],
     (void)argc; (void)argv; (void)chat_id;
 
     safe_write(resp, size,
-        "tg_bot is running\n"
+        "*tg-bot is running*\n"
         "Use /help to see available commands");
 
     return 0;
@@ -63,7 +63,7 @@ static int cmd_ping(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size) {
     (void)argc; (void)argv; (void)chat_id;
-    safe_write(resp, size, "pong");
+    safe_write(resp, size, "`pong`");
     return 0;
 }
 
@@ -73,7 +73,7 @@ static int cmd_echo(int argc, char *argv[],
     (void)chat_id;
 
     if (argc < 2) {
-        safe_write(resp, size, "Usage: /echo <text>");
+        safe_write(resp, size, "*Usage:* `/echo <text>`");
         return -1;
     }
 
@@ -103,7 +103,7 @@ static int cmd_status(int argc, char *argv[],
     (void)argc; (void)argv; (void)chat_id;
 
     if (system_get_status(resp, size) != 0) {
-        snprintf(resp, size, "Failed to get system status");
+        snprintf(resp, size, "❌ Failed to get system status");
         return -1;
     }
 
@@ -118,7 +118,7 @@ static int cmd_services(int argc, char *argv[],
     (void)argc; (void)argv; (void)chat_id;
 
     if (services_get_status(resp, size) != 0) {
-        snprintf(resp, size, "Failed to get services status");
+        snprintf(resp, size, "❌ Failed to get services status");
         return -1;
     }
 
@@ -133,7 +133,7 @@ static int cmd_users(int argc, char *argv[],
     (void)argc; (void)argv; (void)chat_id;
 
     if (users_get_logged(resp, size) != 0) {
-        snprintf(resp, size, "Failed to get users");
+        snprintf(resp, size, "❌ Failed to get users");
         return -1;
     }
 
@@ -148,7 +148,7 @@ static int cmd_logs(int argc, char *argv[],
     (void)chat_id;
 
     if (argc < 2) {
-        snprintf(resp, size, "Usage: /logs <service>");
+        snprintf(resp, size, "*Usage:* `/logs <service>`");
         return -1;
     }
 
@@ -165,14 +165,15 @@ static int cmd_reboot(int argc, char *argv[],
     int token = security_generate_reboot_token(chat_id);
 
     if (token < 0) {
-        snprintf(resp, size, "Too many requests, try later");
+        snprintf(resp, size, "⏱ Too many requests, try later");
         return -1;
     }
 
     snprintf(resp, size,
-        "Reboot requested.\n"
+        "⚠️ *Reboot requested*\n"
         "Confirm with:\n"
-        "/reboot_confirm %d",
+        "`/reboot_confirm %d`\n\n"
+        "_Token valid for limited time_",
         token);
 
     return 0;
@@ -183,7 +184,7 @@ static int cmd_reboot_confirm(int argc, char *argv[],
                              char *resp, size_t size) {
 
     if (argc < 2) {
-        snprintf(resp, size, "Usage: /reboot_confirm <token>");
+        snprintf(resp, size, "*Usage:* `/reboot_confirm <token>`");
         return -1;
     }
 
@@ -191,12 +192,12 @@ static int cmd_reboot_confirm(int argc, char *argv[],
     long token = strtol(argv[1], &endptr, 10);
 
     if (*endptr != '\0') {
-        snprintf(resp, size, "Invalid token format");
+        snprintf(resp, size, "❌ Invalid token format");
         return -1;
     }
 
     if (security_validate_reboot_token(chat_id, (int)token) != 0) {
-        snprintf(resp, size, "Invalid or expired token");
+        snprintf(resp, size, "❌ Invalid or expired token");
         return -1;
     }
 
@@ -204,11 +205,11 @@ static int cmd_reboot_confirm(int argc, char *argv[],
 
     if (system("reboot") == -1) {
         log_msg(LOG_ERROR, "Failed to execute reboot");
-        snprintf(resp, size, "Reboot failed");
+        snprintf(resp, size, "❌ Reboot failed");
         return -1;
     }
 
-    snprintf(resp, size, "Rebooting...");
+    snprintf(resp, size, "♻️ Rebooting...");
     return 0;
 }
 
@@ -242,7 +243,7 @@ static int cmd_help(int argc, char *argv[],
 
     for (int i = 0; i < commands_count; i++) {
         int written = snprintf(resp + used, size - used,
-                               "%s - %s\n",
+                               "`%s` — %s\n",
                                commands[i].name,
                                commands[i].description);
 
