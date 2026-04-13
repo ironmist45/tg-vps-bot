@@ -28,7 +28,7 @@ static int get_service_status(const char *service, char *out, size_t size) {
 
     char cmd[256];
     snprintf(cmd, sizeof(cmd),
-             "systemctl is-active %s.service 2>&1", service);
+             "systemctl is-active %s.service 2>/dev/null", service);
 
     FILE *fp = popen(cmd, "r");
     if (!fp) {
@@ -47,6 +47,11 @@ static int get_service_status(const char *service, char *out, size_t size) {
     // убрать \n
     out[strcspn(out, "\n")] = 0;
 
+    // если systemctl вернул пустоту
+    if (out[0] == '\0') {
+        snprintf(out, size, "unknown");
+    }
+
     return 0;
 }
 
@@ -56,38 +61,61 @@ static void format_line(char *dst, size_t size,
                         const char *name,
                         const char *status) {
 
-    char status_fmt[32];
+    const char *icon = "⚪";
+    const char *label = status;
 
-    // делаем компактные статусы
     if (strcmp(status, "active") == 0) {
-        snprintf(status_fmt, sizeof(status_fmt), "UP");
-    } else if (strcmp(status, "inactive") == 0) {
-        snprintf(status_fmt, sizeof(status_fmt), "DOWN");
-    } else if (strcmp(status, "failed") == 0) {
-        snprintf(status_fmt, sizeof(status_fmt), "FAIL");
-    } else {
-        snprintf(status_fmt, sizeof(status_fmt), "%s", status);
+        icon = "🟢";
+        label = "running";
+    }
+    else if (strcmp(status, "inactive") == 0) {
+        icon = "🟡";
+        label = "stopped";
+    }
+    else if (strcmp(status, "failed") == 0) {
+        icon = "🔴";
+        label = "failed";
+    }
+    else if (strcmp(status, "activating") == 0) {
+        icon = "🔵";
+        label = "starting";
+    }
+    else if (strcmp(status, "deactivating") == 0) {
+        icon = "🟠";
+        label = "stopping";
+    }
+    else if (strcmp(status, "unknown") == 0) {
+        icon = "⚫";
+        label = "not found";
     }
 
-    // выравнивание (олдскульный стиль)
-    snprintf(dst, size, "%-15s : %s\n", name, status_fmt);
+    snprintf(dst, size, "%s %-12s : %s\n", icon, name, label);
 }
 
 // ===== основной API =====
 
 int services_get_status(char *buffer, size_t size) {
 
+    if (!buffer || size == 0)
+        return -1;
+
     buffer[0] = '\0';
 
-    strncat(buffer, "=== SERVICES ===\n\n", size - strlen(buffer) - 1);
+    strncat(buffer, "📦 *Services status*\n\n",
+            size - strlen(buffer) - 1);
+
+    int added = 0;
 
     for (int i = 0; i < services_count; i++) {
 
         char status[64] = {0};
         char line[128] = {0};
 
-        if (get_service_status(services[i].name, status, sizeof(status)) != 0) {
-            log_msg(LOG_WARN, "Failed to get status: %s", services[i].name);
+        if (get_service_status(services[i].name,
+                               status, sizeof(status)) != 0) {
+            log_msg(LOG_WARN,
+                    "Failed to get status: %s",
+                    services[i].name);
         }
 
         format_line(line, sizeof(line),
@@ -99,6 +127,13 @@ int services_get_status(char *buffer, size_t size) {
         }
 
         strcat(buffer, line);
+        added++;
+    }
+
+    // fallback если вдруг ничего не добавили
+    if (added == 0) {
+        strncat(buffer, "⚠️ No services available\n",
+                size - strlen(buffer) - 1);
     }
 
     return 0;
