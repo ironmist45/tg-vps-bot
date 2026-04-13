@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <pwd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include "version.h"
 #include "logger.h"
@@ -16,13 +18,54 @@
 // ===== uptime бота =====
 time_t g_start_time;
 
-// ===== SIGHUP reload =====
+// ===== сигналы =====
 static volatile sig_atomic_t g_reload_config = 0;
+volatile sig_atomic_t g_shutdown_requested = 0; // 🔥 0=none,1=restart,2=reboot
 
 // ===== signal handler =====
 static void handle_sighup(int sig) {
     (void)sig;
     g_reload_config = 1;
+}
+
+// ===== EXEC helper (без system) =====
+
+static void exec_command(const char *path, char *const argv[]) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        execv(path, argv);
+        _exit(127); // если exec не сработал
+    }
+}
+
+// ===== shutdown handler =====
+
+static void handle_shutdown() {
+
+    if (g_shutdown_requested == 1) {
+        log_msg(LOG_WARN, "Restarting bot via systemd...");
+
+        char *args[] = {
+            "/bin/systemctl",
+            "restart",
+            "tg-bot",
+            NULL
+        };
+
+        exec_command("/bin/systemctl", args);
+    }
+
+    if (g_shutdown_requested == 2) {
+        log_msg(LOG_WARN, "Rebooting system...");
+
+        char *args[] = {
+            "/sbin/reboot",
+            NULL
+        };
+
+        exec_command("/sbin/reboot", args);
+    }
 }
 
 // ===== DEBUG: user info =====
@@ -68,7 +111,7 @@ static void check_journal_access() {
 
     if (fgets(line, sizeof(line), f)) {
         if (strstr(line, "not seeing messages")) {
-            log_msg(LOG_WARN, "journalctl: NO ACCESS (need adm/systemd-journal)");
+            log_msg(LOG_WARN, "journalctl: NO ACCESS");
         } else {
             log_msg(LOG_INFO, "journalctl: access OK");
         }
@@ -79,42 +122,39 @@ static void check_journal_access() {
     pclose(f);
 }
 
-// ===== helper: проверка записи в файл =====
+// ===== helper: проверка записи =====
 
 static void check_logfile_access(const char *path) {
     FILE *f = fopen(path, "a");
     if (!f) {
-        log_msg(LOG_WARN, "No write access to log file: %s", path);
+        log_msg(LOG_WARN, "No write access: %s", path);
         return;
     }
     fclose(f);
-    log_msg(LOG_INFO, "Log file writable: %s", path);
+    log_msg(LOG_INFO, "Log writable: %s", path);
 }
 
-// ===== helper: безопасное переключение логгера =====
+// ===== logger switch =====
 
 static int try_reopen_logger(const char *path) {
     FILE *test = fopen(path, "a");
-    if (!test) {
-        return -1;
-    }
+    if (!test) return -1;
     fclose(test);
 
     logger_close();
 
-    if (logger_init(path) != 0) {
+    if (logger_init(path) != 0)
         return -1;
-    }
 
     return 0;
 }
 
-// ===== helper: единый вывод конфига =====
+// ===== config dump =====
 
 static void log_config(const config_t *cfg) {
     log_msg(LOG_INFO, "===== CONFIG =====");
     log_msg(LOG_INFO, "CHAT_ID: %ld", cfg->chat_id);
-    log_msg(LOG_INFO, "TOKEN_TTL: %d sec", cfg->token_ttl);
+    log_msg(LOG_INFO, "TOKEN_TTL: %d", cfg->token_ttl);
     log_msg(LOG_INFO, "POLL_TIMEOUT: %d", cfg->poll_timeout);
     log_msg(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
 }
@@ -150,115 +190,87 @@ int main(int argc, char *argv[]) {
     }
 
     if (args.config_path[0] == '\0') {
-        printf("Error: config file not specified\n");
-        printf("Use --help for usage\n");
+        printf("Config not specified\n");
         return 1;
     }
 
-    // ===== bootstrap логгер =====
+    // ===== bootstrap logger =====
     const char *fallback_log = "/var/log/tg-bot.log";
 
     if (logger_init(fallback_log) != 0) {
-        fprintf(stderr,
-                "WARNING: cannot open %s, using stderr\n",
-                fallback_log);
+        fprintf(stderr, "Cannot open %s\n", fallback_log);
     }
 
-    log_msg(LOG_INFO, "========================================");
-    log_msg(LOG_INFO, "Starting %s v%s (%s)",
-            APP_NAME, APP_VERSION, APP_CODENAME);
-    log_msg(LOG_INFO, "Build: %s %s", BUILD_DATE, BUILD_TIME);
-    log_msg(LOG_INFO, "Target: %s", TARGET_OS);
-    log_msg(LOG_INFO, "Config: %s", args.config_path);
-    log_msg(LOG_INFO, "Logger initialized (bootstrap): %s", fallback_log);
-
-    // 🔥 DEBUG блок
+    log_msg(LOG_INFO, "==== START ====");
     log_user_info();
     log_workdir();
     check_journal_access();
     check_logfile_access(fallback_log);
 
-    // ===== загрузка конфига =====
+    // ===== config =====
     config_t cfg;
 
     if (config_load(args.config_path, &cfg) != 0) {
-        log_msg(LOG_ERROR, "Failed to load config");
-        logger_close();
+        log_msg(LOG_ERROR, "Config load failed");
         return 1;
     }
 
-    // ===== переключение логгера =====
-    if (try_reopen_logger(cfg.log_file) != 0) {
-        log_msg(LOG_WARN,
-                "Failed to open log file: %s (using bootstrap logger)",
-                cfg.log_file);
-    } else {
-        log_msg(LOG_INFO, "Logger initialized: %s", cfg.log_file);
-        check_logfile_access(cfg.log_file);
+    if (try_reopen_logger(cfg.log_file) == 0) {
+        log_msg(LOG_INFO, "Logger switched: %s", cfg.log_file);
     }
 
     log_config(&cfg);
 
-    // ===== security init =====
     security_set_allowed_chat(cfg.chat_id);
     security_set_token_ttl(cfg.token_ttl);
 
-    // ===== Telegram init =====
     if (telegram_init(cfg.token) != 0) {
-        log_msg(LOG_ERROR, "Failed to init Telegram");
-        logger_close();
+        log_msg(LOG_ERROR, "Telegram init failed");
         return 1;
     }
 
-    log_msg(LOG_INFO, "Telegram bot started");
-    log_msg(LOG_INFO, "Entering polling loop");
+    log_msg(LOG_INFO, "Bot started");
 
-    // ===== основной цикл =====
+    // ===== LOOP =====
     while (1) {
+
+        // 🔥 shutdown handler
+        if (g_shutdown_requested) {
+            handle_shutdown();
+            break;
+        }
 
         if (g_reload_config) {
 
-            log_msg(LOG_INFO, "Reloading config (SIGHUP)...");
+            log_msg(LOG_INFO, "Reload config");
 
             config_t new_cfg;
 
             if (config_load(args.config_path, &new_cfg) == 0) {
 
                 if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
-
-                    if (try_reopen_logger(new_cfg.log_file) != 0) {
-                        log_msg(LOG_WARN,
-                                "Failed to reopen log file: %s",
-                                new_cfg.log_file);
-                    } else {
-                        log_msg(LOG_INFO, "Logger reloaded: %s", new_cfg.log_file);
-                    }
+                    try_reopen_logger(new_cfg.log_file);
                 }
 
                 security_set_allowed_chat(new_cfg.chat_id);
                 security_set_token_ttl(new_cfg.token_ttl);
 
                 cfg = new_cfg;
-
-                log_msg(LOG_INFO, "Config reloaded successfully");
                 log_config(&cfg);
-
-            } else {
-                log_msg(LOG_ERROR, "Config reload failed");
             }
 
             g_reload_config = 0;
         }
 
         if (telegram_poll() != 0) {
-            log_msg(LOG_WARN, "Polling error, retry in 5 sec");
+            log_msg(LOG_WARN, "Polling error");
             sleep(5);
-            continue;
         }
 
         usleep(200000);
     }
 
+    log_msg(LOG_INFO, "Bot stopped");
     logger_close();
     return 0;
 }
