@@ -2,6 +2,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>   // ← добавили
+#include <stdlib.h> // ← добавили
 
 #include "version.h"
 #include "logger.h"
