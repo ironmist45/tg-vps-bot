@@ -33,7 +33,7 @@ jobs:
             git clone --depth 1 --branch v1.7.15 https://github.com/DaveGamble/cJSON.git
             cd cJSON
             mkdir build && cd build
-            cmake ..
+            cmake .. -DBUILD_SHARED_LIBS=OFF
             make
             make install
             ldconfig
@@ -47,7 +47,7 @@ jobs:
             chmod +x tg-bot || true
 
             # копируем .so рядом
-            cp /usr/local/lib/libcjson.so* /app/ || true
+            # cp /usr/local/lib/libcjson.so* /app/ || true
 
             echo '[OK] build complete'
 
