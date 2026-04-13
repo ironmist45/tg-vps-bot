@@ -27,7 +27,7 @@ static void handle_sighup(int sig) {
     g_reload_config = 1;
 }
 
-// ===== SAFE EXEC (fork + exec + wait) =====
+// ===== SAFE EXEC (fork + exec + wait + debug) =====
 
 static int exec_command(const char *path, char *const argv[]) {
     pid_t pid = fork();
@@ -39,14 +39,31 @@ static int exec_command(const char *path, char *const argv[]) {
 
     if (pid == 0) {
         execv(path, argv);
+
+        // если exec не сработал
         perror("exec failed");
         _exit(127);
     }
 
     int status = 0;
-    waitpid(pid, &status, 0);
 
-    return status;
+    if (waitpid(pid, &status, 0) < 0) {
+        log_msg(LOG_ERROR, "waitpid() failed");
+        return -1;
+    }
+
+    if (WIFEXITED(status)) {
+        int code = WEXITSTATUS(status);
+        log_msg(LOG_INFO, "Command exited with code: %d", code);
+        return code;
+    }
+
+    if (WIFSIGNALED(status)) {
+        log_msg(LOG_ERROR, "Command killed by signal: %d", WTERMSIG(status));
+        return -1;
+    }
+
+    return -1;
 }
 
 // ===== SHUTDOWN HANDLER =====
@@ -58,7 +75,6 @@ static void handle_shutdown() {
         log_msg(LOG_WARN, "Restarting bot via systemd...");
 
         char *args[] = {
-            "/usr/bin/sudo",
             "sudo",
             "/bin/systemctl",
             "restart",
@@ -66,7 +82,11 @@ static void handle_shutdown() {
             NULL
         };
 
-        exec_command("/usr/bin/sudo", args);
+        int rc = exec_command("/usr/bin/sudo", args);
+
+        if (rc != 0) {
+            log_msg(LOG_ERROR, "systemctl restart failed (rc=%d)", rc);
+        }
     }
 
     if (g_shutdown_requested == 2) {
@@ -74,13 +94,16 @@ static void handle_shutdown() {
         log_msg(LOG_WARN, "Rebooting system...");
 
         char *args[] = {
-            "/usr/bin/sudo",
             "sudo",
             "/sbin/reboot",
             NULL
         };
 
-        exec_command("/usr/bin/sudo", args);
+        int rc = exec_command("/usr/bin/sudo", args);
+
+        if (rc != 0) {
+            log_msg(LOG_ERROR, "reboot failed (rc=%d)", rc);
+        }
     }
 }
 
