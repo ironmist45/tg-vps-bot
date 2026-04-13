@@ -1,108 +1,144 @@
 #include "system.h"
+#include "logger.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/sysinfo.h>
-#include <sys/statvfs.h>
 #include <unistd.h>
 
-// ===== helpers =====
+// ===== CPU load =====
 
-static void format_uptime(long seconds, char *buf, size_t size) {
-    int days = seconds / 86400;
-    int hours = (seconds % 86400) / 3600;
-    int mins = (seconds % 3600) / 60;
+static void get_load(double *l1, double *l5, double *l15) {
+    double loads[3] = {0};
 
-    snprintf(buf, size, "%dd %dh %dm", days, hours, mins);
+    if (getloadavg(loads, 3) == -1) {
+        *l1 = *l5 = *l15 = 0.0;
+        log_msg(LOG_WARN, "getloadavg() failed");
+        return;
+    }
+
+    *l1  = loads[0];
+    *l5  = loads[1];
+    *l15 = loads[2];
+}
+
+// ===== memory =====
+
+static void get_memory(int *used_mb, int *total_mb, int *percent) {
+    FILE *fp = fopen("/proc/meminfo", "r");
+    if (!fp) {
+        log_msg(LOG_ERROR, "Failed to open /proc/meminfo");
+        *used_mb = *total_mb = *percent = 0;
+        return;
+    }
+
+    long mem_total = 0;
+    long mem_available = 0;
+
+    char key[64];
+    long value;
+    char unit[16];
+
+    while (fscanf(fp, "%63s %ld %15s\n", key, &value, unit) == 3) {
+        if (strcmp(key, "MemTotal:") == 0) {
+            mem_total = value;
+        } else if (strcmp(key, "MemAvailable:") == 0) {
+            mem_available = value;
+        }
+
+        if (mem_total && mem_available)
+            break;
+    }
+
+    fclose(fp);
+
+    if (mem_total == 0) {
+        *used_mb = *total_mb = *percent = 0;
+        return;
+    }
+
+    long used = mem_total - mem_available;
+
+    *total_mb = (int)(mem_total / 1024);
+    *used_mb  = (int)(used / 1024);
+    *percent  = (int)((used * 100) / mem_total);
+}
+
+// ===== uptime =====
+
+static void get_uptime(int *days, int *hours, int *mins) {
+    FILE *fp = fopen("/proc/uptime", "r");
+    if (!fp) {
+        *days = *hours = *mins = 0;
+        return;
+    }
+
+    double uptime_sec = 0;
+
+    if (fscanf(fp, "%lf", &uptime_sec) != 1) {
+        fclose(fp);
+        *days = *hours = *mins = 0;
+        return;
+    }
+
+    fclose(fp);
+
+    int total = (int)uptime_sec;
+
+    *days  = total / 86400;
+    *hours = (total % 86400) / 3600;
+    *mins  = (total % 3600) / 60;
+}
+
+// ===== users =====
+
+static int get_user_count() {
+    FILE *fp = popen("who | wc -l", "r");
+    if (!fp) {
+        log_msg(LOG_WARN, "popen(who) failed");
+        return 0;
+    }
+
+    int users = 0;
+
+    if (fscanf(fp, "%d", &users) != 1) {
+        users = 0;
+    }
+
+    pclose(fp);
+
+    return users;
 }
 
 // ===== main API =====
 
 int system_get_status(char *buffer, size_t size) {
 
-    // ===== CPU LOAD =====
-    double load1, load5, load15;
-    getloadavg(&load1, &load5, &load15);
+    double l1, l5, l15;
+    get_load(&l1, &l5, &l15);
 
-    // ===== MEMORY =====
-    long total = 0;
-    long available = 0;
+    int used, total, percent;
+    get_memory(&used, &total, &percent);
 
-    FILE *f = fopen("/proc/meminfo", "r");
-    if (!f) return -1;
+    int days, hours, mins;
+    get_uptime(&days, &hours, &mins);
 
-    char key[64];
-    long value;
-    char unit[16];
-
-    while (fscanf(f, "%63s %ld %15s\n", key, &value, unit) == 3) {
-
-        if (strcmp(key, "MemTotal:") == 0)
-            total = value;
-        else if (strcmp(key, "MemAvailable:") == 0)
-            available = value;
-    }
-
-    fclose(f);
-
-    total /= 1024;
-    available /= 1024;
-
-    long used = total - available;
-    int mem_percent = (total > 0) ? (used * 100 / total) : 0;
-
-    // ===== DISK =====
-    struct statvfs stat;
-
-    long disk_total = 0;
-    long disk_used = 0;
-    int disk_percent = 0;
-
-    if (statvfs("/", &stat) == 0) {
-        disk_total = (stat.f_blocks * stat.f_frsize) / (1024 * 1024 * 1024);
-        disk_used =
-            ((stat.f_blocks - stat.f_bfree) * stat.f_frsize) /
-            (1024 * 1024 * 1024);
-
-        if (disk_total > 0)
-            disk_percent = (disk_used * 100) / disk_total;
-    }
-
-    // ===== UPTIME =====
-    struct sysinfo info;
-    sysinfo(&info);
-
-    char uptime_str[64];
-    format_uptime(info.uptime, uptime_str, sizeof(uptime_str));
-
-    // ===== USERS =====
-    int users = 0;
-    FILE *who = popen("who | wc -l", "r");
-    if (who) {
-        fscanf(who, "%d", &users);
-        pclose(who);
-    }
-
-    // ===== FINAL OUTPUT =====
+    int users = get_user_count();
 
     snprintf(buffer, size,
-        "📊 STATUS\n\n"
-        "🧠 CPU Load:\n"
-        "1m: %.2f | 5m: %.2f | 15m: %.2f\n\n"
-        "💾 Memory:\n"
-        "%ld / %ld MB (%d%%)\n\n"
-        "💽 Disk (/):\n"
-        "%ld / %ld GB (%d%%)\n\n"
-        "⏱ Uptime:\n"
-        "%s\n\n"
-        "👥 Users:\n"
-        "%d logged in",
-        load1, load5, load15,
-        used, total, mem_percent,
-        disk_used, disk_total, disk_percent,
-        uptime_str,
-        users
+        "🖥 *System*\n"
+        "Uptime: `%dd %dh %dm`\n"
+        "Users: `%d`\n\n"
+
+        "⚡ *CPU Load*\n"
+        "1m: `%.2f`  5m: `%.2f`  15m: `%.2f`\n\n"
+
+        "💾 *Memory*\n"
+        "%d / %d MB (%d%%)",
+        days, hours, mins,
+        users,
+        l1, l5, l15,
+        used, total, percent
     );
 
     return 0;
