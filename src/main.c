@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>   // ← добавили
 
 #include "version.h"
 #include "logger.h"
@@ -9,6 +10,8 @@
 #include "telegram.h"
 
 int main(int argc, char *argv[]) {
+
+    srand(time(NULL));  // ← инициализация RNG
 
     cli_args_t args;
 
