@@ -17,6 +17,14 @@
 static char g_token[128];
 static char g_base_url[512];
 
+// ===== discard callback (глушим ответ curl) =====
+
+static size_t discard_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
+    (void)ptr;
+    (void)userdata;
+    return size * nmemb;
+}
+
 // ===== escape MarkdownV2 (оставляем *) =====
 
 static void escape_markdown(const char *src, char *dst, size_t size) {
@@ -119,6 +127,9 @@ int telegram_send_message(long chat_id, const char *text) {
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
 
+    // 🔥 FIX: отключаем вывод ответа в stdout
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback);
+
     CURLcode res = curl_easy_perform(curl);
 
     if (res != CURLE_OK) {
@@ -158,6 +169,9 @@ int telegram_send_plain(long chat_id, const char *text) {
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
+
+    // 🔥 FIX: отключаем вывод ответа в stdout
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback);
 
     CURLcode res = curl_easy_perform(curl);
 
@@ -246,7 +260,7 @@ int telegram_poll() {
 
             if (commands_handle(msg_text, cid, response, sizeof(response)) == 0) {
 
-                // 🔥 FIX: logs без Markdown
+                // logs без Markdown
                 if (strncmp(msg_text, "/logs", 5) == 0) {
                     telegram_send_plain(cid, response);
                 } else {
