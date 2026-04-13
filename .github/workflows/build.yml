@@ -13,47 +13,99 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # =========================
+      # BUILD (Ubuntu 18.04)
+      # =========================
       - name: Build in Ubuntu 18.04 container
         run: |
           docker run --rm -v $PWD:/app -w /app ubuntu:18.04 bash -c "
             set -e
 
-            echo '[INFO] Updating packages'
+            echo '[INFO] apt update'
             apt update
 
-            echo '[INFO] Installing dependencies'
+            echo '[INFO] install deps'
             apt install -y \
               build-essential \
               libcurl4-openssl-dev \
               git \
               cmake
 
-            echo '[INFO] Building cJSON'
+            echo '[INFO] build cJSON'
             cd /tmp
-            git clone https://github.com/DaveGamble/cJSON.git
+            git clone --depth 1 --branch v1.7.15 https://github.com/DaveGamble/cJSON.git
             cd cJSON
             mkdir build && cd build
             cmake ..
             make
             make install
-
-            echo '[INFO] Running ldconfig'
             ldconfig
 
-            echo '[INFO] Building tg-bot'
+            echo '[INFO] build tg-bot'
             cd /app
             make
 
-            echo '[INFO] Build finished'
+            echo '[INFO] copy libcjson'
+            cp /usr/local/lib/libcjson.so* /app/
+
+            echo '[INFO] done'
           "
 
-      - name: Check binary
+      # =========================
+      # BASIC CHECKS
+      # =========================
+      - name: Check binary exists
         run: |
           ls -l tg-bot
+
+      - name: Check binary type
+        run: |
           file tg-bot
 
-      - name: Upload binary
+      - name: Check dependencies
+        run: |
+          ldd tg-bot || true
+
+      # =========================
+      # SMOKE TESTS
+      # =========================
+      - name: Run version
+        run: |
+          ./tg-bot --version
+
+      - name: Run help
+        run: |
+          ./tg-bot --help
+
+      - name: Run without config (should fail)
+        run: |
+          if ./tg-bot 2>/dev/null; then
+            echo "ERROR: bot should not start without config"
+            exit 1
+          else
+            echo "OK: failed without config"
+          fi
+
+      - name: Run with fake config (init test)
+        run: |
+          cat <<EOF > test.conf
+          token=TEST_TOKEN
+          chat_id=123456
+          log_file=./test.log
+          poll_timeout=1
+          EOF
+
+          timeout 3s ./tg-bot -c test.conf || true
+
+          echo "Process executed (expected exit or timeout)"
+
+      # =========================
+      # ARTIFACT
+      # =========================
+      - name: Upload binary + libs
         uses: actions/upload-artifact@v4
         with:
           name: tg-bot
-          path: tg-bot
+          path: |
+            tg-bot
+            libcjson.so*
