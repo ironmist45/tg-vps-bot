@@ -1,18 +1,65 @@
-CC=gcc
-CFLAGS=-Wall -Wextra -std=c99
+# ===== Project =====
 
-VERSION=$(shell cat VERSION)
-CFLAGS += -DAPP_VERSION=\"$(VERSION)\"
+TARGET := tg-bot
+CC := gcc
 
-SRC=$(wildcard src/*.c)
-OBJ=$(SRC:.c=.o)
+# ===== Directories =====
 
-TARGET=tg_bot
+SRC_DIR := src
+INC_DIR := include
+BUILD_DIR := build
+
+# ===== Sources =====
+
+SRCS := $(wildcard $(SRC_DIR)/*.c)
+OBJS := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
+
+# ===== Flags =====
+
+CFLAGS := -Wall -Wextra -std=c11 -O2 -I$(INC_DIR)
+LDFLAGS := -lcurl -lcjson
+
+# ===== Default =====
 
 all: $(TARGET)
 
-$(TARGET): $(OBJ)
-	$(CC) -o $@ $^ -lcurl -lcjson
+# ===== Build =====
+
+$(TARGET): $(OBJS)
+	@echo "[LD] $@"
+	$(CC) $(OBJS) -o $@ $(LDFLAGS)
+
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(BUILD_DIR)
+	@echo "[CC] $<"
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# ===== Run =====
+
+run: $(TARGET)
+	./$(TARGET) -c config/config.conf
+
+# ===== Debug =====
+
+debug: CFLAGS += -g -O0
+debug: clean all
+
+# ===== Clean =====
 
 clean:
-	rm -f $(OBJ) $(TARGET)
+	@echo "[CLEAN]"
+	rm -rf $(BUILD_DIR) $(TARGET)
+
+# ===== Install (optional) =====
+
+install: $(TARGET)
+	@echo "[INSTALL]"
+	sudo cp $(TARGET) /usr/local/bin/$(TARGET)
+
+uninstall:
+	@echo "[UNINSTALL]"
+	sudo rm -f /usr/local/bin/$(TARGET)
+
+# ===== Phony =====
+
+.PHONY: all clean run debug install uninstall
