@@ -64,7 +64,6 @@ void logger_close() {
         log_file = NULL;
     }
 
-    // сбрасываем fallback
     log_to_stderr = 0;
 }
 
@@ -72,13 +71,12 @@ void logger_close() {
 
 void log_msg(log_level_t level, const char *fmt, ...) {
 
-    FILE *out = log_file;
+    FILE *file_out = log_file;
+    FILE *console_out = stderr;
 
-    if (!out && log_to_stderr) {
-        out = stderr;
+    if (!file_out && !log_to_stderr) {
+        return;
     }
-
-    if (!out) return;
 
     char timestamp[32];
     get_timestamp(timestamp, sizeof(timestamp));
@@ -106,17 +104,37 @@ void log_msg(log_level_t level, const char *fmt, ...) {
         }
     }
 
-    // запись + проверка
-    if (fprintf(out, "[%s] [%s] %s\n",
-                timestamp,
-                level_to_string(level),
-                message) < 0) {
+    // ===== запись в файл =====
+    if (file_out) {
+        if (fprintf(file_out, "[%s] [%s] %s\n",
+                    timestamp,
+                    level_to_string(level),
+                    message) < 0) {
 
-        // fallback если запись в файл сломалась
-        if (out != stderr) {
-            fprintf(stderr, "[LOGGER ERROR] write failed\n");
+            fprintf(stderr, "[LOGGER ERROR] write to file failed\n");
         }
+
+        fflush(file_out);
     }
 
-    fflush(out);
+    // ===== fallback если файла нет =====
+    if (!file_out && log_to_stderr) {
+        fprintf(stderr, "[%s] [%s] %s\n",
+                timestamp,
+                level_to_string(level),
+                message);
+
+        fflush(stderr);
+        return;
+    }
+
+    // ===== дублирование в консоль =====
+    if (console_out) {
+        fprintf(console_out, "[%s] [%s] %s\n",
+                timestamp,
+                level_to_string(level),
+                message);
+
+        fflush(console_out);
+    }
 }
