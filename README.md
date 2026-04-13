@@ -94,8 +94,22 @@ The bot runs as a daemon and provides real-time access to system status, service
 - README стал “GitHub-ready”
 
 ---
+## 🚀 Release v1.2.6 (Orion)
 
-В планах:
-- сделать **бейджи (build passing, version)**  
-- оформить **релиз на GitHub**
-- или сделать README как у топовых open-source проектов 😎
+### ✨ Features
+- /logs с фильтрами и алиасами
+- улучшенный /status
+- latency в /ping
+
+### 🛠 Fixes
+- исправлен getloadavg
+- фикс логов shadowsocks
+- исправлены warnings
+
+### 🔐 Security
+- whitelist сервисов
+- защита reboot через токен
+
+### 📦 Build
+- static binary
+- tested on Ubuntu 18.04
