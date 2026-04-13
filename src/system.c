@@ -66,7 +66,7 @@ static int get_uptime(char *buf, size_t size) {
 
     fclose(f);
 
-    int days = seconds / 86400;
+    int days = (int)(seconds / 86400);
     int hours = ((int)seconds % 86400) / 3600;
     int minutes = ((int)seconds % 3600) / 60;
 
@@ -74,7 +74,7 @@ static int get_uptime(char *buf, size_t size) {
     return 0;
 }
 
-// ===== STATUS HELPERS =====
+// ===== STATUS =====
 
 static const char *status_emoji(int percent) {
     if (percent < 50) return "🟢";
@@ -88,26 +88,31 @@ static int get_cpu(char *buf, size_t size, int *out_percent) {
     FILE *f = fopen("/proc/stat", "r");
     if (!f) return -1;
 
-    long user, nice, system, idle;
-    long iowait, irq, softirq;
+    long user, nice, system, idle, iowait, irq, softirq;
 
-    fscanf(f, "cpu %ld %ld %ld %ld %ld %ld %ld",
-           &user, &nice, &system, &idle,
-           &iowait, &irq, &softirq);
+    if (fscanf(f, "cpu %ld %ld %ld %ld %ld %ld %ld",
+               &user, &nice, &system, &idle,
+               &iowait, &irq, &softirq) != 7) {
+        fclose(f);
+        return -1;
+    }
 
     fclose(f);
 
     long total1 = user + nice + system + idle + iowait + irq + softirq;
     long idle1 = idle + iowait;
 
-    usleep(100000); // 100ms
+    usleep(100000);
 
     f = fopen("/proc/stat", "r");
     if (!f) return -1;
 
-    fscanf(f, "cpu %ld %ld %ld %ld %ld %ld %ld",
-           &user, &nice, &system, &idle,
-           &iowait, &irq, &softirq);
+    if (fscanf(f, "cpu %ld %ld %ld %ld %ld %ld %ld",
+               &user, &nice, &system, &idle,
+               &iowait, &irq, &softirq) != 7) {
+        fclose(f);
+        return -1;
+    }
 
     fclose(f);
 
@@ -117,7 +122,7 @@ static int get_cpu(char *buf, size_t size, int *out_percent) {
     long total_diff = total2 - total1;
     long idle_diff = idle2 - idle1;
 
-    if (total_diff == 0) return -1;
+    if (total_diff <= 0) return -1;
 
     int usage = (int)((100 * (total_diff - idle_diff)) / total_diff);
 
@@ -141,10 +146,10 @@ static int get_memory(char *buf, size_t size, int *out_percent) {
     char line[256];
 
     while (fgets(line, sizeof(line), f)) {
-        if (sscanf(line, "MemTotal: %ld kB", &total) == 1) continue;
-        if (sscanf(line, "MemFree: %ld kB", &free) == 1) continue;
-        if (sscanf(line, "Buffers: %ld kB", &buffers) == 1) continue;
-        if (sscanf(line, "Cached: %ld kB", &cached) == 1) continue;
+        sscanf(line, "MemTotal: %ld kB", &total);
+        sscanf(line, "MemFree: %ld kB", &free);
+        sscanf(line, "Buffers: %ld kB", &buffers);
+        sscanf(line, "Cached: %ld kB", &cached);
     }
 
     fclose(f);
@@ -178,6 +183,8 @@ static int get_disk(char *buf, size_t size, int *out_percent) {
     unsigned long total = vfs.f_blocks * vfs.f_frsize;
     unsigned long free = vfs.f_bfree * vfs.f_frsize;
 
+    if (total == 0) return -1;
+
     unsigned long used = total - free;
 
     int percent = (int)((used * 100) / total);
@@ -186,8 +193,8 @@ static int get_disk(char *buf, size_t size, int *out_percent) {
     snprintf(buf, size,
              "%s %lu / %lu GB (%d%%)",
              status_emoji(percent),
-             used / (1024*1024*1024),
-             total / (1024*1024*1024),
+             used / (1024UL*1024*1024),
+             total / (1024UL*1024*1024),
              percent);
 
     return 0;
@@ -201,19 +208,30 @@ static int get_loadavg(char *buf, size_t size) {
 
     double l1, l5, l15;
 
-    fscanf(f, "%lf %lf %lf", &l1, &l5, &l15);
+    if (fscanf(f, "%lf %lf %lf", &l1, &l5, &l15) != 3) {
+        fclose(f);
+        return -1;
+    }
+
     fclose(f);
 
-    const char *emoji = (l1 < 1.0) ? "🟢" : (l1 < 2.0) ? "🟡" : "🔴";
+    int cores = sysconf(_SC_NPROCESSORS_ONLN);
+    if (cores <= 0) cores = 1;
+
+    double ratio = l1 / cores;
+
+    const char *emoji =
+        (ratio < 0.7) ? "🟢" :
+        (ratio < 1.2) ? "🟡" : "🔴";
 
     snprintf(buf, size,
-             "%s %.2f / %.2f / %.2f",
-             emoji, l1, l5, l15);
+             "%s %.2f / %.2f / %.2f (cores:%d)",
+             emoji, l1, l5, l15, cores);
 
     return 0;
 }
 
-// ===== HEALTH SCORE =====
+// ===== HEALTH =====
 
 static const char *health_label(int score) {
     if (score > 80) return "🟢 HEALTHY";
@@ -225,8 +243,14 @@ static const char *health_label(int score) {
 
 int system_get_status(char *buf, size_t size) {
 
-    char hostname[128], kernel[128], uptime[128];
-    char cpu[64], memory[128], disk[128], load[128];
+    char hostname[128] = "unknown";
+    char kernel[128]   = "unknown";
+    char uptime[128]   = "unknown";
+
+    char cpu[64]    = "unknown";
+    char memory[128]= "unknown";
+    char disk[128]  = "unknown";
+    char load[128]  = "unknown";
 
     int cpu_p = 0, mem_p = 0, disk_p = 0;
 
@@ -239,13 +263,11 @@ int system_get_status(char *buf, size_t size) {
     get_disk(disk, sizeof(disk), &disk_p);
     get_loadavg(load, sizeof(load));
 
-    // ===== health score =====
-    int score = 100 - ((cpu_p + mem_p + disk_p) / 3);
+    // 🔥 smarter health score (CPU вес больше)
+    int score = 100 - ((cpu_p * 2 + mem_p + disk_p) / 4);
     if (score < 0) score = 0;
 
     const char *health = health_label(score);
-
-    // ===== format =====
 
     snprintf(buf, size,
         "*📊 SYSTEM STATUS*\n\n"
