@@ -12,15 +12,15 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
-#include <signal.h>   // ✅ FIX
+#include <signal.h>
 
 #define MAX_ARGS 8
 #define RESP_MAX 8192
 
 extern time_t g_start_time;
-
-// 🔥 graceful shutdown flag
 extern volatile sig_atomic_t g_shutdown_requested;
+
+// ===== types =====
 
 typedef int (*command_handler_t)(int argc, char *argv[],
                                 long chat_id,
@@ -47,8 +47,8 @@ static int split_args(char *input, char *argv[], int max_args) {
 // ===== START =====
 
 static int cmd_start(int argc, char *argv[],
-                     long chat_id,
-                     char *resp, size_t size) {
+                    long chat_id,
+                    char *resp, size_t size) {
 
     (void)argc; (void)argv; (void)chat_id;
 
@@ -155,11 +155,12 @@ static int cmd_logs(int argc, char *argv[],
     if (argc < 2) {
         snprintf(resp, size,
             "*📜 LOGS MENU*\n\n"
-            "`/logs ssh` — SSH logs\n"
-            "`/logs mtg` — MTProto logs\n"
+            "`/logs ssh` — SSH (auth, login logs)\n"
+            "`/logs mtg` — MTProto proxy logs\n"
             "`/logs shadowsocks` — Shadowsocks logs\n\n"
-            "`/logs <service> <N>` — last N lines\n"
-            "`/logs <service> error` — filter\n"
+            "*Examples:*\n"
+            "`/logs ssh 100`\n"
+            "`/logs ssh error`\n"
         );
         return 0;
     }
@@ -173,8 +174,10 @@ static int cmd_logs(int argc, char *argv[],
                                argv[i],
                                (i < argc - 1) ? " " : "");
 
-        if (written < 0 || (size_t)written >= sizeof(args) - used)
+        if (written < 0 || (size_t)written >= sizeof(args) - used) {
+            log_msg(LOG_WARN, "logs args truncated");
             break;
+        }
 
         used += written;
     }
@@ -236,7 +239,6 @@ static int cmd_reboot_confirm(int argc, char *argv[],
 
     log_msg(LOG_WARN, "REBOOT requested by chat_id=%ld", chat_id);
 
-    // 🔥 graceful shutdown trigger
     g_shutdown_requested = 2;
 
     snprintf(resp, size, "♻️ Reboot scheduled...");
@@ -250,7 +252,7 @@ static command_t commands[] = {
     {"/help", cmd_help, "Show help"},
     {"/about", cmd_about, "About bot"},
     {"/ping", cmd_ping, "Ping + latency"},
-    {"/logs", cmd_logs, "Logs"},
+    {"/logs", cmd_logs, "Show logs"},
     {"/reboot", cmd_reboot, "Reboot server"},
     {"/reboot_confirm", cmd_reboot_confirm, "Confirm reboot"},
 };
