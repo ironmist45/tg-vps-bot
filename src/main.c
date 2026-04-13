@@ -15,60 +15,76 @@
 #include "telegram.h"
 #include "security.h"
 
-// ===== uptime бота =====
+// ===== uptime =====
 time_t g_start_time;
 
-// ===== сигналы =====
+// ===== signals =====
 static volatile sig_atomic_t g_reload_config = 0;
-volatile sig_atomic_t g_shutdown_requested = 0; // 🔥 0=none,1=restart,2=reboot
+volatile sig_atomic_t g_shutdown_requested = 0; // 0=none,1=restart,2=reboot
 
-// ===== signal handler =====
 static void handle_sighup(int sig) {
     (void)sig;
     g_reload_config = 1;
 }
 
-// ===== EXEC helper (без system) =====
+// ===== SAFE EXEC (fork + exec + wait) =====
 
-static void exec_command(const char *path, char *const argv[]) {
+static int exec_command(const char *path, char *const argv[]) {
     pid_t pid = fork();
+
+    if (pid < 0) {
+        log_msg(LOG_ERROR, "fork() failed");
+        return -1;
+    }
 
     if (pid == 0) {
         execv(path, argv);
-        _exit(127); // если exec не сработал
+        perror("exec failed");
+        _exit(127);
     }
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+
+    return status;
 }
 
-// ===== shutdown handler =====
+// ===== SHUTDOWN HANDLER =====
 
 static void handle_shutdown() {
 
     if (g_shutdown_requested == 1) {
+
         log_msg(LOG_WARN, "Restarting bot via systemd...");
 
         char *args[] = {
+            "/usr/bin/sudo",
+            "sudo",
             "/bin/systemctl",
             "restart",
             "tg-bot",
             NULL
         };
 
-        exec_command("/bin/systemctl", args);
+        exec_command("/usr/bin/sudo", args);
     }
 
     if (g_shutdown_requested == 2) {
+
         log_msg(LOG_WARN, "Rebooting system...");
 
         char *args[] = {
+            "/usr/bin/sudo",
+            "sudo",
             "/sbin/reboot",
             NULL
         };
 
-        exec_command("/sbin/reboot", args);
+        exec_command("/usr/bin/sudo", args);
     }
 }
 
-// ===== DEBUG: user info =====
+// ===== DEBUG =====
 
 static void log_user_info() {
     uid_t uid = getuid();
@@ -78,34 +94,23 @@ static void log_user_info() {
     struct passwd *epw = getpwuid(euid);
 
     log_msg(LOG_INFO, "User UID: %d (%s)",
-            uid,
-            pw ? pw->pw_name : "unknown");
+            uid, pw ? pw->pw_name : "unknown");
 
     log_msg(LOG_INFO, "Effective UID: %d (%s)",
-            euid,
-            epw ? epw->pw_name : "unknown");
+            euid, epw ? epw->pw_name : "unknown");
 }
-
-// ===== DEBUG: cwd =====
 
 static void log_workdir() {
     char buf[256];
     if (getcwd(buf, sizeof(buf))) {
         log_msg(LOG_INFO, "Working directory: %s", buf);
-    } else {
-        log_msg(LOG_WARN, "Failed to get working directory");
     }
 }
-
-// ===== DEBUG: journalctl access =====
 
 static void check_journal_access() {
     FILE *f = popen("journalctl -n 1 --no-pager 2>&1", "r");
 
-    if (!f) {
-        log_msg(LOG_WARN, "journalctl check failed (popen)");
-        return;
-    }
+    if (!f) return;
 
     char line[256];
 
@@ -115,14 +120,10 @@ static void check_journal_access() {
         } else {
             log_msg(LOG_INFO, "journalctl: access OK");
         }
-    } else {
-        log_msg(LOG_WARN, "journalctl: no output");
     }
 
     pclose(f);
 }
-
-// ===== helper: проверка записи =====
 
 static void check_logfile_access(const char *path) {
     FILE *f = fopen(path, "a");
@@ -131,25 +132,20 @@ static void check_logfile_access(const char *path) {
         return;
     }
     fclose(f);
-    log_msg(LOG_INFO, "Log writable: %s", path);
 }
 
-// ===== logger switch =====
+// ===== LOGGER SWITCH =====
 
 static int try_reopen_logger(const char *path) {
-    FILE *test = fopen(path, "a");
-    if (!test) return -1;
-    fclose(test);
+    FILE *f = fopen(path, "a");
+    if (!f) return -1;
+    fclose(f);
 
     logger_close();
-
-    if (logger_init(path) != 0)
-        return -1;
-
-    return 0;
+    return logger_init(path);
 }
 
-// ===== config dump =====
+// ===== CONFIG LOG =====
 
 static void log_config(const config_t *cfg) {
     log_msg(LOG_INFO, "===== CONFIG =====");
@@ -159,21 +155,19 @@ static void log_config(const config_t *cfg) {
     log_msg(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
 }
 
-// ===== main =====
+// ===== MAIN =====
 
 int main(int argc, char *argv[]) {
 
     srand(time(NULL));
     g_start_time = time(NULL);
 
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
+    struct sigaction sa = {0};
     sa.sa_handler = handle_sighup;
     sigaction(SIGHUP, &sa, NULL);
 
     cli_args_t args;
 
-    // ===== CLI =====
     if (cli_parse(argc, argv, &args) != 0) {
         printf("Invalid arguments\n");
         return 1;
@@ -194,12 +188,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // ===== bootstrap logger =====
     const char *fallback_log = "/var/log/tg-bot.log";
 
-    if (logger_init(fallback_log) != 0) {
-        fprintf(stderr, "Cannot open %s\n", fallback_log);
-    }
+    logger_init(fallback_log);
 
     log_msg(LOG_INFO, "==== START ====");
     log_user_info();
@@ -207,7 +198,6 @@ int main(int argc, char *argv[]) {
     check_journal_access();
     check_logfile_access(fallback_log);
 
-    // ===== config =====
     config_t cfg;
 
     if (config_load(args.config_path, &cfg) != 0) {
@@ -232,9 +222,9 @@ int main(int argc, char *argv[]) {
     log_msg(LOG_INFO, "Bot started");
 
     // ===== LOOP =====
+
     while (1) {
 
-        // 🔥 shutdown handler
         if (g_shutdown_requested) {
             handle_shutdown();
             break;
