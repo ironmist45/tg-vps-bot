@@ -6,6 +6,7 @@
 #define TARGET_OS   "Ubuntu 18.04.6 LTS x86_64"
 
 // 🔥 новые поля
+#define APP_CODENAME    "Sentinel"
 #define APP_YEAR    "2026"
 #define APP_AUTHOR  "dedoverde"
 
