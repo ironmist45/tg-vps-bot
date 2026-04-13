@@ -49,6 +49,7 @@ static void safe_write(char *dst, size_t size, const char *text) {
 
 // ===== команды =====
 
+// ---------- START ----------
 static int cmd_start(int argc, char *argv[],
                      long chat_id,
                      char *resp, size_t size) {
@@ -61,9 +62,10 @@ static int cmd_start(int argc, char *argv[],
     }
 
     snprintf(resp, size,
-        "*tg-bot v%s (%s) is running*\n\n"
+        "*%s v%s (%s)* is running 🚀\n\n"
         "%s\n\n"
-        "Use /help to see available commands",
+        "👉 Use /help to see commands",
+        APP_NAME,
         APP_VERSION,
         APP_CODENAME,
         status
@@ -72,10 +74,12 @@ static int cmd_start(int argc, char *argv[],
     return 0;
 }
 
+// ---------- HELP ----------
 static int cmd_help(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size);
 
+// ---------- ABOUT ----------
 static int cmd_about(int argc, char *argv[],
                     long chat_id,
                     char *resp, size_t size) {
@@ -108,14 +112,35 @@ static int cmd_about(int argc, char *argv[],
     return 0;
 }
 
+// ---------- PING (УЛУЧШЕННЫЙ) ----------
 static int cmd_ping(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size) {
     (void)argc; (void)argv; (void)chat_id;
-    safe_write(resp, size, "`pong`");
+
+    struct timespec start, end;
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    // имитация "обработки"
+    usleep(1000); // 1 ms
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    long ms =
+        (end.tv_sec - start.tv_sec) * 1000 +
+        (end.tv_nsec - start.tv_nsec) / 1000000;
+
+    snprintf(resp, size,
+        "🏓 *Pong!*\n"
+        "Latency: `%ld ms`",
+        ms
+    );
+
     return 0;
 }
 
+// ---------- ECHO ----------
 static int cmd_echo(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size) {
@@ -144,8 +169,7 @@ static int cmd_echo(int argc, char *argv[],
     return 0;
 }
 
-// ===== STATUS =====
-
+// ---------- STATUS ----------
 static int cmd_status(int argc, char *argv[],
                      long chat_id,
                      char *resp, size_t size) {
@@ -159,8 +183,7 @@ static int cmd_status(int argc, char *argv[],
     return 0;
 }
 
-// ===== SERVICES =====
-
+// ---------- SERVICES ----------
 static int cmd_services(int argc, char *argv[],
                        long chat_id,
                        char *resp, size_t size) {
@@ -174,8 +197,7 @@ static int cmd_services(int argc, char *argv[],
     return 0;
 }
 
-// ===== USERS =====
-
+// ---------- USERS ----------
 static int cmd_users(int argc, char *argv[],
                     long chat_id,
                     char *resp, size_t size) {
@@ -189,8 +211,7 @@ static int cmd_users(int argc, char *argv[],
     return 0;
 }
 
-// ===== LOGS =====
-
+// ---------- LOGS ----------
 static int cmd_logs(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size) {
@@ -204,8 +225,7 @@ static int cmd_logs(int argc, char *argv[],
     return logs_get(argv[1], resp, size);
 }
 
-// ===== REBOOT =====
-
+// ---------- REBOOT ----------
 static int cmd_reboot(int argc, char *argv[],
                      long chat_id,
                      char *resp, size_t size) {
@@ -267,8 +287,8 @@ static int cmd_reboot_confirm(int argc, char *argv[],
 static command_t commands[] = {
     {"/start", cmd_start, "Start bot"},
     {"/help", cmd_help, "Show help"},
-    {"/about", cmd_about, "About bot"},   // ✅ ДОБАВИЛИ
-    {"/ping", cmd_ping, "Ping test"},
+    {"/about", cmd_about, "About bot"},
+    {"/ping", cmd_ping, "Ping + latency"},
     {"/echo", cmd_echo, "Echo text"},
     {"/status", cmd_status, "System status"},
     {"/services", cmd_services, "Services status"},
@@ -290,6 +310,10 @@ static int cmd_help(int argc, char *argv[],
 
     size_t used = 0;
     resp[0] = '\0';
+
+    snprintf(resp, size, "*Available commands:*\n\n");
+
+    used = strlen(resp);
 
     for (int i = 0; i < commands_count; i++) {
         int written = snprintf(resp + used, size - used,
