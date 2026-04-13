@@ -12,7 +12,7 @@
 #include <curl/curl.h>
 #include <cjson/cJSON.h>
 
-#define URL_MAX 512
+#define URL_MAX 1024
 #define TG_MAX_MSG 4000
 
 static char base_url[URL_MAX];
