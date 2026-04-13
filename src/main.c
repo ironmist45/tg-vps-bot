@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
     log_msg(LOG_INFO, "Polling timeout: %d", cfg.poll_timeout);
 
     // ===== Telegram init =====
-    if (telegram_init(&cfg) != 0) {
+    if (telegram_init(cfg.token) != 0) {
         log_msg(LOG_ERROR, "Failed to init Telegram");
         logger_close();
         return 1;
