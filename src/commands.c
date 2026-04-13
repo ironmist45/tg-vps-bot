@@ -1,0 +1,209 @@
+#include "commands.h"
+#include "logger.h"
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#define MAX_ARGS 8
+#define MAX_CMD_LEN 64
+
+typedef int (*command_handler_t)(int argc, char *argv[],
+                                char *response, size_t resp_size);
+
+typedef struct {
+    const char *name;
+    command_handler_t handler;
+    const char *description;
+} command_t;
+
+// ===== утилиты =====
+
+static int split_args(char *input, char *argv[], int max_args) {
+    int argc = 0;
+
+    char *token = strtok(input, " ");
+    while (token && argc < max_args) {
+        argv[argc++] = token;
+        token = strtok(NULL, " ");
+    }
+
+    return argc;
+}
+
+static void safe_write(char *dst, size_t size, const char *text) {
+    snprintf(dst, size, "%s", text);
+}
+
+// ===== команды =====
+
+static int cmd_start(int argc, char *argv[], char *resp, size_t size) {
+    (void)argc; (void)argv;
+
+    safe_write(resp, size,
+        "tg_bot is running\n"
+        "Use /help to see available commands");
+
+    return 0;
+}
+
+static int cmd_help(int argc, char *argv[], char *resp, size_t size);
+
+static int cmd_ping(int argc, char *argv[], char *resp, size_t size) {
+    (void)argc; (void)argv;
+    safe_write(resp, size, "pong");
+    return 0;
+}
+
+static int cmd_echo(int argc, char *argv[], char *resp, size_t size) {
+    if (argc < 2) {
+        safe_write(resp, size, "Usage: /echo <text>");
+        return -1;
+    }
+
+    resp[0] = '\0';
+
+    for (int i = 1; i < argc; i++) {
+        strncat(resp, argv[i], size - strlen(resp) - 2);
+        if (i < argc - 1)
+            strncat(resp, " ", size - strlen(resp) - 2);
+    }
+
+    return 0;
+}
+
+// ===== заглушки под будущий функционал =====
+
+static int cmd_status(int argc, char *argv[], char *resp, size_t size) {
+    (void)argc; (void)argv;
+    safe_write(resp, size, "Status: not implemented yet");
+    return 0;
+}
+
+static int cmd_services(int argc, char *argv[], char *resp, size_t size) {
+    (void)argc; (void)argv;
+    safe_write(resp, size, "Services: not implemented yet");
+    return 0;
+}
+
+static int cmd_logs(int argc, char *argv[], char *resp, size_t size) {
+    if (argc < 2) {
+        safe_write(resp, size, "Usage: /logs <service>");
+        return -1;
+    }
+
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd),
+             "journalctl -u %s.service -n 20 --no-pager 2>&1",
+             argv[1]);
+
+    FILE *fp = popen(cmd, "r");
+    if (!fp) {
+        safe_write(resp, size, "Failed to read logs");
+        return -1;
+    }
+
+    resp[0] = '\0';
+
+    char buffer[256];
+    while (fgets(buffer, sizeof(buffer), fp)) {
+        if (strlen(resp) + strlen(buffer) >= size - 1)
+            break;
+        strcat(resp, buffer);
+    }
+
+    pclose(fp);
+
+    if (resp[0] == '\0') {
+        safe_write(resp, size, "No logs");
+    }
+
+    return 0;
+}
+
+static int cmd_reboot(int argc, char *argv[], char *resp, size_t size) {
+    (void)argc; (void)argv;
+
+    safe_write(resp, size,
+        "Reboot requested.\n"
+        "Confirm with /reboot_confirm");
+
+    return 0;
+}
+
+static int cmd_reboot_confirm(int argc, char *argv[], char *resp, size_t size) {
+    (void)argc; (void)argv;
+
+    system("reboot");
+    safe_write(resp, size, "Rebooting...");
+
+    return 0;
+}
+
+// ===== таблица команд =====
+
+static command_t commands[] = {
+    {"/start", cmd_start, "Start bot"},
+    {"/help", cmd_help, "Show help"},
+    {"/ping", cmd_ping, "Ping test"},
+    {"/echo", cmd_echo, "Echo text"},
+    {"/status", cmd_status, "System status"},
+    {"/services", cmd_services, "Services status"},
+    {"/logs", cmd_logs, "Show logs"},
+    {"/reboot", cmd_reboot, "Reboot server"},
+    {"/reboot_confirm", cmd_reboot_confirm, "Confirm reboot"},
+};
+
+static const int commands_count =
+    sizeof(commands) / sizeof(commands[0]);
+
+// ===== help (использует таблицу!) =====
+
+static int cmd_help(int argc, char *argv[], char *resp, size_t size) {
+    (void)argc; (void)argv;
+
+    resp[0] = '\0';
+
+    for (int i = 0; i < commands_count; i++) {
+        strncat(resp, commands[i].name, size - strlen(resp) - 1);
+        strncat(resp, " - ", size - strlen(resp) - 1);
+        strncat(resp, commands[i].description, size - strlen(resp) - 1);
+        strncat(resp, "\n", size - strlen(resp) - 1);
+    }
+
+    return 0;
+}
+
+// ===== основной обработчик =====
+
+int commands_handle(const char *text, char *response, size_t resp_size) {
+
+    if (!text || text[0] != '/') {
+        snprintf(response, resp_size, "Invalid command");
+        return -1;
+    }
+
+    char buffer[512];
+    strncpy(buffer, text, sizeof(buffer) - 1);
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    char *argv[MAX_ARGS];
+    int argc = split_args(buffer, argv, MAX_ARGS);
+
+    if (argc == 0) {
+        snprintf(response, resp_size, "Empty command");
+        return -1;
+    }
+
+    for (int i = 0; i < commands_count; i++) {
+        if (strcmp(argv[0], commands[i].name) == 0) {
+
+            log_msg(LOG_INFO, "Command: %s", argv[0]);
+
+            return commands[i].handler(argc, argv, response, resp_size);
+        }
+    }
+
+    snprintf(response, resp_size, "Unknown command");
+    return -1;
+}
