@@ -5,11 +5,11 @@
 
 // ===== basic =====
 #define APP_NAME    "tg-bot"
-#define APP_VERSION "1.2.5"
+#define APP_VERSION "1.2.6"
 #define TARGET_OS   "Ubuntu 18.04.6 LTS x86_64"
 
 // ===== meta =====
-#define APP_CODENAME "Nebula"
+#define APP_CODENAME "Orion"
 #define APP_YEAR     "2026"
 #define APP_AUTHOR   "dedoverde"
 
