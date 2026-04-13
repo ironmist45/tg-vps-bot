@@ -113,9 +113,13 @@ jobs:
       # ARTIFACT
       # =========================
       - name: Upload binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: tg-bot
-          path:
-            - tg-bot
-            - libcjson.so*
+      uses: actions/upload-artifact@v4
+      with:
+        name: tg-bot
+        path: tg-bot
+
+      - name: Upload libs
+      uses: actions/upload-artifact@v4
+      with:
+        name: tg-bot-libs
+        path: libcjson.so*
