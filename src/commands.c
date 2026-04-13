@@ -232,25 +232,11 @@ static int cmd_logs(int argc, char *argv[],
     if (argc < 2) {
         snprintf(resp, size,
             "*📜 LOGS MENU*\n\n"
-
-            "*📌 Available services:*\n"
-            "`/logs ssh` — SSH daemon logs\n"
-            "`/logs mtg` — MTProto proxy logs\n"
+            "`/logs ssh` — SSH logs\n"
+            "`/logs mtg` — MTProto logs\n"
             "`/logs shadowsocks` — Shadowsocks logs\n\n"
-
-            "*📊 Output control:*\n"
             "`/logs <service> <N>` — last N lines\n"
-            "Example: `/logs ssh 100`\n\n"
-
-            "*🔍 Filtering:*\n"
-            "`/logs <service> error` — only errors\n"
-            "`/logs <service> 100 error` — last 100 lines with filter\n\n"
-
-            "*📎 Examples:*\n"
-            "`/logs ssh`\n"
-            "`/logs ssh 50`\n"
-            "`/logs ssh error`\n"
-            "`/logs ssh 100 error`"
+            "`/logs <service> error` — filter\n"
         );
         return 0;
     }
@@ -279,17 +265,17 @@ static int cmd_reboot(int argc, char *argv[],
                      long chat_id,
                      char *resp, size_t size) {
 
+    (void)argc; (void)argv;
+
     int token = security_generate_reboot_token(chat_id);
 
     if (token < 0) {
-        snprintf(resp, size, "⏱ Too many requests, try later");
+        snprintf(resp, size, "⏱ Too many requests");
         return -1;
     }
 
     snprintf(resp, size,
-        "⚠️ *REBOOT*\n\n"
-        "Confirm:\n"
-        "`/reboot_confirm %d`",
+        "⚠️ REBOOT\nConfirm:\n/reboot_confirm %d",
         token);
 
     return 0;
@@ -300,26 +286,30 @@ static int cmd_reboot_confirm(int argc, char *argv[],
                              char *resp, size_t size) {
 
     if (argc < 2) {
-        snprintf(resp, size, "*Usage:* `/reboot_confirm <token>`");
+        snprintf(resp, size, "Usage: /reboot_confirm <token>");
         return -1;
     }
 
     int token = atoi(argv[1]);
 
     if (security_validate_reboot_token(chat_id, token) != 0) {
-        snprintf(resp, size, "❌ Invalid token");
+        snprintf(resp, size, "Invalid token");
         return -1;
     }
 
     log_msg(LOG_WARN, "REBOOT by chat_id=%ld", chat_id);
 
-    system("reboot");
+    if (system("reboot") == -1) {
+        log_msg(LOG_ERROR, "Failed to execute reboot");
+        snprintf(resp, size, "Reboot failed");
+        return -1;
+    }
 
-    snprintf(resp, size, "♻️ Rebooting...");
+    snprintf(resp, size, "Rebooting...");
     return 0;
 }
 
-// ===== таблица =====
+// ===== COMMAND TABLE =====
 
 static command_t commands[] = {
     {"/start", cmd_start, "Start bot"},
@@ -331,7 +321,7 @@ static command_t commands[] = {
     {"/services", cmd_services, "Services"},
     {"/users", cmd_users, "Users"},
     {"/logs", cmd_logs, "Logs"},
-    {"/reboot", cmd_reboot, "Reboot server"},
+    {"/reboot", cmd_reboot, "Reboot"},
     {"/reboot_confirm", cmd_reboot_confirm, "Confirm reboot"},
 };
 
@@ -344,11 +334,11 @@ static int cmd_help(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size) {
 
+    (void)argc; (void)argv; (void)chat_id;
+
     size_t used = 0;
 
-    snprintf(resp, size,
-        "*📚 COMMANDS*\n\n");
-
+    snprintf(resp, size, "*📚 COMMANDS*\n\n");
     used = strlen(resp);
 
     for (int i = 0; i < commands_count; i++) {
@@ -366,7 +356,7 @@ static int cmd_help(int argc, char *argv[],
     return 0;
 }
 
-// ===== dispatcher =====
+// ===== DISPATCHER =====
 
 int commands_handle(const char *text,
                     long chat_id,
