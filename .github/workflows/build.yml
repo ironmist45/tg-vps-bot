@@ -82,13 +82,7 @@ jobs:
 
       - name: Run with fake config
         run: |
-          cat <<EOF > test.conf
-TOKEN=TEST
-CHAT_ID=123
-LOG_FILE=./test.log
-POLL_TIMEOUT=1
-TOKEN_TTL=10
-EOF
+          printf "TOKEN=TEST\nCHAT_ID=123\nLOG_FILE=./test.log\nPOLL_TIMEOUT=1\nTOKEN_TTL=10\n" > test.conf
 
           timeout 3s env LD_LIBRARY_PATH=. ./tg-bot -c test.conf || true
 
@@ -109,6 +103,11 @@ EOF
           else
             echo "OK: log file has content"
           fi
+
+      - name: Show log content (debug)
+        run: |
+          echo "==== LOG ===="
+          cat test.log || true
 
       # =========================
       # ARTIFACT
