@@ -4,14 +4,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <getopt.h>   // 🔥 важно
+#include <getopt.h>
 
 int cli_parse(int argc, char *argv[], cli_args_t *args) {
     memset(args, 0, sizeof(cli_args_t));
 
     int opt;
 
-    // 🔥 описание длинных опций
     static struct option long_options[] = {
         {"config",  required_argument, 0, 'c'},
         {"help",    no_argument,       0, 'h'},
@@ -19,13 +18,14 @@ int cli_parse(int argc, char *argv[], cli_args_t *args) {
         {0, 0, 0, 0}
     };
 
-    opterr = 0; // отключаем авто-ошибки getopt
+    opterr = 0;
 
     while ((opt = getopt_long(argc, argv, "c:hv", long_options, NULL)) != -1) {
         switch (opt) {
             case 'c':
                 strncpy(args->config_path, optarg,
                         sizeof(args->config_path) - 1);
+                args->config_path[sizeof(args->config_path) - 1] = '\0';
                 break;
 
             case 'h':
@@ -37,7 +37,6 @@ int cli_parse(int argc, char *argv[], cli_args_t *args) {
                 break;
 
             case '?':
-                // неизвестный аргумент
                 return -1;
         }
     }
@@ -48,10 +47,10 @@ int cli_parse(int argc, char *argv[], cli_args_t *args) {
 // ===== HELP =====
 
 void cli_print_help() {
-    printf("Telegram VPS Bot\n\n");
+    printf("%s v%s\n\n", APP_NAME, APP_VERSION);
 
     printf("Usage:\n");
-    printf("  tg-bot [OPTIONS]\n\n");
+    printf("  %s [OPTIONS]\n\n", APP_NAME);
 
     printf("Options:\n");
     printf("  -c, --config <path>   Path to config file\n");
@@ -59,8 +58,8 @@ void cli_print_help() {
     printf("  -v, --version         Show program version\n\n");
 
     printf("Examples:\n");
-    printf("  tg-bot -c /etc/tg-bot/config.conf\n");
-    printf("  tg-bot --config=/etc/tg-bot/config.conf\n");
+    printf("  %s -c /etc/tg-bot/config.conf\n", APP_NAME);
+    printf("  %s --config=/etc/tg-bot/config.conf\n", APP_NAME);
 }
 
 // ===== VERSION =====
@@ -68,4 +67,5 @@ void cli_print_help() {
 void cli_print_version() {
     printf("%s version %s\n", APP_NAME, APP_VERSION);
     printf("Target: %s\n", TARGET_OS);
+    printf("Copyright (c) %s %s\n", APP_YEAR, APP_AUTHOR);
 }
