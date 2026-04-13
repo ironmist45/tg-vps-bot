@@ -41,6 +41,15 @@ static int try_reopen_logger(const char *path) {
     return 0;
 }
 
+// ===== helper: единый вывод конфига =====
+static void log_config(const config_t *cfg) {
+    log_msg(LOG_INFO, "===== CONFIG =====");
+    log_msg(LOG_INFO, "CHAT_ID: %ld", cfg->chat_id);
+    log_msg(LOG_INFO, "TOKEN_TTL: %d sec", cfg->token_ttl);
+    log_msg(LOG_INFO, "POLL_TIMEOUT: %d", cfg->poll_timeout);
+    log_msg(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
+}
+
 // ===== main =====
 
 int main(int argc, char *argv[]) {
@@ -107,7 +116,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // ===== переключение логгера (безопасное) =====
+    // ===== переключение логгера =====
     if (try_reopen_logger(cfg.log_file) != 0) {
         log_msg(LOG_WARN,
                 "Failed to open log file: %s (using bootstrap logger)",
@@ -116,9 +125,8 @@ int main(int argc, char *argv[]) {
         log_msg(LOG_INFO, "Logger initialized: %s", cfg.log_file);
     }
 
-    log_msg(LOG_INFO, "CHAT_ID: %ld", cfg.chat_id);
-    log_msg(LOG_INFO, "TOKEN_TTL: %d", cfg.token_ttl);
-    log_msg(LOG_INFO, "Polling timeout: %d", cfg.poll_timeout);
+    // ✅ единый вывод конфига
+    log_config(&cfg);
 
     // ===== security init =====
     security_set_allowed_chat(cfg.chat_id);
@@ -146,7 +154,7 @@ int main(int argc, char *argv[]) {
 
             if (config_load(args.config_path, &new_cfg) == 0) {
 
-                // обновляем логгер (безопасно)
+                // обновляем логгер
                 if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
 
                     if (try_reopen_logger(new_cfg.log_file) != 0) {
@@ -166,9 +174,9 @@ int main(int argc, char *argv[]) {
                 cfg = new_cfg;
 
                 log_msg(LOG_INFO, "Config reloaded successfully");
-                log_msg(LOG_INFO, "CHAT_ID: %ld", cfg.chat_id);
-                log_msg(LOG_INFO, "TOKEN_TTL: %d", cfg.token_ttl);
-                log_msg(LOG_INFO, "Polling timeout: %d", cfg.poll_timeout);
+
+                // ✅ единый вывод после reload
+                log_config(&cfg);
 
             } else {
                 log_msg(LOG_ERROR, "Config reload failed (keeping old config)");
@@ -184,12 +192,9 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        // небольшая пауза
         usleep(200000); // 200 ms
     }
 
-    // cleanup (теоретически недостижимо)
     logger_close();
-
     return 0;
 }
