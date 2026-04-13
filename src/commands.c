@@ -1,182 +1,190 @@
-#include "logs.h"
+#include "commands.h"
 #include "logger.h"
+#include "system.h"
+#include "services.h"
+#include "users.h"
+#include "logs.h"
+#include "security.h"
+#include "version.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <ctype.h>
+#include <stddef.h>
+#include <time.h>
+#include <unistd.h>
 
-#define MAX_LINE 256
-#define DEBUG_LINES 5
+#define MAX_ARGS 8
+#define RESP_MAX 8192
 
-// ===== whitelist =====
+extern time_t g_start_time;
 
-static const char *allowed_services[] = {
-    "ssh",
-    "shadowsocks-libev",
-    "mtg",
-};
+typedef int (*command_handler_t)(int argc, char *argv[],
+                                long chat_id,
+                                char *response, size_t resp_size);
 
-static const int services_count =
-    sizeof(allowed_services) / sizeof(allowed_services[0]);
+typedef struct {
+    const char *name;
+    command_handler_t handler;
+    const char *description;
+} command_t;
 
-static int is_allowed(const char *name) {
-    for (int i = 0; i < services_count; i++) {
-        if (strcmp(name, allowed_services[i]) == 0)
-            return 1;
+// ===== utils =====
+
+static int split_args(char *input, char *argv[], int max_args) {
+    int argc = 0;
+
+    char *token = strtok(input, " ");
+    while (token && argc < max_args) {
+        argv[argc++] = token;
+        token = strtok(NULL, " ");
     }
+
+    return argc;
+}
+
+static void safe_write(char *dst, size_t size, const char *text) {
+    snprintf(dst, size, "%s", text);
+}
+
+// ===== commands =====
+
+// ---------- START ----------
+static int cmd_start(int argc, char *argv[],
+                     long chat_id,
+                     char *resp, size_t size) {
+    (void)argc; (void)argv; (void)chat_id;
+
+    char status[1024];
+
+    if (system_get_status(status, sizeof(status)) != 0) {
+        snprintf(status, sizeof(status), "⚠️ Failed to get system info");
+    }
+
+    snprintf(resp, size,
+        "*🚀 %s v%s (%s)*\n\n%s\n\n👉 Use /help",
+        APP_NAME, APP_VERSION, APP_CODENAME, status);
+
     return 0;
 }
 
-// ===== helpers =====
+// ---------- LOGS ----------
+static int cmd_logs(int argc, char *argv[],
+                   long chat_id,
+                   char *resp, size_t size) {
+    (void)chat_id;
 
-static int is_number(const char *s) {
-    if (!s || *s == '\0') return 0;
+    char tmp[RESP_MAX];
 
-    for (int i = 0; s[i]; i++) {
-        if (!isdigit((unsigned char)s[i]))
-            return 0;
-    }
-    return 1;
-}
-
-static void safe_append(char *dst, size_t size, const char *src) {
-    size_t len = strlen(dst);
-    size_t left = (len < size) ? (size - len - 1) : 0;
-
-    if (left > 0) {
-        strncat(dst, src, left);
-    }
-}
-
-static void sanitize_line(char *line) {
-    line[strcspn(line, "\r")] = '\0';
-}
-
-// ===== основной API =====
-
-int logs_get(const char *service, char *buffer, size_t size) {
-
-    log_msg(LOG_INFO, "logs_get() called with service='%s'",
-            service ? service : "NULL");
-
-    // ===== список сервисов =====
-
-    if (!service || service[0] == '\0') {
-
-        buffer[0] = '\0';
-
-        safe_append(buffer, size, "Available services:\n\n");
-
-        for (int i = 0; i < services_count; i++) {
-            safe_append(buffer, size, "- ");
-            safe_append(buffer, size, allowed_services[i]);
-            safe_append(buffer, size, "\n");
+    // 👉 /logs
+    if (argc < 2) {
+        if (logs_get(NULL, tmp, sizeof(tmp)) != 0) {
+            snprintf(resp, size, "Failed to get services list");
+            return -1;
         }
-
-        safe_append(buffer, size, "\nUsage:\n/logs <service> [lines] [filter]");
-
+        snprintf(resp, size, "%s", tmp);
         return 0;
     }
 
-    // ===== парсинг service аргументов =====
-    // service может содержать: "ssh", "ssh 100", "ssh error", "ssh 100 error"
+    // 👉 склеиваем аргументы обратно: "ssh 100 error"
+    char combined[256] = {0};
 
-    char svc[64] = {0};
-    char arg1[64] = {0};
-    char arg2[64] = {0};
+    for (int i = 1; i < argc; i++) {
+        strcat(combined, argv[i]);
+        if (i < argc - 1)
+            strcat(combined, " ");
+    }
 
-    int parsed = sscanf(service, "%63s %63s %63s", svc, arg1, arg2);
-
-    if (!is_allowed(svc)) {
-        snprintf(buffer, size, "Service not allowed");
-        log_msg(LOG_WARN, "Blocked logs access: %s", svc);
+    if (logs_get(combined, tmp, sizeof(tmp)) != 0) {
+        snprintf(resp, size, "Failed to get logs");
         return -1;
     }
 
-    int lines = 30;
-    const char *filter = NULL;
+    snprintf(resp, size, "%s", tmp);
+    return 0;
+}
 
-    if (parsed >= 2) {
-        if (is_number(arg1)) {
-            lines = atoi(arg1);
-        } else {
-            filter = arg1;
-        }
-    }
+// ---------- HELP ----------
+static int cmd_help(int argc, char *argv[],
+                   long chat_id,
+                   char *resp, size_t size);
 
-    if (parsed >= 3) {
-        filter = arg2;
-    }
+// ---------- PING ----------
+static int cmd_ping(int argc, char *argv[],
+                   long chat_id,
+                   char *resp, size_t size) {
+    (void)argc; (void)argv; (void)chat_id;
 
-    // ограничение
-    if (lines <= 0 || lines > 1000)
-        lines = 30;
+    snprintf(resp, size, "pong");
+    return 0;
+}
 
-    char cmd[512];
+// ---------- HELP IMPL ----------
+static int cmd_help(int argc, char *argv[],
+                   long chat_id,
+                   char *resp, size_t size) {
+    (void)argc; (void)argv; (void)chat_id;
 
-    if (filter) {
-        snprintf(cmd, sizeof(cmd),
-            "journalctl -u %s.service -n %d --no-pager 2>&1 | grep -i '%s'",
-            svc, lines, filter);
-    } else {
-        snprintf(cmd, sizeof(cmd),
-            "journalctl -u %s.service -n %d --no-pager 2>&1",
-            svc, lines);
-    }
-
-    log_msg(LOG_INFO, "Executing command: %s", cmd);
-
-    FILE *fp = popen(cmd, "r");
-    if (!fp) {
-        log_msg(LOG_ERROR, "popen() failed");
-        snprintf(buffer, size, "Failed to read logs");
-        return -1;
-    }
-
-    buffer[0] = '\0';
-
-    // ===== header =====
-
-    snprintf(buffer, size,
-        "LOGS: %s (%d lines)%s\n\n",
-        svc,
-        lines,
-        filter ? " [filtered]" : ""
-    );
-
-    char line[MAX_LINE];
-    int line_count = 0;
-
-    while (fgets(line, sizeof(line), fp)) {
-
-        sanitize_line(line);
-
-        if (line_count < DEBUG_LINES) {
-            log_msg(LOG_DEBUG, "LOG LINE[%d]: %s", line_count, line);
-        }
-
-        line_count++;
-
-        if (strlen(buffer) + strlen(line) >= size - 5) {
-            log_msg(LOG_WARN, "Buffer limit reached");
-            break;
-        }
-
-        safe_append(buffer, size, line);
-        safe_append(buffer, size, "\n");
-    }
-
-    int rc = pclose(fp);
-    log_msg(LOG_INFO, "pclose() rc=%d, lines=%d", rc, line_count);
-
-    if (line_count == 0) {
-        snprintf(buffer, size,
-            "LOGS: %s\n\nNo logs available",
-            svc);
-    }
-
-    log_msg(LOG_INFO, "Final buffer size: %zu", strlen(buffer));
+    snprintf(resp, size,
+        "*Commands:*\n"
+        "/start\n"
+        "/help\n"
+        "/logs\n"
+        "/logs ssh\n"
+        "/logs ssh 100 error\n");
 
     return 0;
+}
+
+// ===== table =====
+
+static command_t commands[] = {
+    {"/start", cmd_start, "Start bot"},
+    {"/help", cmd_help, "Help"},
+    {"/ping", cmd_ping, "Ping"},
+    {"/logs", cmd_logs, "Logs"},
+};
+
+static const int commands_count =
+    sizeof(commands) / sizeof(commands[0]);
+
+// ===== main handler =====
+
+int commands_handle(const char *text,
+                    long chat_id,
+                    char *response,
+                    size_t resp_size) {
+
+    if (!text || text[0] != '/') {
+        snprintf(response, resp_size, "Invalid command");
+        return -1;
+    }
+
+    char buffer[512];
+    strncpy(buffer, text, sizeof(buffer) - 1);
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    char *argv[MAX_ARGS];
+    int argc = split_args(buffer, argv, MAX_ARGS);
+
+    if (argc == 0) {
+        snprintf(response, resp_size, "Empty command");
+        return -1;
+    }
+
+    for (int i = 0; i < commands_count; i++) {
+        if (strcmp(argv[0], commands[i].name) == 0) {
+
+            log_msg(LOG_INFO,
+                    "Command: %s (chat_id=%ld)",
+                    argv[0], chat_id);
+
+            return commands[i].handler(
+                argc, argv, chat_id, response, resp_size
+            );
+        }
+    }
+
+    snprintf(response, resp_size, "Unknown command");
+    return -1;
 }
