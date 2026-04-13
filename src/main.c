@@ -34,8 +34,11 @@ int main(int argc, char *argv[]) {
     // фиксируем время старта бота
     g_start_time = time(NULL);
 
-    // регистрируем сигнал
-    signal(SIGHUP, handle_sighup);
+    // регистрируем сигнал (production-safe)
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handle_sighup;
+    sigaction(SIGHUP, &sa, NULL);
 
     cli_args_t args;
 
@@ -70,6 +73,7 @@ int main(int argc, char *argv[]) {
     log_msg(LOG_INFO, "========================================");
     log_msg(LOG_INFO, "Starting %s v%s (%s)",
             APP_NAME, APP_VERSION, APP_CODENAME);
+    log_msg(LOG_INFO, "Build: %s %s", BUILD_DATE, BUILD_TIME);   // 🔥 ДОБАВИЛИ
     log_msg(LOG_INFO, "Target: %s", TARGET_OS);
     log_msg(LOG_INFO, "Config: %s", args.config_path);
 
@@ -124,6 +128,7 @@ int main(int argc, char *argv[]) {
                 // обновляем логгер (если путь изменился)
                 if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
                     logger_close();
+
                     if (logger_init(new_cfg.log_file) != 0) {
                         printf("ERROR: cannot reopen log file: %s\n", new_cfg.log_file);
                     } else {
@@ -135,12 +140,13 @@ int main(int argc, char *argv[]) {
                 security_set_allowed_chat(new_cfg.chat_id);
                 security_set_token_ttl(new_cfg.token_ttl);
 
-                // (опционально) можно обновить poll_timeout
+                // применяем новый конфиг
                 cfg = new_cfg;
 
                 log_msg(LOG_INFO, "Config reloaded successfully");
                 log_msg(LOG_INFO, "CHAT_ID: %ld", cfg.chat_id);
                 log_msg(LOG_INFO, "TOKEN_TTL: %d", cfg.token_ttl);
+                log_msg(LOG_INFO, "Polling timeout: %d", cfg.poll_timeout);
 
             } else {
                 log_msg(LOG_ERROR, "Config reload failed (keeping old config)");
