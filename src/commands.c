@@ -1,12 +1,12 @@
 #include "commands.h"
 #include "logger.h"
+#include "system.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
 #define MAX_ARGS 8
-#define MAX_CMD_LEN 64
 
 typedef int (*command_handler_t)(int argc, char *argv[],
                                 char *response, size_t resp_size);
@@ -72,19 +72,29 @@ static int cmd_echo(int argc, char *argv[], char *resp, size_t size) {
     return 0;
 }
 
-// ===== заглушки под будущий функционал =====
+// ===== РЕАЛЬНЫЙ STATUS =====
 
 static int cmd_status(int argc, char *argv[], char *resp, size_t size) {
-    (void)argc; (void)argv;
-    safe_write(resp, size, "Status: not implemented yet");
+    (void)argc;
+    (void)argv;
+
+    if (system_get_status(resp, size) != 0) {
+        snprintf(resp, size, "Failed to get system status");
+        return -1;
+    }
+
     return 0;
 }
+
+// ===== SERVICES (пока заглушка) =====
 
 static int cmd_services(int argc, char *argv[], char *resp, size_t size) {
     (void)argc; (void)argv;
     safe_write(resp, size, "Services: not implemented yet");
     return 0;
 }
+
+// ===== LOGS =====
 
 static int cmd_logs(int argc, char *argv[], char *resp, size_t size) {
     if (argc < 2) {
@@ -93,6 +103,8 @@ static int cmd_logs(int argc, char *argv[], char *resp, size_t size) {
     }
 
     char cmd[256];
+
+    // ⚠️ минимальная защита (безопаснее добавить whitelist позже)
     snprintf(cmd, sizeof(cmd),
              "journalctl -u %s.service -n 20 --no-pager 2>&1",
              argv[1]);
@@ -120,6 +132,8 @@ static int cmd_logs(int argc, char *argv[], char *resp, size_t size) {
 
     return 0;
 }
+
+// ===== REBOOT =====
 
 static int cmd_reboot(int argc, char *argv[], char *resp, size_t size) {
     (void)argc; (void)argv;
@@ -157,7 +171,7 @@ static command_t commands[] = {
 static const int commands_count =
     sizeof(commands) / sizeof(commands[0]);
 
-// ===== help (использует таблицу!) =====
+// ===== HELP =====
 
 static int cmd_help(int argc, char *argv[], char *resp, size_t size) {
     (void)argc; (void)argv;
@@ -174,7 +188,7 @@ static int cmd_help(int argc, char *argv[], char *resp, size_t size) {
     return 0;
 }
 
-// ===== основной обработчик =====
+// ===== главный обработчик =====
 
 int commands_handle(const char *text, char *response, size_t resp_size) {
 
