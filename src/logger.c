@@ -59,6 +59,9 @@ void logger_close() {
         fclose(log_file);
         log_file = NULL;
     }
+
+    // 🔥 важно: сбрасываем fallback
+    log_to_stderr = 0;
 }
 
 // ===== основной лог =====
@@ -80,8 +83,19 @@ void log_msg(log_level_t level, const char *fmt, ...) {
 
     va_list args;
     va_start(args, fmt);
-    vsnprintf(message, sizeof(message), fmt, args);
+    int written = vsnprintf(message, sizeof(message), fmt, args);
     va_end(args);
+
+    // 🔥 защита от обрезки
+    if (written < 0) {
+        strncpy(message, "log formatting error", sizeof(message) - 1);
+        message[sizeof(message) - 1] = '\0';
+    } else if ((size_t)written >= sizeof(message)) {
+        // строка была обрезана
+        message[sizeof(message) - 2] = '.';
+        message[sizeof(message) - 3] = '.';
+        message[sizeof(message) - 4] = '.';
+    }
 
     fprintf(out, "[%s] [%s] %s\n",
             timestamp,
