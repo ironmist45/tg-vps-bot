@@ -11,7 +11,7 @@
 #include <time.h>
 
 #define MAX_ARGS 8
-#define TOKEN_TTL 60  // секунды
+#define TOKEN_TTL 60
 
 typedef int (*command_handler_t)(int argc, char *argv[],
                                 char *response, size_t resp_size);
@@ -22,12 +22,21 @@ typedef struct {
     const char *description;
 } command_t;
 
-// ===== reboot token state =====
+// ===== REBOOT TOKEN STATE =====
 
 static char reboot_token[16] = {0};
 static time_t reboot_token_time = 0;
 
-// ===== утилиты =====
+static void clear_reboot_token() {
+    reboot_token[0] = '\0';
+    reboot_token_time = 0;
+}
+
+static void generate_token(char *out, size_t size) {
+    snprintf(out, size, "%06d", rand() % 1000000);
+}
+
+// ===== UTILS =====
 
 static int split_args(char *input, char *argv[], int max_args) {
     int argc = 0;
@@ -45,11 +54,7 @@ static void safe_write(char *dst, size_t size, const char *text) {
     snprintf(dst, size, "%s", text);
 }
 
-static void generate_token(char *out, size_t size) {
-    snprintf(out, size, "%06d", rand() % 1000000);
-}
-
-// ===== команды =====
+// ===== COMMANDS =====
 
 static int cmd_start(int argc, char *argv[], char *resp, size_t size) {
     (void)argc; (void)argv;
@@ -136,10 +141,12 @@ static int cmd_logs(int argc, char *argv[], char *resp, size_t size) {
     return logs_get(argv[1], resp, size);
 }
 
-// ===== REBOOT (с токеном) =====
+// ===== REBOOT =====
 
 static int cmd_reboot(int argc, char *argv[], char *resp, size_t size) {
     (void)argc; (void)argv;
+
+    clear_reboot_token(); // invalidate previous
 
     generate_token(reboot_token, sizeof(reboot_token));
     reboot_token_time = time(NULL);
@@ -165,21 +172,27 @@ static int cmd_reboot_confirm(int argc, char *argv[], char *resp, size_t size) {
 
     time_t now = time(NULL);
 
-    // проверка токена
+    if (reboot_token[0] == '\0') {
+        snprintf(resp, size, "❌ No active token");
+        return -1;
+    }
+
     if (strcmp(argv[1], reboot_token) != 0) {
         log_msg(LOG_WARN, "Invalid reboot token");
         snprintf(resp, size, "❌ Invalid token");
         return -1;
     }
 
-    // проверка TTL
     if ((now - reboot_token_time) > TOKEN_TTL) {
         log_msg(LOG_WARN, "Expired reboot token");
+        clear_reboot_token();
         snprintf(resp, size, "❌ Token expired");
         return -1;
     }
 
     log_msg(LOG_WARN, "Reboot confirmed");
+
+    clear_reboot_token(); // 🔥 one-time use
 
     if (system("reboot") == -1) {
         log_msg(LOG_ERROR, "Failed to execute reboot");
@@ -191,7 +204,7 @@ static int cmd_reboot_confirm(int argc, char *argv[], char *resp, size_t size) {
     return 0;
 }
 
-// ===== таблица команд =====
+// ===== COMMAND TABLE =====
 
 static command_t commands[] = {
     {"/start", cmd_start, "Start bot"},
@@ -226,7 +239,7 @@ static int cmd_help(int argc, char *argv[], char *resp, size_t size) {
     return 0;
 }
 
-// ===== главный обработчик =====
+// ===== MAIN HANDLER =====
 
 int commands_handle(const char *text, char *response, size_t resp_size) {
 
