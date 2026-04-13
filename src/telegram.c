@@ -12,14 +12,14 @@
 
 #define URL_MAX 1024
 #define RESP_MAX 8192
+#define TG_LIMIT 4096
 
 static char g_token[128];
 static char g_base_url[512];
 
-// ===== escape MarkdownV2 (фикс: НЕ трогаем *) =====
+// ===== escape MarkdownV2 (оставляем *) =====
 
 static void escape_markdown(const char *src, char *dst, size_t size) {
-    // ⚠️ убрали '*' чтобы работал bold
     const char *special = "_[]()~`>#+-=|{}.!";
 
     size_t j = 0;
@@ -32,6 +32,15 @@ static void escape_markdown(const char *src, char *dst, size_t size) {
     }
 
     dst[j] = '\0';
+}
+
+// ===== safe truncate (Telegram 4096 limit) =====
+
+static void truncate_message(char *text) {
+    if (strlen(text) >= TG_LIMIT) {
+        text[TG_LIMIT - 20] = '\0';
+        strcat(text, "\n...\n[truncated]");
+    }
 }
 
 // ===== curl buffer =====
@@ -78,7 +87,7 @@ int telegram_init(const char *token) {
     return 0;
 }
 
-// ===== send message =====
+// ===== send Markdown =====
 
 int telegram_send_message(long chat_id, const char *text) {
 
@@ -90,12 +99,16 @@ int telegram_send_message(long chat_id, const char *text) {
         return -1;
 
     char url[URL_MAX];
-
     snprintf(url, sizeof(url), "%s/sendMessage", g_base_url);
 
-    // 🔥 escape (но без ломания bold)
+    char tmp[RESP_MAX];
+    strncpy(tmp, text, sizeof(tmp) - 1);
+    tmp[sizeof(tmp) - 1] = '\0';
+
+    truncate_message(tmp);
+
     char escaped[RESP_MAX];
-    escape_markdown(text, escaped, sizeof(escaped));
+    escape_markdown(tmp, escaped, sizeof(escaped));
 
     char post_fields[RESP_MAX];
 
@@ -105,10 +118,6 @@ int telegram_send_message(long chat_id, const char *text) {
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-
-    struct memory chunk = {0};
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
 
     CURLcode res = curl_easy_perform(curl);
 
@@ -116,7 +125,46 @@ int telegram_send_message(long chat_id, const char *text) {
         log_msg(LOG_ERROR, "curl error: %s", curl_easy_strerror(res));
     }
 
-    free(chunk.data);
+    curl_easy_cleanup(curl);
+
+    return 0;
+}
+
+// ===== send plain (для логов) =====
+
+int telegram_send_plain(long chat_id, const char *text) {
+
+    if (!text)
+        return -1;
+
+    CURL *curl = curl_easy_init();
+    if (!curl)
+        return -1;
+
+    char url[URL_MAX];
+    snprintf(url, sizeof(url), "%s/sendMessage", g_base_url);
+
+    char tmp[RESP_MAX];
+    strncpy(tmp, text, sizeof(tmp) - 1);
+    tmp[sizeof(tmp) - 1] = '\0';
+
+    truncate_message(tmp);
+
+    char post_fields[RESP_MAX];
+
+    snprintf(post_fields, sizeof(post_fields),
+             "chat_id=%ld&text=%s",
+             chat_id, tmp);
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
+
+    CURLcode res = curl_easy_perform(curl);
+
+    if (res != CURLE_OK) {
+        log_msg(LOG_ERROR, "curl error: %s", curl_easy_strerror(res));
+    }
+
     curl_easy_cleanup(curl);
 
     return 0;
@@ -197,7 +245,13 @@ int telegram_poll() {
             char response[RESP_MAX];
 
             if (commands_handle(msg_text, cid, response, sizeof(response)) == 0) {
-                telegram_send_message(cid, response);
+
+                // 🔥 FIX: logs без Markdown
+                if (strncmp(msg_text, "/logs", 5) == 0) {
+                    telegram_send_plain(cid, response);
+                } else {
+                    telegram_send_message(cid, response);
+                }
             }
         }
     }
