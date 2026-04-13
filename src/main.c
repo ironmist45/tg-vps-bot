@@ -6,7 +6,9 @@
 #include <signal.h>
 #include <pwd.h>
 #include <sys/types.h>
-#include <sys/wait.h>
+
+#include <sys/reboot.h>
+#include <errno.h>
 
 #include "version.h"
 #include "logger.h"
@@ -22,6 +24,9 @@ time_t g_start_time;
 static volatile sig_atomic_t g_reload_config = 0;
 volatile sig_atomic_t g_shutdown_requested = 0; // 0=none,1=restart,2=reboot
 
+// ===== STATE =====
+static volatile int g_running = 1;
+
 // ===== SIGNAL HANDLERS =====
 
 static void handle_sighup(int sig) {
@@ -33,68 +38,33 @@ static void handle_sigterm(int sig) {
     (void)sig;
     log_msg(LOG_WARN, "Received SIGTERM, shutting down...");
     g_shutdown_requested = 1;
+    g_running = 0;
 }
 
-// ===== SAFE EXEC =====
+// ===== GRACEFUL SHUTDOWN =====
 
-static void log_exec_args(char *const argv[]) {
-    char buf[256] = {0};
-    size_t used = 0;
+static void graceful_shutdown() {
 
-    for (int i = 0; argv[i] != NULL; i++) {
-        int written = snprintf(buf + used, sizeof(buf) - used,
-                               "%s ", argv[i]);
+    static int done = 0;
+    if (done) return;
+    done = 1;
 
-        if (written < 0 || (size_t)written >= sizeof(buf) - used)
-            break;
+    log_msg(LOG_INFO, "Graceful shutdown: stopping services...");
 
-        used += written;
-    }
+    // 1. остановить telegram
+    telegram_shutdown();
 
-    log_msg(LOG_INFO, "Exec: %s", buf);
-}
+    // 2. немного времени на завершение сетевых операций
+    usleep(200000); // 200 ms
 
-static int exec_command(const char *path, char *const argv[]) {
+    // 3. flush логов
+    log_msg(LOG_INFO, "Flushing logs...");
+    logger_close();
 
-    if (access(path, X_OK) != 0) {
-        log_msg(LOG_ERROR, "Executable not found or not executable: %s", path);
-        return -1;
-    }
+    // 4. sync файловой системы
+    sync();
 
-    pid_t pid = fork();
-
-    if (pid < 0) {
-        log_msg(LOG_ERROR, "fork() failed");
-        return -1;
-    }
-
-    if (pid == 0) {
-        execv(path, argv);
-        perror("exec failed");
-        _exit(127);
-    }
-
-    log_msg(LOG_INFO, "Spawned PID: %d", pid);
-
-    int status = 0;
-
-    if (waitpid(pid, &status, 0) < 0) {
-        log_msg(LOG_ERROR, "waitpid() failed");
-        return -1;
-    }
-
-    if (WIFEXITED(status)) {
-        int code = WEXITSTATUS(status);
-        log_msg(LOG_INFO, "Command exited with code: %d", code);
-        return code;
-    }
-
-    if (WIFSIGNALED(status)) {
-        log_msg(LOG_ERROR, "Command killed by signal: %d", WTERMSIG(status));
-        return -1;
-    }
-
-    return -1;
+    log_msg(LOG_INFO, "Shutdown sequence complete");
 }
 
 // ===== SHUTDOWN HANDLER =====
@@ -102,56 +72,52 @@ static int exec_command(const char *path, char *const argv[]) {
 static void handle_shutdown() {
 
     static int handled = 0;
-
     if (handled) return;
     handled = 1;
-
-    // ===== RESTART =====
-    if (g_shutdown_requested == 1) {
-
-        log_msg(LOG_WARN, "Restarting bot via systemd...");
-
-        char *args[] = {
-            "sudo",
-            "/bin/systemctl",
-            "restart",
-            "tg-bot",
-            NULL
-        };
-
-        log_exec_args(args);
-
-        int rc = exec_command("/usr/bin/sudo", args);
-
-        if (rc != 0) {
-            log_msg(LOG_ERROR, "systemctl restart failed (rc=%d)", rc);
-        }
-    }
 
     // ===== REBOOT =====
     if (g_shutdown_requested == 2) {
 
-        log_msg(LOG_WARN, "Rebooting system...");
+        log_msg(LOG_WARN, "Reboot requested");
 
-        char *args[] = {
-            "sudo",
-            "/sbin/reboot",
-            NULL
-        };
+        graceful_shutdown();
 
-        log_exec_args(args);
+        log_msg(LOG_WARN, "Rebooting via reboot(RB_AUTOBOOT)...");
 
-        int rc = exec_command("/usr/bin/sudo", args);
+        if (reboot(RB_AUTOBOOT) != 0) {
+            log_msg(LOG_ERROR,
+                    "reboot() failed: errno=%d (%s)",
+                    errno, strerror(errno));
 
-        if (rc != 0) {
-            log_msg(LOG_ERROR, "reboot failed (rc=%d)", rc);
+            log_msg(LOG_WARN, "Fallback: systemctl reboot");
+
+            execl("/bin/systemctl", "systemctl", "reboot", NULL);
+
+            log_msg(LOG_ERROR,
+                    "fallback exec failed: errno=%d (%s)",
+                    errno, strerror(errno));
         }
+
+        return;
     }
 
-    // гарантируем flush логов
-    logger_close();
+    // ===== RESTART =====
+    if (g_shutdown_requested == 1) {
 
-    sleep(1);
+        log_msg(LOG_WARN, "Restart requested");
+
+        graceful_shutdown();
+
+        execl("/bin/systemctl",
+              "systemctl",
+              "restart",
+              "tg-bot",
+              NULL);
+
+        log_msg(LOG_ERROR,
+                "exec restart failed: errno=%d (%s)",
+                errno, strerror(errno));
+    }
 }
 
 // ===== DEBUG =====
@@ -299,7 +265,7 @@ int main(int argc, char *argv[]) {
 
     // ===== LOOP =====
 
-    while (1) {
+    while (g_running) {
 
         if (g_shutdown_requested) {
             handle_shutdown();
