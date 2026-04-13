@@ -5,7 +5,7 @@
 #include <string.h>
 
 #define MAX_LINE 256
-#define DEBUG_LINES 5  // сколько строк логировать в debug
+#define DEBUG_LINES 5
 
 // ===== whitelist =====
 
@@ -50,15 +50,30 @@ int logs_get(const char *service, char *buffer, size_t size) {
     log_msg(LOG_INFO, "logs_get() called with service='%s'",
             service ? service : "NULL");
 
+    // ===== если /logs без аргументов =====
+
     if (!service || service[0] == '\0') {
-        snprintf(buffer, size,
-            "*Usage:*\n`/logs <service>`");
-        return -1;
+
+        buffer[0] = '\0';
+
+        safe_append(buffer, size, "Available services:\n\n");
+
+        for (int i = 0; i < services_count; i++) {
+            safe_append(buffer, size, "- ");
+            safe_append(buffer, size, allowed_services[i]);
+            safe_append(buffer, size, "\n");
+        }
+
+        safe_append(buffer, size, "\nUsage:\n/logs <service>");
+
+        return 0;
     }
+
+    // ===== проверка whitelist =====
 
     if (!is_allowed(service)) {
         snprintf(buffer, size,
-            "❌ Service *not allowed*");
+            "Service not allowed");
         log_msg(LOG_WARN, "Blocked logs access: %s", service);
         return -1;
     }
@@ -75,7 +90,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
     if (!fp) {
         log_msg(LOG_ERROR, "popen() failed");
         snprintf(buffer, size,
-            "❌ Failed to read logs");
+            "Failed to read logs");
         return -1;
     }
 
@@ -86,7 +101,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
     // ===== header =====
 
     snprintf(buffer, size,
-        "*📜 LOGS: `%s`*\n\n```",
+        "LOGS: %s\n\n",
         service);
 
     char line[MAX_LINE];
@@ -107,21 +122,20 @@ int logs_get(const char *service, char *buffer, size_t size) {
             break;
         }
 
-        strcat(buffer, line);
+        safe_append(buffer, size, line);
+        safe_append(buffer, size, "\n");
     }
 
     int rc = pclose(fp);
     log_msg(LOG_INFO, "pclose() rc=%d, lines=%d", rc, line_count);
 
-    // закрываем code block
-    safe_append(buffer, size, "```");
+    // ===== если нет строк =====
 
-    // если нет строк
     if (line_count == 0) {
         log_msg(LOG_WARN, "No logs returned from journalctl");
 
         snprintf(buffer, size,
-            "*📜 LOGS: `%s`*\n\n_No logs available_",
+            "LOGS: %s\n\nNo logs available",
             service);
     }
 
