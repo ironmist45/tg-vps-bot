@@ -14,9 +14,10 @@ int config_load(const char *path, config_t *cfg) {
         return -1;
     }
 
-    // значения по умолчанию
+    // ===== defaults =====
     memset(cfg, 0, sizeof(config_t));
     cfg->poll_timeout = 30;
+    cfg->token_ttl = 60;   // ✅ ДОБАВИЛИ
     safe_copy(cfg->log_file, sizeof(cfg->log_file), "/var/log/tg-bot.log");
 
     char line[LINE_MAX_LEN];
@@ -69,6 +70,12 @@ int config_load(const char *path, config_t *cfg) {
                 safe_copy(cfg->log_file, sizeof(cfg->log_file), "/var/log/tg-bot.log");
             }
         }
+        else if (strcmp(key, "TOKEN_TTL") == 0) {   // ✅ ДОБАВИЛИ
+            if (parse_int(value, &cfg->token_ttl) != 0) {
+                log_msg(LOG_WARN, "Invalid TOKEN_TTL, using default");
+                cfg->token_ttl = 60;
+            }
+        }
         else {
             log_msg(LOG_DEBUG, "Unknown config key: %s", key);
         }
@@ -76,7 +83,8 @@ int config_load(const char *path, config_t *cfg) {
 
     fclose(f);
 
-    // финальная проверка
+    // ===== validation =====
+
     if (cfg->token[0] == '\0') {
         log_msg(LOG_ERROR, "TOKEN is missing");
         return -1;
@@ -88,5 +96,7 @@ int config_load(const char *path, config_t *cfg) {
     }
 
     log_msg(LOG_INFO, "Config loaded");
+    log_msg(LOG_INFO, "TOKEN_TTL: %d sec", cfg->token_ttl);  // ✅ ДОБАВИЛИ
+
     return 0;
 }
