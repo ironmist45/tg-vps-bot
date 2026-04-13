@@ -1,6 +1,7 @@
 #include "telegram.h"
 #include "logger.h"
 #include "commands.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -104,14 +105,19 @@ static int http_post(const char *url, const char *post_fields) {
 
 int telegram_send_message(const char *text) {
     char url[URL_MAX];
-    char post[2048];
+    char post[4096];
+    char encoded[2048];
 
     snprintf(url, sizeof(url), "%s/sendMessage", base_url);
 
-    // ⚠️ упрощённо (без URL encoding)
+    if (url_encode(text, encoded, sizeof(encoded)) != 0) {
+        log_msg(LOG_ERROR, "URL encode failed");
+        return -1;
+    }
+
     snprintf(post, sizeof(post),
              "chat_id=%ld&text=%s",
-             allowed_chat_id, text);
+             allowed_chat_id, encoded);
 
     return http_post(url, post);
 }
@@ -137,7 +143,6 @@ static void handle_update(cJSON *update) {
 
     long cid = chat_id->valuedouble;
 
-    // ===== безопасность =====
     if (cid != allowed_chat_id) {
         log_msg(LOG_WARN, "Unauthorized chat: %ld", cid);
         return;
@@ -147,14 +152,10 @@ static void handle_update(cJSON *update) {
 
     log_msg(LOG_INFO, "Received: %s", msg);
 
-    // ===== интеграция commands =====
     char response[4096];
 
-    if (commands_handle(msg, response, sizeof(response)) == 0) {
-        telegram_send_message(response);
-    } else {
-        telegram_send_message(response);
-    }
+    commands_handle(msg, response, sizeof(response));
+    telegram_send_message(response);
 }
 
 // ===== polling =====
