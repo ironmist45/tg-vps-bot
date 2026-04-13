@@ -82,9 +82,6 @@ The bot runs as a daemon and provides real-time access to system status, service
 
 ---
 
-
----
-
 # 🔥 Что улучшено
 
 - Добавлен `/about`
