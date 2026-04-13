@@ -16,10 +16,11 @@
 static char g_token[128];
 static char g_base_url[512];
 
-// ===== escape MarkdownV2 =====
+// ===== escape MarkdownV2 (фикс: НЕ трогаем *) =====
 
 static void escape_markdown(const char *src, char *dst, size_t size) {
-    const char *special = "_*[]()~`>#+-=|{}.!";
+    // ⚠️ убрали '*' чтобы работал bold
+    const char *special = "_[]()~`>#+-=|{}.!";
 
     size_t j = 0;
 
@@ -92,7 +93,7 @@ int telegram_send_message(long chat_id, const char *text) {
 
     snprintf(url, sizeof(url), "%s/sendMessage", g_base_url);
 
-    // 🔥 escape markdown
+    // 🔥 escape (но без ломания bold)
     char escaped[RESP_MAX];
     escape_markdown(text, escaped, sizeof(escaped));
 
