@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <strings.h>  // 🔥 для strcasecmp
+#include <strings.h>  // для strcasecmp
 
 #define LINE_MAX_LEN 512
 
@@ -27,10 +27,12 @@ int config_load(const char *path, config_t *cfg) {
     while (fgets(line, sizeof(line), f)) {
         line_num++;
 
+        // убрать \n
         line[strcspn(line, "\n")] = 0;
 
         char *str = trim(line);
 
+        // пропуск пустых строк и комментариев
         if (str[0] == '\0' || str[0] == '#')
             continue;
 
@@ -98,8 +100,8 @@ int config_load(const char *path, config_t *cfg) {
         return -1;
     }
 
+    // ===== минимальный лог =====
     log_msg(LOG_INFO, "Config loaded");
-    log_msg(LOG_INFO, "TOKEN_TTL: %d sec", cfg->token_ttl);
 
     return 0;
 }
