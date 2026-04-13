@@ -77,7 +77,7 @@ static int cmd_help(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size);
 
-// ===== ABOUT =====
+// ===== ABOUT (🔥 улучшенный) =====
 
 static int cmd_about(int argc, char *argv[],
                     long chat_id,
@@ -95,11 +95,20 @@ static int cmd_about(int argc, char *argv[],
     snprintf(resp, size,
         "*ℹ️ ABOUT*\n\n"
         "*%s v%s (%s)*\n\n"
+        "👤 Author: %s\n"
+        "📅 Year: %s\n\n"
+        "⚙️ Build: %s %s\n"
+        "🖥 Target: %s\n\n"
         "🆔 PID: %d\n"
         "⏱ Uptime: %dd %dh %dm",
         APP_NAME,
         APP_VERSION,
         APP_CODENAME,
+        APP_AUTHOR,
+        APP_YEAR,
+        BUILD_DATE,
+        BUILD_TIME,
+        TARGET_OS,
         getpid(),
         days, hours, mins
     );
@@ -118,7 +127,7 @@ static int cmd_ping(int argc, char *argv[],
     struct timespec start, end;
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-    usleep(1000); // минимальная задержка
+    usleep(1000);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     long ms =
