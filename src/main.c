@@ -22,12 +22,37 @@ time_t g_start_time;
 static volatile sig_atomic_t g_reload_config = 0;
 volatile sig_atomic_t g_shutdown_requested = 0; // 0=none,1=restart,2=reboot
 
+// ===== SIGNAL HANDLERS =====
+
 static void handle_sighup(int sig) {
     (void)sig;
     g_reload_config = 1;
 }
 
-// ===== SAFE EXEC (fork + exec + wait + debug) =====
+static void handle_sigterm(int sig) {
+    (void)sig;
+    log_msg(LOG_WARN, "Received SIGTERM, shutting down...");
+    g_shutdown_requested = 1;
+}
+
+// ===== SAFE EXEC =====
+
+static void log_exec_args(char *const argv[]) {
+    char buf[256] = {0};
+    size_t used = 0;
+
+    for (int i = 0; argv[i] != NULL; i++) {
+        int written = snprintf(buf + used, sizeof(buf) - used,
+                               "%s ", argv[i]);
+
+        if (written < 0 || (size_t)written >= sizeof(buf) - used)
+            break;
+
+        used += written;
+    }
+
+    log_msg(LOG_INFO, "Exec: %s", buf);
+}
 
 static int exec_command(const char *path, char *const argv[]) {
     pid_t pid = fork();
@@ -39,8 +64,6 @@ static int exec_command(const char *path, char *const argv[]) {
 
     if (pid == 0) {
         execv(path, argv);
-
-        // если exec не сработал
         perror("exec failed");
         _exit(127);
     }
@@ -70,6 +93,11 @@ static int exec_command(const char *path, char *const argv[]) {
 
 static void handle_shutdown() {
 
+    static int handled = 0;
+
+    if (handled) return;
+    handled = 1;
+
     if (g_shutdown_requested == 1) {
 
         log_msg(LOG_WARN, "Restarting bot via systemd...");
@@ -81,6 +109,8 @@ static void handle_shutdown() {
             "tg-bot",
             NULL
         };
+
+        log_exec_args(args);
 
         int rc = exec_command("/usr/bin/sudo", args);
 
@@ -99,12 +129,17 @@ static void handle_shutdown() {
             NULL
         };
 
+        log_exec_args(args);
+
         int rc = exec_command("/usr/bin/sudo", args);
 
         if (rc != 0) {
             log_msg(LOG_ERROR, "reboot failed (rc=%d)", rc);
         }
     }
+
+    // даём логгеру дописать
+    sleep(1);
 }
 
 // ===== DEBUG =====
@@ -189,6 +224,11 @@ int main(int argc, char *argv[]) {
     sa.sa_handler = handle_sighup;
     sigaction(SIGHUP, &sa, NULL);
 
+    struct sigaction sa_term = {0};
+    sa_term.sa_handler = handle_sigterm;
+    sigaction(SIGTERM, &sa_term, NULL);
+    sigaction(SIGINT, &sa_term, NULL);
+
     cli_args_t args;
 
     if (cli_parse(argc, argv, &args) != 0) {
@@ -236,6 +276,7 @@ int main(int argc, char *argv[]) {
 
     security_set_allowed_chat(cfg.chat_id);
     security_set_token_ttl(cfg.token_ttl);
+    security_init(); // 🔥 новый шаг
 
     if (telegram_init(cfg.token) != 0) {
         log_msg(LOG_ERROR, "Telegram init failed");
