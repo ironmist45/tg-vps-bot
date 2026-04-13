@@ -14,9 +14,9 @@ typedef struct {
 // ===== whitelist сервисов =====
 
 static service_t services[] = {
-    {"ssh", "ssh"},
-    {"shadowsocks-libev", "shadowsocks"},
-    {"mtg", "mtg"},
+    {"ssh", "SSH"},
+    {"shadowsocks-libev", "Shadowsocks"},
+    {"mtg", "MTG"},
 };
 
 static const int services_count =
@@ -47,64 +47,50 @@ static int get_service_status(const char *service, char *out, size_t size) {
     // убрать \n
     out[strcspn(out, "\n")] = 0;
 
-    // если systemctl вернул пустоту
-    if (out[0] == '\0') {
-        snprintf(out, size, "unknown");
-    }
-
     return 0;
 }
 
-// ===== форматирование строки =====
+// ===== emoji + формат =====
+
+static const char *format_status(const char *status) {
+
+    if (strcmp(status, "active") == 0)
+        return "🟢 UP";
+
+    if (strcmp(status, "inactive") == 0)
+        return "🔴 DOWN";
+
+    if (strcmp(status, "failed") == 0)
+        return "🟡 FAIL";
+
+    if (strcmp(status, "activating") == 0)
+        return "🟡 STARTING";
+
+    return "⚪ UNKNOWN";
+}
+
+// ===== строка =====
 
 static void format_line(char *dst, size_t size,
                         const char *name,
                         const char *status) {
 
-    const char *icon = "⚪";
-    const char *label = status;
+    const char *status_fmt = format_status(status);
 
-    if (strcmp(status, "active") == 0) {
-        icon = "🟢";
-        label = "running";
-    }
-    else if (strcmp(status, "inactive") == 0) {
-        icon = "🟡";
-        label = "stopped";
-    }
-    else if (strcmp(status, "failed") == 0) {
-        icon = "🔴";
-        label = "failed";
-    }
-    else if (strcmp(status, "activating") == 0) {
-        icon = "🔵";
-        label = "starting";
-    }
-    else if (strcmp(status, "deactivating") == 0) {
-        icon = "🟠";
-        label = "stopping";
-    }
-    else if (strcmp(status, "unknown") == 0) {
-        icon = "⚫";
-        label = "not found";
-    }
-
-    snprintf(dst, size, "%s %-12s : %s\n", icon, name, label);
+    snprintf(dst, size,
+             "%-14s : %s\n",
+             name,
+             status_fmt);
 }
 
 // ===== основной API =====
 
 int services_get_status(char *buffer, size_t size) {
 
-    if (!buffer || size == 0)
-        return -1;
-
     buffer[0] = '\0';
 
-    strncat(buffer, "📦 *Services status*\n\n",
+    strncat(buffer, "*🧩 SERVICES*\n\n",
             size - strlen(buffer) - 1);
-
-    int added = 0;
 
     for (int i = 0; i < services_count; i++) {
 
@@ -112,7 +98,8 @@ int services_get_status(char *buffer, size_t size) {
         char line[128] = {0};
 
         if (get_service_status(services[i].name,
-                               status, sizeof(status)) != 0) {
+                               status,
+                               sizeof(status)) != 0) {
             log_msg(LOG_WARN,
                     "Failed to get status: %s",
                     services[i].name);
@@ -122,18 +109,10 @@ int services_get_status(char *buffer, size_t size) {
                     services[i].display,
                     status);
 
-        if (strlen(buffer) + strlen(line) >= size - 1) {
+        if (strlen(buffer) + strlen(line) >= size - 1)
             break;
-        }
 
         strcat(buffer, line);
-        added++;
-    }
-
-    // fallback если вдруг ничего не добавили
-    if (added == 0) {
-        strncat(buffer, "⚠️ No services available\n",
-                size - strlen(buffer) - 1);
     }
 
     return 0;
