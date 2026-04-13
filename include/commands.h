@@ -3,8 +3,8 @@
 #ifndef COMMANDS_H
 #define COMMANDS_H
 
-int commands_handle(long chat_id,
-                    const char *text,
+int commands_handle(const char *text,
+                    long chat_id,
                     char *response,
                     size_t resp_size);
 
