@@ -17,7 +17,10 @@
 static char g_token[128];
 static char g_base_url[512];
 
-// ===== discard callback (глушим ответ curl) =====
+// 🔥 защита от повторной обработки (reboot loop фикс)
+static long g_last_processed_update = 0;
+
+// ===== discard callback =====
 
 static size_t discard_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
     (void)ptr;
@@ -25,7 +28,7 @@ static size_t discard_callback(void *ptr, size_t size, size_t nmemb, void *userd
     return size * nmemb;
 }
 
-// ===== escape MarkdownV2 (оставляем *) =====
+// ===== escape MarkdownV2 =====
 
 static void escape_markdown(const char *src, char *dst, size_t size) {
     const char *special = "_[]()~`>#+-=|{}.!";
@@ -42,10 +45,12 @@ static void escape_markdown(const char *src, char *dst, size_t size) {
     dst[j] = '\0';
 }
 
-// ===== safe truncate (Telegram 4096 limit) =====
+// ===== truncate =====
 
 static void truncate_message(char *text) {
-    if (strlen(text) >= TG_LIMIT) {
+    size_t len = strlen(text);
+
+    if (len >= TG_LIMIT) {
         text[TG_LIMIT - 20] = '\0';
         strcat(text, "\n...\n[truncated]");
     }
@@ -64,8 +69,7 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     struct memory *mem = (struct memory *)userp;
 
     char *ptr = realloc(mem->data, mem->size + real_size + 1);
-    if (!ptr)
-        return 0;
+    if (!ptr) return 0;
 
     mem->data = ptr;
     memcpy(&(mem->data[mem->size]), contents, real_size);
@@ -73,6 +77,14 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     mem->data[mem->size] = 0;
 
     return real_size;
+}
+
+// ===== CURL SETUP (единая точка) =====
+
+static void setup_curl(CURL *curl) {
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 }
 
 // ===== init =====
@@ -95,16 +107,23 @@ int telegram_init(const char *token) {
     return 0;
 }
 
+// ===== shutdown (🔥 важно для graceful reboot) =====
+
+void telegram_shutdown(void) {
+    curl_global_cleanup();
+    log_msg(LOG_INFO, "Telegram shutdown");
+}
+
 // ===== send Markdown =====
 
 int telegram_send_message(long chat_id, const char *text) {
 
-    if (!text)
-        return -1;
+    if (!text) return -1;
 
     CURL *curl = curl_easy_init();
-    if (!curl)
-        return -1;
+    if (!curl) return -1;
+
+    setup_curl(curl);
 
     char url[URL_MAX];
     snprintf(url, sizeof(url), "%s/sendMessage", g_base_url);
@@ -119,38 +138,34 @@ int telegram_send_message(long chat_id, const char *text) {
     escape_markdown(tmp, escaped, sizeof(escaped));
 
     char post_fields[RESP_MAX];
-
     snprintf(post_fields, sizeof(post_fields),
              "chat_id=%ld&text=%s&parse_mode=MarkdownV2",
              chat_id, escaped);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
-
-    // 🔥 FIX: отключаем вывод ответа в stdout
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback);
 
     CURLcode res = curl_easy_perform(curl);
 
     if (res != CURLE_OK) {
-        log_msg(LOG_ERROR, "curl error: %s", curl_easy_strerror(res));
+        log_msg(LOG_ERROR, "curl send error: %s", curl_easy_strerror(res));
     }
 
     curl_easy_cleanup(curl);
-
     return 0;
 }
 
-// ===== send plain (для логов) =====
+// ===== send plain =====
 
 int telegram_send_plain(long chat_id, const char *text) {
 
-    if (!text)
-        return -1;
+    if (!text) return -1;
 
     CURL *curl = curl_easy_init();
-    if (!curl)
-        return -1;
+    if (!curl) return -1;
+
+    setup_curl(curl);
 
     char url[URL_MAX];
     snprintf(url, sizeof(url), "%s/sendMessage", g_base_url);
@@ -162,25 +177,21 @@ int telegram_send_plain(long chat_id, const char *text) {
     truncate_message(tmp);
 
     char post_fields[RESP_MAX];
-
     snprintf(post_fields, sizeof(post_fields),
              "chat_id=%ld&text=%s",
              chat_id, tmp);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
-
-    // 🔥 FIX: отключаем вывод ответа в stdout
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback);
 
     CURLcode res = curl_easy_perform(curl);
 
     if (res != CURLE_OK) {
-        log_msg(LOG_ERROR, "curl error: %s", curl_easy_strerror(res));
+        log_msg(LOG_ERROR, "curl send error: %s", curl_easy_strerror(res));
     }
 
     curl_easy_cleanup(curl);
-
     return 0;
 }
 
@@ -191,13 +202,14 @@ int telegram_poll() {
     static long last_update_id = 0;
 
     CURL *curl = curl_easy_init();
-    if (!curl)
-        return -1;
+    if (!curl) return -1;
+
+    setup_curl(curl);
 
     char url[URL_MAX];
 
     snprintf(url, sizeof(url),
-             "%s/getUpdates?timeout=30&offset=%ld",
+             "%s/getUpdates?timeout=25&offset=%ld",
              g_base_url, last_update_id);
 
     struct memory chunk = {0};
@@ -209,7 +221,7 @@ int telegram_poll() {
     CURLcode res = curl_easy_perform(curl);
 
     if (res != CURLE_OK) {
-        log_msg(LOG_ERROR, "curl error: %s", curl_easy_strerror(res));
+        log_msg(LOG_ERROR, "curl poll error: %s", curl_easy_strerror(res));
         curl_easy_cleanup(curl);
         free(chunk.data);
         return -1;
@@ -234,8 +246,16 @@ int telegram_poll() {
             cJSON *update = cJSON_GetArrayItem(result, i);
 
             cJSON *update_id = cJSON_GetObjectItem(update, "update_id");
-            if (update_id)
-                last_update_id = (long)update_id->valuedouble + 1;
+            if (!update_id) continue;
+
+            long uid = (long)update_id->valuedouble;
+
+            // 🔥 CRITICAL FIX: не обрабатывать повторно
+            if (uid <= g_last_processed_update)
+                continue;
+
+            g_last_processed_update = uid;
+            last_update_id = uid + 1;
 
             cJSON *message = cJSON_GetObjectItem(update, "message");
             if (!message) continue;
@@ -260,7 +280,6 @@ int telegram_poll() {
 
             if (commands_handle(msg_text, cid, response, sizeof(response)) == 0) {
 
-                // logs без Markdown
                 if (strncmp(msg_text, "/logs", 5) == 0) {
                     telegram_send_plain(cid, response);
                 } else {
