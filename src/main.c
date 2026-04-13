@@ -24,6 +24,23 @@ static void handle_sighup(int sig) {
     g_reload_config = 1;
 }
 
+// ===== helper: безопасное переключение логгера =====
+static int try_reopen_logger(const char *path) {
+    FILE *test = fopen(path, "a");
+    if (!test) {
+        return -1;
+    }
+    fclose(test);
+
+    logger_close();
+
+    if (logger_init(path) != 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
 // ===== main =====
 
 int main(int argc, char *argv[]) {
@@ -89,15 +106,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // ===== переинициализация логгера =====
-    logger_close();
-
-    if (logger_init(cfg.log_file) != 0) {
-        printf("ERROR: cannot open log file: %s\n", cfg.log_file);
-        return 1;
+    // ===== переключение логгера (безопасное) =====
+    if (try_reopen_logger(cfg.log_file) != 0) {
+        log_msg(LOG_WARN,
+                "Failed to open log file: %s (using bootstrap logger)",
+                cfg.log_file);
+    } else {
+        log_msg(LOG_INFO, "Logger initialized: %s", cfg.log_file);
     }
 
-    log_msg(LOG_INFO, "Logger initialized: %s", cfg.log_file);
     log_msg(LOG_INFO, "CHAT_ID: %ld", cfg.chat_id);
     log_msg(LOG_INFO, "TOKEN_TTL: %d", cfg.token_ttl);
     log_msg(LOG_INFO, "Polling timeout: %d", cfg.poll_timeout);
@@ -128,12 +145,13 @@ int main(int argc, char *argv[]) {
 
             if (config_load(args.config_path, &new_cfg) == 0) {
 
-                // обновляем логгер (если путь изменился)
+                // обновляем логгер (безопасно)
                 if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
-                    logger_close();
 
-                    if (logger_init(new_cfg.log_file) != 0) {
-                        printf("ERROR: cannot reopen log file: %s\n", new_cfg.log_file);
+                    if (try_reopen_logger(new_cfg.log_file) != 0) {
+                        log_msg(LOG_WARN,
+                                "Failed to reopen log file: %s (keeping current logger)",
+                                new_cfg.log_file);
                     } else {
                         log_msg(LOG_INFO, "Logger reloaded: %s", new_cfg.log_file);
                     }
