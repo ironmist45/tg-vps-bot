@@ -1,12 +1,5 @@
-# build
-tg_bot
+build/
 *.o
-
-# logs
+tg-bot
+config/config.conf
 *.log
-
-# config secrets
-config/*.ini
-
-# temp
-*.swp
