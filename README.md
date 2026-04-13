@@ -82,25 +82,23 @@ The bot runs as a daemon and provides real-time access to system status, service
 
 ---
 
-## 📂 Project Structure
-├── src/
-│ ├── main.c # entry point
-│ ├── telegram.c # Telegram API взаимодействие
-│ ├── commands.c # обработка команд
-│ ├── system.c # системная информация (/proc)
-│ ├── services.c # systemd сервисы
-│ ├── users.c # пользователи
-│ ├── logs.c # логирование systemd
-│ ├── security.c # токены, rate-limit
-│ ├── cli.c # CLI аргументы
-│ └── logger.c # логгер
-│
-├── include/
-│ ├── *.h
-│
-├── config/
-│ └── config.conf # пример конфигурационного файла
-│
-├── build/
-├── Makefile
-└── tg-bot
+
+---
+
+# 🔥 Что улучшено
+
+- Добавлен `/about`
+- Добавлены:
+  - tokens + TTL
+  - rate-limit
+  - audit logs
+- Описан UX (Markdown)
+- Добавлена структура проекта
+- README стал “GitHub-ready”
+
+---
+
+В планах:
+- сделать **бейджи (build passing, version)**  
+- оформить **релиз на GitHub**
+- или сделать README как у топовых open-source проектов 😎
