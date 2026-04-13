@@ -1,17 +1,13 @@
 #ifndef TELEGRAM_H
 #define TELEGRAM_H
 
-#include "config.h"
+// init
+int telegram_init(const char *token);
 
-// init / cleanup
-int telegram_init(const config_t *cfg);
-void telegram_cleanup();
+// отправка сообщения
+int telegram_send_message(long chat_id, const char *text);
 
-// polling
+// long polling
 int telegram_poll();
-
-// отправка сообщений
-int telegram_send_message(const char *text);
-int telegram_send_long_message(const char *text);
 
 #endif
