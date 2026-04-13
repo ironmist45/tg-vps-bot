@@ -12,13 +12,14 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>   // ✅ FIX
 
 #define MAX_ARGS 8
 #define RESP_MAX 8192
 
 extern time_t g_start_time;
 
-// 🔥 флаг graceful shutdown
+// 🔥 graceful shutdown flag
 extern volatile sig_atomic_t g_shutdown_requested;
 
 typedef int (*command_handler_t)(int argc, char *argv[],
@@ -41,10 +42,6 @@ static int split_args(char *input, char *argv[], int max_args) {
         token = strtok(NULL, " ");
     }
     return argc;
-}
-
-static void safe_write(char *dst, size_t size, const char *text) {
-    snprintf(dst, size, "%s", text);
 }
 
 // ===== START =====
@@ -240,7 +237,7 @@ static int cmd_reboot_confirm(int argc, char *argv[],
     log_msg(LOG_WARN, "REBOOT requested by chat_id=%ld", chat_id);
 
     // 🔥 graceful shutdown trigger
-    g_shutdown_requested = 2; // 2 = reboot
+    g_shutdown_requested = 2;
 
     snprintf(resp, size, "♻️ Reboot scheduled...");
     return 0;
