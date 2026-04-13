@@ -1,15 +1,11 @@
 #ifndef SECURITY_H
 #define SECURITY_H
 
-#include <stddef.h>
+int security_generate_reboot_token(long chat_id);
+int security_validate_reboot_token(long chat_id, int token);
 
-// инициализация
-void security_init(long allowed_chat_id);
-
-// проверка доступа
+// уже было
 int security_is_allowed_chat(long chat_id);
-
-// базовая валидация входящего текста
 int security_validate_text(const char *text);
 
 #endif
