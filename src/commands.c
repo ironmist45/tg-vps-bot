@@ -15,6 +15,7 @@
 #include <unistd.h>
 
 #define MAX_ARGS 8
+#define RESP_MAX 8192   // 🔥 фикс
 
 // uptime из main.c
 extern time_t g_start_time;
@@ -55,7 +56,7 @@ static int cmd_start(int argc, char *argv[],
                      char *resp, size_t size) {
     (void)argc; (void)argv; (void)chat_id;
 
-    char status[512];
+    char status[1024];
 
     if (system_get_status(status, sizeof(status)) != 0) {
         snprintf(status, sizeof(status), "⚠️ Failed to get system info");
@@ -174,7 +175,7 @@ static int cmd_status(int argc, char *argv[],
                      char *resp, size_t size) {
     (void)argc; (void)argv; (void)chat_id;
 
-    char tmp[512];
+    char tmp[1024];
 
     if (system_get_status(tmp, sizeof(tmp)) != 0) {
         snprintf(resp, size, "❌ Failed to get system status");
@@ -195,7 +196,7 @@ static int cmd_services(int argc, char *argv[],
                        char *resp, size_t size) {
     (void)argc; (void)argv; (void)chat_id;
 
-    char tmp[512];
+    char tmp[1024];
 
     if (services_get_status(tmp, sizeof(tmp)) != 0) {
         snprintf(resp, size, "❌ Failed to get services status");
@@ -216,7 +217,7 @@ static int cmd_users(int argc, char *argv[],
                     char *resp, size_t size) {
     (void)argc; (void)argv; (void)chat_id;
 
-    char tmp[512];
+    char tmp[1024];
 
     if (users_get_logged(tmp, sizeof(tmp)) != 0) {
         snprintf(resp, size, "❌ Failed to get users");
@@ -242,18 +243,15 @@ static int cmd_logs(int argc, char *argv[],
         return -1;
     }
 
-    char tmp[1024];
+    char tmp[RESP_MAX];  // 🔥 фикс
 
     if (logs_get(argv[1], tmp, sizeof(tmp)) != 0) {
         snprintf(resp, size, "❌ Failed to get logs");
         return -1;
     }
 
-    snprintf(resp, size,
-        "*📜 LOGS (%s)*\n\n%s",
-        argv[1],
-        tmp
-    );
+    // 🔥 НЕ добавляем заголовок второй раз
+    snprintf(resp, size, "%s", tmp);
 
     return 0;
 }
