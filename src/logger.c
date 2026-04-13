@@ -106,10 +106,17 @@ void log_msg(log_level_t level, const char *fmt, ...) {
         }
     }
 
-    fprintf(out, "[%s] [%s] %s\n",
-            timestamp,
-            level_to_string(level),
-            message);
+    // запись + проверка
+    if (fprintf(out, "[%s] [%s] %s\n",
+                timestamp,
+                level_to_string(level),
+                message) < 0) {
+
+        // fallback если запись в файл сломалась
+        if (out != stderr) {
+            fprintf(stderr, "[LOGGER ERROR] write failed\n");
+        }
+    }
 
     fflush(out);
 }
