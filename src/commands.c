@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stddef.h>
 
 #define MAX_ARGS 8
 
@@ -76,12 +77,19 @@ static int cmd_echo(int argc, char *argv[],
         return -1;
     }
 
+    size_t used = 0;
     resp[0] = '\0';
 
     for (int i = 1; i < argc; i++) {
-        strncat(resp, argv[i], size - strlen(resp) - 2);
-        if (i < argc - 1)
-            strncat(resp, " ", size - strlen(resp) - 2);
+        int written = snprintf(resp + used, size - used,
+                               "%s%s",
+                               argv[i],
+                               (i < argc - 1) ? " " : "");
+
+        if (written < 0 || (size_t)written >= size - used)
+            break;
+
+        used += written;
     }
 
     return 0;
@@ -179,9 +187,15 @@ static int cmd_reboot_confirm(int argc, char *argv[],
         return -1;
     }
 
-    int token = atoi(argv[1]);
+    char *endptr = NULL;
+    long token = strtol(argv[1], &endptr, 10);
 
-    if (security_validate_reboot_token(chat_id, token) != 0) {
+    if (*endptr != '\0') {
+        snprintf(resp, size, "Invalid token format");
+        return -1;
+    }
+
+    if (security_validate_reboot_token(chat_id, (int)token) != 0) {
         snprintf(resp, size, "Invalid or expired token");
         return -1;
     }
@@ -198,7 +212,7 @@ static int cmd_reboot_confirm(int argc, char *argv[],
     return 0;
 }
 
-// ===== таблица команд =====
+// ===== таблица =====
 
 static command_t commands[] = {
     {"/start", cmd_start, "Start bot"},
@@ -223,13 +237,19 @@ static int cmd_help(int argc, char *argv[],
                    char *resp, size_t size) {
     (void)argc; (void)argv; (void)chat_id;
 
+    size_t used = 0;
     resp[0] = '\0';
 
     for (int i = 0; i < commands_count; i++) {
-        strncat(resp, commands[i].name, size - strlen(resp) - 1);
-        strncat(resp, " - ", size - strlen(resp) - 1);
-        strncat(resp, commands[i].description, size - strlen(resp) - 1);
-        strncat(resp, "\n", size - strlen(resp) - 1);
+        int written = snprintf(resp + used, size - used,
+                               "%s - %s\n",
+                               commands[i].name,
+                               commands[i].description);
+
+        if (written < 0 || (size_t)written >= size - used)
+            break;
+
+        used += written;
     }
 
     return 0;
