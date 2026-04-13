@@ -1,161 +1,163 @@
 #include "system.h"
-#include "logger.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/statvfs.h>
-
-// ===== CPU LOAD =====
-
-static int get_loadavg(double *l1, double *l5, double *l15) {
-    FILE *f = fopen("/proc/loadavg", "r");
-    if (!f) return -1;
-
-    if (fscanf(f, "%lf %lf %lf", l1, l5, l15) != 3) {
-        fclose(f);
-        return -1;
-    }
-
-    fclose(f);
-    return 0;
-}
-
-// ===== MEMORY =====
-
-static int get_meminfo(long *total, long *free, long *available) {
-    FILE *f = fopen("/proc/meminfo", "r");
-    if (!f) return -1;
-
-    char key[64];
-    long value;
-    char unit[16];
-
-    while (fscanf(f, "%63s %ld %15s\n", key, &value, unit) == 3) {
-
-        if (strcmp(key, "MemTotal:") == 0)
-            *total = value;
-        else if (strcmp(key, "MemFree:") == 0)
-            *free = value;
-        else if (strcmp(key, "MemAvailable:") == 0)
-            *available = value;
-    }
-
-    fclose(f);
-    return 0;
-}
-
-// ===== DISK =====
-
-static int get_disk_usage(const char *path,
-                          unsigned long *total,
-                          unsigned long *used,
-                          unsigned long *free) {
-
-    struct statvfs vfs;
-
-    if (statvfs(path, &vfs) != 0) {
-        return -1;
-    }
-
-    *total = vfs.f_blocks * vfs.f_frsize;
-    *free  = vfs.f_bfree  * vfs.f_frsize;
-    *used  = *total - *free;
-
-    return 0;
-}
-
-// ===== UPTIME =====
-
-static int get_uptime(long *uptime_sec) {
-    FILE *f = fopen("/proc/uptime", "r");
-    if (!f) return -1;
-
-    double up;
-    if (fscanf(f, "%lf", &up) != 1) {
-        fclose(f);
-        return -1;
-    }
-
-    fclose(f);
-
-    *uptime_sec = (long)up;
-    return 0;
-}
 
 // ===== helpers =====
 
-static void format_uptime(long sec, char *buf, size_t size) {
-    int days = sec / 86400;
-    sec %= 86400;
-    int hours = sec / 3600;
-    sec %= 3600;
-    int mins = sec / 60;
-
-    snprintf(buf, size, "%dd %dh %dm", days, hours, mins);
+static void trim_newline(char *s) {
+    if (!s) return;
+    s[strcspn(s, "\n")] = 0;
 }
 
-static void format_bytes(unsigned long bytes, char *buf, size_t size) {
-    double gb = bytes / (1024.0 * 1024 * 1024);
-    snprintf(buf, size, "%.2f GB", gb);
+// ===== hostname =====
+
+static void get_hostname(char *buf, size_t size) {
+    if (gethostname(buf, size) != 0) {
+        snprintf(buf, size, "unknown");
+    }
 }
 
-// ===== MAIN =====
+// ===== kernel =====
 
-int system_get_status(char *buffer, size_t size) {
-
-    double l1=0, l5=0, l15=0;
-    long mem_total=0, mem_free=0, mem_avail=0;
-    unsigned long disk_total=0, disk_used=0, disk_free=0;
-    long uptime=0;
-
-    if (get_loadavg(&l1, &l5, &l15) != 0) {
-        log_msg(LOG_WARN, "Failed to read loadavg");
+static void get_kernel(char *buf, size_t size) {
+    FILE *f = fopen("/proc/version", "r");
+    if (!f) {
+        snprintf(buf, size, "unknown");
+        return;
     }
 
-    if (get_meminfo(&mem_total, &mem_free, &mem_avail) != 0) {
-        log_msg(LOG_WARN, "Failed to read meminfo");
+    fgets(buf, size, f);
+    trim_newline(buf);
+    fclose(f);
+}
+
+// ===== uptime =====
+
+static void get_uptime(char *buf, size_t size) {
+    FILE *f = fopen("/proc/uptime", "r");
+    if (!f) {
+        snprintf(buf, size, "unknown");
+        return;
     }
 
-    if (get_disk_usage("/", &disk_total, &disk_used, &disk_free) != 0) {
-        log_msg(LOG_WARN, "Failed to read disk usage");
+    double seconds = 0;
+    fscanf(f, "%lf", &seconds);
+    fclose(f);
+
+    int hours = (int)(seconds / 3600);
+    int minutes = (int)((seconds - hours * 3600) / 60);
+
+    snprintf(buf, size, "%dh %dm", hours, minutes);
+}
+
+// ===== memory =====
+
+static void get_memory(char *buf, size_t size) {
+    FILE *f = fopen("/proc/meminfo", "r");
+    if (!f) {
+        snprintf(buf, size, "unknown");
+        return;
     }
 
-    if (get_uptime(&uptime) != 0) {
-        log_msg(LOG_WARN, "Failed to read uptime");
+    long total = 0, available = 0;
+
+    char line[256];
+    while (fgets(line, sizeof(line), f)) {
+        sscanf(line, "MemTotal: %ld kB", &total);
+        sscanf(line, "MemAvailable: %ld kB", &available);
     }
 
-    // ===== форматирование =====
+    fclose(f);
 
-    char uptime_str[64];
-    char disk_total_str[64], disk_used_str[64];
-    char mem_total_str[64], mem_used_str[64];
+    long used = total - available;
 
-    format_uptime(uptime, uptime_str, sizeof(uptime_str));
+    snprintf(buf, size, "%ldMB / %ldMB",
+             used / 1024, total / 1024);
+}
 
-    format_bytes(disk_total, disk_total_str, sizeof(disk_total_str));
-    format_bytes(disk_used, disk_used_str, sizeof(disk_used_str));
+// ===== disk =====
 
-    long mem_used = mem_total - mem_avail;
+static void get_disk(char *buf, size_t size) {
+    struct statvfs stat;
 
-    snprintf(mem_total_str, sizeof(mem_total_str), "%.2f MB", mem_total / 1024.0);
-    snprintf(mem_used_str, sizeof(mem_used_str), "%.2f MB", mem_used / 1024.0);
+    if (statvfs("/", &stat) != 0) {
+        snprintf(buf, size, "unknown");
+        return;
+    }
 
-    // ===== итог =====
+    unsigned long total = stat.f_blocks * stat.f_frsize;
+    unsigned long free = stat.f_bfree * stat.f_frsize;
+    unsigned long used = total - free;
 
-    snprintf(buffer, size,
-        "=== SYSTEM STATUS ===\n"
-        "\n"
-        "Load avg: %.2f %.2f %.2f\n"
-        "Uptime  : %s\n"
-        "\n"
-        "Memory  : %s / %s\n"
-        "Disk    : %s / %s\n",
-        l1, l5, l15,
-        uptime_str,
-        mem_used_str, mem_total_str,
-        disk_used_str, disk_total_str
+    snprintf(buf, size, "%luGB / %luGB",
+             used / (1024 * 1024 * 1024),
+             total / (1024 * 1024 * 1024));
+}
+
+// ===== IP =====
+
+static void get_ip(char *buf, size_t size) {
+    FILE *f = fopen("/proc/net/fib_trie", "r");
+    if (!f) {
+        snprintf(buf, size, "unknown");
+        return;
+    }
+
+    char line[256];
+    char last_ip[64] = "unknown";
+
+    while (fgets(line, sizeof(line), f)) {
+        if (strstr(line, "32 host")) {
+            if (fgets(line, sizeof(line), f)) {
+                sscanf(line, " |-- %63s", last_ip);
+            }
+        }
+    }
+
+    fclose(f);
+
+    snprintf(buf, size, "%s", last_ip);
+}
+
+// ===== summary =====
+
+int system_get_summary(char *buf, size_t size) {
+
+    char hostname[128];
+    char kernel[256];
+    char uptime[64];
+    char mem[64];
+    char disk[64];
+    char ip[64];
+
+    get_hostname(hostname, sizeof(hostname));
+    get_kernel(kernel, sizeof(kernel));
+    get_uptime(uptime, sizeof(uptime));
+    get_memory(mem, sizeof(mem));
+    get_disk(disk, sizeof(disk));
+    get_ip(ip, sizeof(ip));
+
+    snprintf(buf, size,
+        "*tg-bot is running*\n\n"
+        "🖥 Host: `%s`\n"
+        "🐧 Kernel: `%s`\n"
+        "⏱ Uptime: `%s`\n\n"
+        "💾 RAM: `%s`\n"
+        "📀 Disk: `%s`\n\n"
+        "🌐 IP: `%s`\n\n"
+        "Use /help to see available commands",
+        hostname, kernel, uptime, mem, disk, ip
     );
 
     return 0;
+}
+
+// ===== legacy status (оставим) =====
+
+int system_get_status(char *buf, size_t size) {
+    return system_get_summary(buf, size);
 }
