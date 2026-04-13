@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 #ifndef SERVICES_H
 #define SERVICES_H
 
