@@ -1,0 +1,12 @@
+# build
+tg_bot
+*.o
+
+# logs
+*.log
+
+# config secrets
+config/*.ini
+
+# temp
+*.swp
