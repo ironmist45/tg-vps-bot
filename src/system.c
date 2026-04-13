@@ -20,7 +20,7 @@ static int get_hostname(char *buf, size_t size) {
     return 0;
 }
 
-// 👉 укороченный kernel (без лишнего мусора)
+// 👉 укороченный kernel
 static int get_kernel(char *buf, size_t size) {
     FILE *f = fopen("/proc/version", "r");
     if (!f) return -1;
@@ -34,7 +34,6 @@ static int get_kernel(char *buf, size_t size) {
 
     fclose(f);
 
-    // пример: "Linux version 5.4.0-..."
     char *token = strtok(tmp, " ");
     int count = 0;
 
@@ -74,35 +73,62 @@ static int get_uptime(char *buf, size_t size) {
     return 0;
 }
 
+// ===== 🧠 MEMORY (FIXED + COLORS) =====
+
+static const char *mem_status_emoji(int percent) {
+    if (percent < 50) return "🟢";
+    if (percent < 80) return "🟡";
+    return "🔴";
+}
+
 static int get_memory(char *buf, size_t size) {
     FILE *f = fopen("/proc/meminfo", "r");
     if (!f) return -1;
 
-    long total = 0, free = 0, available = 0;
+    long total = 0;
+    long free = 0;
+    long buffers = 0;
+    long cached = 0;
+
     char line[256];
 
     while (fgets(line, sizeof(line), f)) {
         if (sscanf(line, "MemTotal: %ld kB", &total) == 1) continue;
-        if (sscanf(line, "MemAvailable: %ld kB", &available) == 1) continue;
         if (sscanf(line, "MemFree: %ld kB", &free) == 1) continue;
+        if (sscanf(line, "Buffers: %ld kB", &buffers) == 1) continue;
+        if (sscanf(line, "Cached: %ld kB", &cached) == 1) continue;
     }
 
     fclose(f);
 
     if (total == 0) return -1;
 
-    long used = total - (available ? available : free);
+    long used = total - free - buffers - cached;
+    if (used < 0) used = 0;
 
     int used_mb = used / 1024;
     int total_mb = total / 1024;
 
-    int percent = (int)((double)used / total * 100);
+    int percent = (int)((used * 100) / total);
+
+    const char *emoji = mem_status_emoji(percent);
 
     snprintf(buf, size,
-             "%d / %d MB (%d%%)",
-             used_mb, total_mb, percent);
+             "%s %d / %d MB (%d%%)",
+             emoji,
+             used_mb,
+             total_mb,
+             percent);
 
     return 0;
+}
+
+// ===== 📈 LOAD =====
+
+static const char *load_status_emoji(double load1) {
+    if (load1 < 1.0) return "🟢";
+    if (load1 < 2.0) return "🟡";
+    return "🔴";
 }
 
 static int get_loadavg(char *buf, size_t size) {
@@ -118,8 +144,11 @@ static int get_loadavg(char *buf, size_t size) {
 
     fclose(f);
 
+    const char *emoji = load_status_emoji(l1);
+
     snprintf(buf, size,
-             "%.2f / %.2f / %.2f",
+             "%s %.2f / %.2f / %.2f",
+             emoji,
              l1, l5, l15);
 
     return 0;
@@ -159,7 +188,8 @@ int system_get_status(char *buf, size_t size) {
         "🖥 Host     : `%s`\n"
         "⚙️ Kernel   : `%s`\n"
         "⏱ Uptime   : `%s`\n\n"
-        "🧠 Memory   : `%s`\n"
+        "*🧠 RESOURCES*\n\n"
+        "💾 Memory   : `%s`\n"
         "📈 Load     : `%s`\n",
         hostname,
         kernel,
