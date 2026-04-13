@@ -3,21 +3,54 @@ name: Build tg-bot
 on:
   push:
     branches: [ "main" ]
+  pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Build in Ubuntu 18.04 container
         run: |
           docker run --rm -v $PWD:/app -w /app ubuntu:18.04 bash -c "
-            apt update &&
-            apt install -y build-essential libcurl4-openssl-dev libcjson-dev &&
+            set -e
+
+            echo '[INFO] Updating packages'
+            apt update
+
+            echo '[INFO] Installing dependencies'
+            apt install -y \
+              build-essential \
+              libcurl4-openssl-dev \
+              git \
+              cmake
+
+            echo '[INFO] Building cJSON'
+            cd /tmp
+            git clone https://github.com/DaveGamble/cJSON.git
+            cd cJSON
+            mkdir build && cd build
+            cmake ..
             make
+            make install
+
+            echo '[INFO] Running ldconfig'
+            ldconfig
+
+            echo '[INFO] Building tg-bot'
+            cd /app
+            make
+
+            echo '[INFO] Build finished'
           "
+
+      - name: Check binary
+        run: |
+          ls -l tg-bot
+          file tg-bot
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
