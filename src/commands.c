@@ -5,6 +5,7 @@
 #include "users.h"
 #include "logs.h"
 #include "security.h"
+#include "version.h"   // ✅ ДОБАВИЛИ
 
 #include <stdio.h>
 #include <string.h>
@@ -48,9 +49,20 @@ static int cmd_start(int argc, char *argv[],
                      char *resp, size_t size) {
     (void)argc; (void)argv; (void)chat_id;
 
-    safe_write(resp, size,
-        "*tg-bot is running*\n"
-        "Use /help to see available commands");
+    char status[512];
+
+    if (system_get_status(status, sizeof(status)) != 0) {
+        snprintf(status, sizeof(status), "⚠️ Failed to get system info");
+    }
+
+    snprintf(resp, size,
+        "*tg-bot v%s (%s) is running*\n\n"
+        "%s\n\n"
+        "Use /help to see available commands",
+        APP_VERSION,
+        APP_CODENAME,
+        status
+    );
 
     return 0;
 }
