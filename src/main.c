@@ -9,6 +9,7 @@
 #include "config.h"
 #include "cli.h"
 #include "telegram.h"
+#include "security.h"   // ✅ ДОБАВИЛИ
 
 // ===== uptime бота =====
 time_t g_start_time;
@@ -79,6 +80,13 @@ int main(int argc, char *argv[]) {
     log_msg(LOG_INFO, "Logger initialized: %s", cfg.log_file);
     log_msg(LOG_INFO, "CHAT_ID: %ld", cfg.chat_id);
     log_msg(LOG_INFO, "Polling timeout: %d", cfg.poll_timeout);
+    log_msg(LOG_INFO, "Token TTL: %d sec", cfg.token_ttl);   // ✅ ДОБАВИЛИ
+
+    // ===== SECURITY INIT =====
+    security_set_allowed_chat(cfg.chat_id);
+    security_set_token_ttl(cfg.token_ttl);
+
+    log_msg(LOG_INFO, "Security initialized");
 
     // ===== Telegram init =====
     if (telegram_init(cfg.token) != 0) {
