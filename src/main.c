@@ -90,7 +90,6 @@ int main(int argc, char *argv[]) {
     }
 
     // (никогда не дойдём сюда, но оставим правильно)
-    telegram_cleanup();
     logger_close();
 
     return 0;
