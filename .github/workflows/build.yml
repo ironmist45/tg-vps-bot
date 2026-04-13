@@ -1,0 +1,26 @@
+name: Build tg-bot
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential libcurl4-openssl-dev libcjson-dev
+
+      - name: Build project
+        run: make
+
+      - name: Check binary
+        run: |
+          ls -l tg-bot
