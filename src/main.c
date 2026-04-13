@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <time.h>   // ← добавили
-#include <stdlib.h> // ← добавили
+#include <time.h>
+#include <stdlib.h>
 
 #include "version.h"
 #include "logger.h"
@@ -10,9 +10,18 @@
 #include "cli.h"
 #include "telegram.h"
 
+// ===== uptime бота =====
+time_t g_start_time;
+
+// ===== main =====
+
 int main(int argc, char *argv[]) {
 
-    srand(time(NULL));  // ← инициализация RNG
+    // init RNG
+    srand(time(NULL));
+
+    // фиксируем время старта бота
+    g_start_time = time(NULL);
 
     cli_args_t args;
 
@@ -38,14 +47,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // ===== временный логгер (до конфига) =====
+    // ===== временный логгер =====
     if (logger_init("/var/log/tg-bot.log") != 0) {
         printf("ERROR: cannot open log file\n");
         return 1;
     }
 
     log_msg(LOG_INFO, "========================================");
-    log_msg(LOG_INFO, "Starting %s v%s", APP_NAME, APP_VERSION);
+    log_msg(LOG_INFO, "Starting %s v%s (%s)",
+            APP_NAME, APP_VERSION, APP_CODENAME);
     log_msg(LOG_INFO, "Target: %s", TARGET_OS);
     log_msg(LOG_INFO, "Config: %s", args.config_path);
 
@@ -89,11 +99,11 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        // небольшая пауза (не обязательно, но полезно)
+        // небольшая пауза
         usleep(200000); // 200 ms
     }
 
-    // (никогда не дойдём сюда, но оставим правильно)
+    // cleanup (на всякий случай)
     logger_close();
 
     return 0;
