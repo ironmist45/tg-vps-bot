@@ -5,7 +5,7 @@
 
 // ===== basic =====
 #define APP_NAME    "tg-bot"
-#define APP_VERSION "1.2.2"
+#define APP_VERSION "1.2.5"
 #define TARGET_OS   "Ubuntu 18.04.6 LTS x86_64"
 
 // ===== meta =====
