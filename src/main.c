@@ -1,13 +1,10 @@
 #include <stdio.h>
 #include <string.h>
 #include "version.h"
+#include "logger.h"
 
 void print_help() {
     printf("Usage: %s -c <config>\n", APP_NAME);
-    printf("Options:\n");
-    printf("  -c <path>     Config file\n");
-    printf("  --help        Show help\n");
-    printf("  --version     Show version\n");
 }
 
 void print_version() {
@@ -28,7 +25,18 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    printf("tg_bot starting...\n");
+    // Инициализация логгера
+    if (logger_init("/var/log/tg-bot.log") != 0) {
+        printf("ERROR: cannot open log file\n");
+        return 1;
+    }
+
+    log_msg(LOG_INFO, "Starting %s v%s", APP_NAME, APP_VERSION);
+
+    // Заглушка
+    log_msg(LOG_INFO, "Bot initialized");
+
+    logger_close();
 
     return 0;
 }
