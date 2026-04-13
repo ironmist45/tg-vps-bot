@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>  // 🔥 для strcasecmp
 
 #define LINE_MAX_LEN 512
 
@@ -17,7 +18,7 @@ int config_load(const char *path, config_t *cfg) {
     // ===== defaults =====
     memset(cfg, 0, sizeof(config_t));
     cfg->poll_timeout = 30;
-    cfg->token_ttl = 60;   // ✅ ДОБАВИЛИ
+    cfg->token_ttl = 60;
     safe_copy(cfg->log_file, sizeof(cfg->log_file), "/var/log/tg-bot.log");
 
     char line[LINE_MAX_LEN];
@@ -44,33 +45,35 @@ int config_load(const char *path, config_t *cfg) {
         char *key = trim(str);
         char *value = trim(eq + 1);
 
-        if (strcmp(key, "TOKEN") == 0) {
+        // ===== case-insensitive parsing =====
+
+        if (strcasecmp(key, "TOKEN") == 0) {
             if (safe_copy(cfg->token, sizeof(cfg->token), value) != 0) {
                 log_msg(LOG_ERROR, "TOKEN too long");
                 fclose(f);
                 return -1;
             }
         }
-        else if (strcmp(key, "CHAT_ID") == 0) {
+        else if (strcasecmp(key, "CHAT_ID") == 0) {
             if (parse_long(value, &cfg->chat_id) != 0) {
                 log_msg(LOG_ERROR, "Invalid CHAT_ID at line %d", line_num);
                 fclose(f);
                 return -1;
             }
         }
-        else if (strcmp(key, "POLL_TIMEOUT") == 0) {
+        else if (strcasecmp(key, "POLL_TIMEOUT") == 0) {
             if (parse_int(value, &cfg->poll_timeout) != 0) {
                 log_msg(LOG_WARN, "Invalid POLL_TIMEOUT, using default");
                 cfg->poll_timeout = 30;
             }
         }
-        else if (strcmp(key, "LOG_FILE") == 0) {
+        else if (strcasecmp(key, "LOG_FILE") == 0) {
             if (safe_copy(cfg->log_file, sizeof(cfg->log_file), value) != 0) {
                 log_msg(LOG_WARN, "LOG_FILE too long, using default");
                 safe_copy(cfg->log_file, sizeof(cfg->log_file), "/var/log/tg-bot.log");
             }
         }
-        else if (strcmp(key, "TOKEN_TTL") == 0) {   // ✅ ДОБАВИЛИ
+        else if (strcasecmp(key, "TOKEN_TTL") == 0) {
             if (parse_int(value, &cfg->token_ttl) != 0) {
                 log_msg(LOG_WARN, "Invalid TOKEN_TTL, using default");
                 cfg->token_ttl = 60;
@@ -96,7 +99,7 @@ int config_load(const char *path, config_t *cfg) {
     }
 
     log_msg(LOG_INFO, "Config loaded");
-    log_msg(LOG_INFO, "TOKEN_TTL: %d sec", cfg->token_ttl);  // ✅ ДОБАВИЛИ
+    log_msg(LOG_INFO, "TOKEN_TTL: %d sec", cfg->token_ttl);
 
     return 0;
 }
