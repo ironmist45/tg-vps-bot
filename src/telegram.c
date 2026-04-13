@@ -14,11 +14,40 @@
 #define RESP_MAX 8192
 #define TG_LIMIT 4096
 
+#define OFFSET_FILE "/var/lib/tg-bot/offset.dat"
+
 static char g_token[128];
 static char g_base_url[512];
 
-// 🔥 защита от повторной обработки (reboot loop фикс)
+// 🔥 защита от дублей (runtime)
 static long g_last_processed_update = 0;
+
+// ===== offset persistence =====
+
+static long load_offset(void) {
+    FILE *f = fopen(OFFSET_FILE, "r");
+    if (!f) return 0;
+
+    long offset = 0;
+    if (fscanf(f, "%ld", &offset) != 1)
+        offset = 0;
+
+    fclose(f);
+
+    log_msg(LOG_INFO, "Loaded offset: %ld", offset);
+    return offset;
+}
+
+static void save_offset(long offset) {
+    FILE *f = fopen(OFFSET_FILE, "w");
+    if (!f) {
+        log_msg(LOG_WARN, "Failed to save offset");
+        return;
+    }
+
+    fprintf(f, "%ld\n", offset);
+    fclose(f);
+}
 
 // ===== discard callback =====
 
@@ -69,7 +98,10 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     struct memory *mem = (struct memory *)userp;
 
     char *ptr = realloc(mem->data, mem->size + real_size + 1);
-    if (!ptr) return 0;
+    if (!ptr) {
+        log_msg(LOG_ERROR, "realloc failed");
+        return 0;
+    }
 
     mem->data = ptr;
     memcpy(&(mem->data[mem->size]), contents, real_size);
@@ -79,10 +111,10 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     return real_size;
 }
 
-// ===== CURL SETUP (единая точка) =====
+// ===== CURL SETUP =====
 
 static void setup_curl(CURL *curl) {
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 20L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 }
@@ -107,7 +139,7 @@ int telegram_init(const char *token) {
     return 0;
 }
 
-// ===== shutdown (🔥 важно для graceful reboot) =====
+// ===== shutdown =====
 
 void telegram_shutdown(void) {
     curl_global_cleanup();
@@ -199,7 +231,11 @@ int telegram_send_plain(long chat_id, const char *text) {
 
 int telegram_poll() {
 
-    static long last_update_id = 0;
+    static long last_update_id = -1;
+
+    if (last_update_id == -1) {
+        last_update_id = load_offset();
+    }
 
     CURL *curl = curl_easy_init();
     if (!curl) return -1;
@@ -227,6 +263,12 @@ int telegram_poll() {
         return -1;
     }
 
+    if (!chunk.data || chunk.size == 0) {
+        curl_easy_cleanup(curl);
+        free(chunk.data);
+        return 0;
+    }
+
     cJSON *json = cJSON_Parse(chunk.data);
     if (!json) {
         log_msg(LOG_ERROR, "JSON parse error");
@@ -250,12 +292,13 @@ int telegram_poll() {
 
             long uid = (long)update_id->valuedouble;
 
-            // 🔥 CRITICAL FIX: не обрабатывать повторно
             if (uid <= g_last_processed_update)
                 continue;
 
             g_last_processed_update = uid;
             last_update_id = uid + 1;
+
+            save_offset(last_update_id); // 🔥 ключевой фикс
 
             cJSON *message = cJSON_GetObjectItem(update, "message");
             if (!message) continue;
