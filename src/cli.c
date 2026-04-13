@@ -64,8 +64,7 @@ void cli_print_help() {
 
 // ===== VERSION =====
 
-void cli_print_version() {
-    printf("%s version %s\n", APP_NAME, APP_VERSION);
-    printf("Target: %s\n", TARGET_OS);
-    printf("Copyright (c) %s %s\n", APP_YEAR, APP_AUTHOR);
+void cli_print_version(void) {
+    printf("%s v%s (%s)\n", APP_NAME, APP_VERSION, APP_CODENAME);
+    printf("(c) %s %s\n", APP_YEAR, APP_AUTHOR);
 }
