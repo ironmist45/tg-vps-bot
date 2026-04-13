@@ -3,6 +3,7 @@
 #include "system.h"
 #include "services.h"
 #include "users.h"
+#include "logs.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -116,42 +117,15 @@ static int cmd_users(int argc, char *argv[], char *resp, size_t size) {
     return 0;
 }
 
-// ===== LOGS =====
+// ===== LOGS (через logs.c) =====
 
 static int cmd_logs(int argc, char *argv[], char *resp, size_t size) {
     if (argc < 2) {
-        safe_write(resp, size, "Usage: /logs <service>");
+        snprintf(resp, size, "Usage: /logs <service>");
         return -1;
     }
 
-    char cmd[256];
-
-    snprintf(cmd, sizeof(cmd),
-             "journalctl -u %s.service -n 20 --no-pager 2>&1",
-             argv[1]);
-
-    FILE *fp = popen(cmd, "r");
-    if (!fp) {
-        safe_write(resp, size, "Failed to read logs");
-        return -1;
-    }
-
-    resp[0] = '\0';
-
-    char buffer[256];
-    while (fgets(buffer, sizeof(buffer), fp)) {
-        if (strlen(resp) + strlen(buffer) >= size - 1)
-            break;
-        strcat(resp, buffer);
-    }
-
-    pclose(fp);
-
-    if (resp[0] == '\0') {
-        safe_write(resp, size, "No logs");
-    }
-
-    return 0;
+    return logs_get(argv[1], resp, size);
 }
 
 // ===== REBOOT =====
