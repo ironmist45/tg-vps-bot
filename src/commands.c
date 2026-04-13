@@ -62,7 +62,7 @@ static int cmd_start(int argc, char *argv[],
     }
 
     snprintf(resp, size,
-        "*%s v%s (%s)* is running 🚀\n\n"
+        "*🚀 %s v%s (%s)*\n\n"
         "%s\n\n"
         "👉 Use /help to see commands",
         APP_NAME,
@@ -93,6 +93,7 @@ static int cmd_about(int argc, char *argv[],
     int mins = (uptime % 3600) / 60;
 
     snprintf(resp, size,
+        "*ℹ️ ABOUT*\n\n"
         "*%s v%s (%s)*\n\n"
         "👤 Author: %s\n"
         "📅 Year: %s\n\n"
@@ -112,7 +113,7 @@ static int cmd_about(int argc, char *argv[],
     return 0;
 }
 
-// ---------- PING (УЛУЧШЕННЫЙ) ----------
+// ---------- PING ----------
 static int cmd_ping(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size) {
@@ -121,10 +122,7 @@ static int cmd_ping(int argc, char *argv[],
     struct timespec start, end;
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-
-    // имитация "обработки"
-    usleep(1000); // 1 ms
-
+    usleep(1000);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     long ms =
@@ -132,7 +130,8 @@ static int cmd_ping(int argc, char *argv[],
         (end.tv_nsec - start.tv_nsec) / 1000000;
 
     snprintf(resp, size,
-        "🏓 *Pong!*\n"
+        "*🏓 PING*\n\n"
+        "Response: `pong`\n"
         "Latency: `%ld ms`",
         ms
     );
@@ -175,10 +174,17 @@ static int cmd_status(int argc, char *argv[],
                      char *resp, size_t size) {
     (void)argc; (void)argv; (void)chat_id;
 
-    if (system_get_status(resp, size) != 0) {
+    char tmp[512];
+
+    if (system_get_status(tmp, sizeof(tmp)) != 0) {
         snprintf(resp, size, "❌ Failed to get system status");
         return -1;
     }
+
+    snprintf(resp, size,
+        "*📊 STATUS*\n\n%s",
+        tmp
+    );
 
     return 0;
 }
@@ -189,10 +195,17 @@ static int cmd_services(int argc, char *argv[],
                        char *resp, size_t size) {
     (void)argc; (void)argv; (void)chat_id;
 
-    if (services_get_status(resp, size) != 0) {
+    char tmp[512];
+
+    if (services_get_status(tmp, sizeof(tmp)) != 0) {
         snprintf(resp, size, "❌ Failed to get services status");
         return -1;
     }
+
+    snprintf(resp, size,
+        "*🧩 SERVICES*\n\n%s",
+        tmp
+    );
 
     return 0;
 }
@@ -203,10 +216,17 @@ static int cmd_users(int argc, char *argv[],
                     char *resp, size_t size) {
     (void)argc; (void)argv; (void)chat_id;
 
-    if (users_get_logged(resp, size) != 0) {
+    char tmp[512];
+
+    if (users_get_logged(tmp, sizeof(tmp)) != 0) {
         snprintf(resp, size, "❌ Failed to get users");
         return -1;
     }
+
+    snprintf(resp, size,
+        "*👥 USERS*\n\n%s",
+        tmp
+    );
 
     return 0;
 }
@@ -222,7 +242,20 @@ static int cmd_logs(int argc, char *argv[],
         return -1;
     }
 
-    return logs_get(argv[1], resp, size);
+    char tmp[1024];
+
+    if (logs_get(argv[1], tmp, sizeof(tmp)) != 0) {
+        snprintf(resp, size, "❌ Failed to get logs");
+        return -1;
+    }
+
+    snprintf(resp, size,
+        "*📜 LOGS (%s)*\n\n%s",
+        argv[1],
+        tmp
+    );
+
+    return 0;
 }
 
 // ---------- REBOOT ----------
@@ -239,10 +272,10 @@ static int cmd_reboot(int argc, char *argv[],
     }
 
     snprintf(resp, size,
-        "⚠️ *Reboot requested*\n"
+        "⚠️ *REBOOT*\n\n"
         "Confirm with:\n"
         "`/reboot_confirm %d`\n\n"
-        "_Token valid for limited time_",
+        "_Token is temporary_",
         token);
 
     return 0;
@@ -309,9 +342,9 @@ static int cmd_help(int argc, char *argv[],
     (void)argc; (void)argv; (void)chat_id;
 
     size_t used = 0;
-    resp[0] = '\0';
 
-    snprintf(resp, size, "*Available commands:*\n\n");
+    snprintf(resp, size,
+        "*📚 COMMANDS*\n\n");
 
     used = strlen(resp);
 
