@@ -143,9 +143,13 @@ static int cmd_reboot(int argc, char *argv[], char *resp, size_t size) {
 static int cmd_reboot_confirm(int argc, char *argv[], char *resp, size_t size) {
     (void)argc; (void)argv;
 
-    system("reboot");
-    safe_write(resp, size, "Rebooting...");
+    if (system("reboot") == -1) {
+        log_msg(LOG_ERROR, "Failed to execute reboot");
+        snprintf(resp, size, "Reboot failed");
+        return -1;
+    }
 
+    snprintf(resp, size, "Rebooting...");
     return 0;
 }
 
