@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 #ifndef USERS_H
 #define USERS_H
 
