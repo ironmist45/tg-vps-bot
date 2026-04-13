@@ -3,16 +3,26 @@
 #include <unistd.h>
 #include <time.h>
 #include <stdlib.h>
+#include <signal.h>
 
 #include "version.h"
 #include "logger.h"
 #include "config.h"
 #include "cli.h"
 #include "telegram.h"
-#include "security.h"   // ✅ ДОБАВИЛИ
+#include "security.h"
 
 // ===== uptime бота =====
 time_t g_start_time;
+
+// ===== SIGHUP reload =====
+static volatile sig_atomic_t g_reload_config = 0;
+
+// ===== signal handler =====
+static void handle_sighup(int sig) {
+    (void)sig;
+    g_reload_config = 1;
+}
 
 // ===== main =====
 
@@ -23,6 +33,9 @@ int main(int argc, char *argv[]) {
 
     // фиксируем время старта бота
     g_start_time = time(NULL);
+
+    // регистрируем сигнал
+    signal(SIGHUP, handle_sighup);
 
     cli_args_t args;
 
@@ -79,14 +92,12 @@ int main(int argc, char *argv[]) {
 
     log_msg(LOG_INFO, "Logger initialized: %s", cfg.log_file);
     log_msg(LOG_INFO, "CHAT_ID: %ld", cfg.chat_id);
+    log_msg(LOG_INFO, "TOKEN_TTL: %d", cfg.token_ttl);
     log_msg(LOG_INFO, "Polling timeout: %d", cfg.poll_timeout);
-    log_msg(LOG_INFO, "Token TTL: %d sec", cfg.token_ttl);   // ✅ ДОБАВИЛИ
 
-    // ===== SECURITY INIT =====
+    // ===== security init =====
     security_set_allowed_chat(cfg.chat_id);
     security_set_token_ttl(cfg.token_ttl);
-
-    log_msg(LOG_INFO, "Security initialized");
 
     // ===== Telegram init =====
     if (telegram_init(cfg.token) != 0) {
@@ -101,6 +112,44 @@ int main(int argc, char *argv[]) {
     // ===== основной цикл =====
     while (1) {
 
+        // 🔄 reload config по SIGHUP
+        if (g_reload_config) {
+
+            log_msg(LOG_INFO, "Reloading config (SIGHUP)...");
+
+            config_t new_cfg;
+
+            if (config_load(args.config_path, &new_cfg) == 0) {
+
+                // обновляем логгер (если путь изменился)
+                if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
+                    logger_close();
+                    if (logger_init(new_cfg.log_file) != 0) {
+                        printf("ERROR: cannot reopen log file: %s\n", new_cfg.log_file);
+                    } else {
+                        log_msg(LOG_INFO, "Logger reloaded: %s", new_cfg.log_file);
+                    }
+                }
+
+                // обновляем security
+                security_set_allowed_chat(new_cfg.chat_id);
+                security_set_token_ttl(new_cfg.token_ttl);
+
+                // (опционально) можно обновить poll_timeout
+                cfg = new_cfg;
+
+                log_msg(LOG_INFO, "Config reloaded successfully");
+                log_msg(LOG_INFO, "CHAT_ID: %ld", cfg.chat_id);
+                log_msg(LOG_INFO, "TOKEN_TTL: %d", cfg.token_ttl);
+
+            } else {
+                log_msg(LOG_ERROR, "Config reload failed (keeping old config)");
+            }
+
+            g_reload_config = 0;
+        }
+
+        // ===== polling =====
         if (telegram_poll() != 0) {
             log_msg(LOG_WARN, "Polling error, retry in 5 sec");
             sleep(5);
@@ -111,7 +160,7 @@ int main(int argc, char *argv[]) {
         usleep(200000); // 200 ms
     }
 
-    // cleanup (на всякий случай)
+    // cleanup (теоретически недостижимо)
     logger_close();
 
     return 0;
