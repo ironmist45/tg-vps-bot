@@ -1,6 +1,7 @@
 #include "commands.h"
 #include "logger.h"
 #include "system.h"
+#include "services.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -72,7 +73,7 @@ static int cmd_echo(int argc, char *argv[], char *resp, size_t size) {
     return 0;
 }
 
-// ===== РЕАЛЬНЫЙ STATUS =====
+// ===== STATUS =====
 
 static int cmd_status(int argc, char *argv[], char *resp, size_t size) {
     (void)argc;
@@ -86,11 +87,17 @@ static int cmd_status(int argc, char *argv[], char *resp, size_t size) {
     return 0;
 }
 
-// ===== SERVICES (пока заглушка) =====
+// ===== SERVICES =====
 
 static int cmd_services(int argc, char *argv[], char *resp, size_t size) {
-    (void)argc; (void)argv;
-    safe_write(resp, size, "Services: not implemented yet");
+    (void)argc;
+    (void)argv;
+
+    if (services_get_status(resp, size) != 0) {
+        snprintf(resp, size, "Failed to get services status");
+        return -1;
+    }
+
     return 0;
 }
 
@@ -104,7 +111,6 @@ static int cmd_logs(int argc, char *argv[], char *resp, size_t size) {
 
     char cmd[256];
 
-    // ⚠️ минимальная защита (безопаснее добавить whitelist позже)
     snprintf(cmd, sizeof(cmd),
              "journalctl -u %s.service -n 20 --no-pager 2>&1",
              argv[1]);
