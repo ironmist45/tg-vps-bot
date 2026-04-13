@@ -14,9 +14,9 @@ jobs:
         uses: actions/checkout@v3
 
       # =========================
-      # BUILD (Ubuntu 18.04 STATIC)
+      # BUILD (Ubuntu 18.04)
       # =========================
-      - name: Build static binary
+      - name: Build in Ubuntu 18.04 container
         run: |
           docker run --rm -v $PWD:/app -w /app ubuntu:18.04 bash -c "
             set -e
@@ -28,41 +28,34 @@ jobs:
               libssl-dev \
               zlib1g-dev \
               git \
-              cmake \
-              pkg-config
+              cmake
 
-            # ===== build cJSON STATIC =====
+            # ===== build cJSON (STATIC) =====
             cd /tmp
             git clone --depth 1 --branch v1.7.15 https://github.com/DaveGamble/cJSON.git
             cd cJSON
             mkdir build && cd build
-            cmake .. -DBUILD_SHARED_LIBS=OFF
+
+            cmake .. \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+
             make
             make install
             ldconfig
 
-            # ===== build tg-bot STATIC =====
+            # ===== build tg-bot =====
             cd /app
 
-            make clean || true
+            # 👇 ВАЖНО: только cjson статически
+            make LDFLAGS='-Wl,-Bstatic -lcjson -Wl,-Bdynamic -lcurl -lssl -lcrypto -lz -lpthread'
 
-            make \
-              CFLAGS='-O2 -static -Iinclude' \
-              LDFLAGS='-static' \
-              LDLIBS='-lcurl -lcjson -lssl -lcrypto -lz -lpthread'
+            chmod +x tg-bot || true
 
-            chmod +x tg-bot
+            echo '[OK] build complete'
 
-            echo '[OK] static build complete'
-
-            echo '[DEBUG] file:'
-            file tg-bot
-
-            echo '[DEBUG] ldd:'
-            ldd tg-bot || true
-
-            echo '[DEBUG] size:'
-            ls -lh tg-bot
+            echo '[DEBUG] contents of /app:'
+            ls -l /app
           "
 
       # =========================
@@ -74,10 +67,10 @@ jobs:
           ls -l
 
           echo "=== file ==="
-          file tg-bot
+          file tg-bot || true
 
-          echo "=== ldd (should fail for static) ==="
-          ldd tg-bot || echo "OK: static binary"
+          echo "=== ldd ==="
+          ldd tg-bot || true
 
       # =========================
       # VALIDATION
@@ -90,7 +83,7 @@ jobs:
           fi
 
       # =========================
-      # SMOKE TESTS (NO LD_LIBRARY_PATH!)
+      # SMOKE TESTS
       # =========================
       - name: Run version
         run: ./tg-bot --version
@@ -129,10 +122,10 @@ jobs:
           fi
 
       # =========================
-      # ARTIFACT
+      # ARTIFACTS
       # =========================
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: tg-bot-static
+          name: tg-bot
           path: tg-bot
