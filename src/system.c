@@ -8,23 +8,7 @@
 
 static int get_hostname(char *buf, size_t size) {
     FILE *f = fopen("/proc/sys/kernel/hostname", "r");
-    if (!f)
-        return -1;
-
-    if (!fgets(buf, size, f)) {
-        fclose(f);
-        return -1;
-    }
-
-    buf[strcspn(buf, "\n")] = '\0'; // remove newline
-    fclose(f);
-    return 0;
-}
-
-static int get_kernel(char *buf, size_t size) {
-    FILE *f = fopen("/proc/version", "r");
-    if (!f)
-        return -1;
+    if (!f) return -1;
 
     if (!fgets(buf, size, f)) {
         fclose(f);
@@ -36,10 +20,42 @@ static int get_kernel(char *buf, size_t size) {
     return 0;
 }
 
+// 👉 укороченный kernel (без лишнего мусора)
+static int get_kernel(char *buf, size_t size) {
+    FILE *f = fopen("/proc/version", "r");
+    if (!f) return -1;
+
+    char tmp[256];
+
+    if (!fgets(tmp, sizeof(tmp), f)) {
+        fclose(f);
+        return -1;
+    }
+
+    fclose(f);
+
+    // пример: "Linux version 5.4.0-..."
+    char *token = strtok(tmp, " ");
+    int count = 0;
+
+    buf[0] = '\0';
+
+    while (token && count < 3) {
+        if (count > 0)
+            strncat(buf, " ", size - strlen(buf) - 1);
+
+        strncat(buf, token, size - strlen(buf) - 1);
+
+        token = strtok(NULL, " ");
+        count++;
+    }
+
+    return 0;
+}
+
 static int get_uptime(char *buf, size_t size) {
     FILE *f = fopen("/proc/uptime", "r");
-    if (!f)
-        return -1;
+    if (!f) return -1;
 
     double seconds = 0;
 
@@ -60,41 +76,38 @@ static int get_uptime(char *buf, size_t size) {
 
 static int get_memory(char *buf, size_t size) {
     FILE *f = fopen("/proc/meminfo", "r");
-    if (!f)
-        return -1;
+    if (!f) return -1;
 
     long total = 0, free = 0, available = 0;
-
     char line[256];
 
     while (fgets(line, sizeof(line), f)) {
-        if (sscanf(line, "MemTotal: %ld kB", &total) == 1)
-            continue;
-        if (sscanf(line, "MemAvailable: %ld kB", &available) == 1)
-            continue;
-        if (sscanf(line, "MemFree: %ld kB", &free) == 1)
-            continue;
+        if (sscanf(line, "MemTotal: %ld kB", &total) == 1) continue;
+        if (sscanf(line, "MemAvailable: %ld kB", &available) == 1) continue;
+        if (sscanf(line, "MemFree: %ld kB", &free) == 1) continue;
     }
 
     fclose(f);
 
-    if (total == 0)
-        return -1;
+    if (total == 0) return -1;
 
     long used = total - (available ? available : free);
 
+    int used_mb = used / 1024;
+    int total_mb = total / 1024;
+
+    int percent = (int)((double)used / total * 100);
+
     snprintf(buf, size,
-             "%ld MB / %ld MB",
-             used / 1024,
-             total / 1024);
+             "%d / %d MB (%d%%)",
+             used_mb, total_mb, percent);
 
     return 0;
 }
 
 static int get_loadavg(char *buf, size_t size) {
     FILE *f = fopen("/proc/loadavg", "r");
-    if (!f)
-        return -1;
+    if (!f) return -1;
 
     double l1, l5, l15;
 
@@ -105,7 +118,10 @@ static int get_loadavg(char *buf, size_t size) {
 
     fclose(f);
 
-    snprintf(buf, size, "%.2f %.2f %.2f", l1, l5, l15);
+    snprintf(buf, size,
+             "%.2f / %.2f / %.2f",
+             l1, l5, l15);
+
     return 0;
 }
 
@@ -114,12 +130,12 @@ static int get_loadavg(char *buf, size_t size) {
 int system_get_status(char *buf, size_t size) {
 
     char hostname[128];
-    char kernel[256];
+    char kernel[128];
     char uptime[128];
     char memory[128];
     char load[128];
 
-    // ===== collect data with fallback =====
+    // ===== collect =====
 
     if (get_hostname(hostname, sizeof(hostname)) != 0)
         snprintf(hostname, sizeof(hostname), "unknown");
@@ -136,15 +152,15 @@ int system_get_status(char *buf, size_t size) {
     if (get_loadavg(load, sizeof(load)) != 0)
         snprintf(load, sizeof(load), "unknown");
 
-    // ===== format (Telegram Markdown) =====
+    // ===== format =====
 
     snprintf(buf, size,
-        "*System status:*\n"
-        "Host: `%s`\n"
-        "Kernel: `%s`\n"
-        "Uptime: `%s`\n"
-        "Memory: `%s`\n"
-        "Load: `%s`\n",
+        "*📊 SYSTEM STATUS*\n\n"
+        "🖥 Host     : `%s`\n"
+        "⚙️ Kernel   : `%s`\n"
+        "⏱ Uptime   : `%s`\n\n"
+        "🧠 Memory   : `%s`\n"
+        "📈 Load     : `%s`\n",
         hostname,
         kernel,
         uptime,
