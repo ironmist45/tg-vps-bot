@@ -119,6 +119,7 @@ Production-ready Telegram bot for server monitoring and management, written in p
 ```bash
 tg-bot --config /etc/tg-bot/config.conf
 ```
+cp config/config.example.conf config/config.conf
 
 Options:
 
