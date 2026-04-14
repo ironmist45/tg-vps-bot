@@ -30,6 +30,9 @@ volatile sig_atomic_t g_shutdown_requested = 0; // 0=none,1=restart,2=reboot
 // ===== STATE =====
 static volatile int g_running = 1;
 
+// 🔥 защита от повторных сигналов
+static volatile sig_atomic_t g_signal_received = 0;
+
 // ===== SIGNAL HANDLERS =====
 
 static void handle_sighup(int sig) {
@@ -39,6 +42,11 @@ static void handle_sighup(int sig) {
 
 static void handle_sigterm(int sig) {
     (void)sig;
+
+    // 🔥 защита от спама сигналами
+    if (g_signal_received) return;
+    g_signal_received = 1;
+
     log_msg(LOG_WARN, "Received SIGTERM, shutting down...");
     g_shutdown_requested = 1;
     g_running = 0;
@@ -251,12 +259,16 @@ int main(int argc, char *argv[]) {
     srand(time(NULL));
     g_start_time = time(NULL);
 
+    log_msg(LOG_INFO, "Process started (PID=%d)", getpid());
+
     struct sigaction sa = {0};
     sa.sa_handler = handle_sighup;
+    sa.sa_flags = SA_RESTART;
     sigaction(SIGHUP, &sa, NULL);
 
     struct sigaction sa_term = {0};
     sa_term.sa_handler = handle_sigterm;
+    sa_term.sa_flags = SA_RESTART;
     sigaction(SIGTERM, &sa_term, NULL);
     sigaction(SIGINT, &sa_term, NULL);
 
@@ -351,6 +363,9 @@ int main(int argc, char *argv[]) {
             log_msg(LOG_WARN, "Polling error");
             sleep(5);
         }
+
+        // 🔥 ускоренный выход при shutdown
+        if (!g_running) break;
 
         usleep(200000);
     }
