@@ -23,6 +23,9 @@ static char g_base_url[512];
 // защита от дублей (runtime)
 static long g_last_processed_update = 0;
 
+// уменьшение записи offset
+static int g_offset_counter = 0;
+
 // ===== offset persistence =====
 
 static long load_offset(void) {
@@ -281,6 +284,7 @@ int telegram_poll() {
     }
 
     if (!chunk.data || chunk.size == 0) {
+        log_msg(LOG_DEBUG, "Empty response from Telegram");
         curl_easy_cleanup(curl);
         free(chunk.data);
         return 0;
@@ -289,6 +293,15 @@ int telegram_poll() {
     cJSON *json = cJSON_Parse(chunk.data);
     if (!json) {
         log_msg(LOG_ERROR, "JSON parse error");
+        curl_easy_cleanup(curl);
+        free(chunk.data);
+        return -1;
+    }
+
+    cJSON *ok = cJSON_GetObjectItem(json, "ok");
+    if (!cJSON_IsTrue(ok)) {
+        log_msg(LOG_ERROR, "Telegram API returned not ok");
+        cJSON_Delete(json);
         curl_easy_cleanup(curl);
         free(chunk.data);
         return -1;
@@ -315,12 +328,17 @@ int telegram_poll() {
             g_last_processed_update = uid;
             last_update_id = uid + 1;
 
-            save_offset(last_update_id);
+            if (++g_offset_counter >= 5) {
+                save_offset(last_update_id);
+                g_offset_counter = 0;
+            }
 
             cJSON *message = cJSON_GetObjectItem(update, "message");
             if (!message) continue;
 
             cJSON *chat = cJSON_GetObjectItem(message, "chat");
+            if (!chat) continue;
+
             cJSON *chat_id = cJSON_GetObjectItem(chat, "id");
             cJSON *text = cJSON_GetObjectItem(message, "text");
 
@@ -330,11 +348,10 @@ int telegram_poll() {
             long cid = (long)chat_id->valuedouble;
             const char *msg_text = text->valuestring;
 
-            // 🔥 ЛОГ ВСЕХ попыток доступа
             if (!security_is_allowed_chat(cid)) {
                 log_msg(LOG_WARN,
-                        "ACCESS DENIED: chat_id=%ld text=%.32s",
-                        cid, msg_text);
+                        "ACCESS DENIED: chat_id=%ld len=%zu text=%.32s",
+                        cid, strlen(msg_text), msg_text);
                 continue;
             }
 
