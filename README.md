@@ -1,4 +1,4 @@
-# 🚀 Telegram Server Bot (C)
+# 🚀 Telegram Server Bot (pure C)
 
 Production-ready Telegram bot for server monitoring and management, written in pure C.
 
