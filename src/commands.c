@@ -77,6 +77,27 @@ static int cmd_start(int argc, char *argv[],
     return 0;
 }
 
+// ===== STATUS (🔥 ВОЗВРАТИЛИ) =====
+
+static int cmd_status(int argc, char *argv[],
+                     long chat_id,
+                     char *resp, size_t size) {
+
+    (void)argc; (void)argv;
+
+    if (!security_is_allowed_chat(chat_id)) {
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
+    }
+
+    if (system_get_status(resp, size) != 0) {
+        snprintf(resp, size, "❌ Failed to get system status");
+        return -1;
+    }
+
+    return 0;
+}
+
 // ===== ABOUT =====
 
 static int cmd_about(int argc, char *argv[],
@@ -157,24 +178,19 @@ static int cmd_services(int argc, char *argv[],
         return -1;
     }
 
-    char tmp[RESP_MAX];
-
-    if (services_get_status(tmp, sizeof(tmp)) != 0) {
-        snprintf(resp, size, "❌ Failed to get services");
-        return -1;
-    }
-
-    snprintf(resp, size, "%s", tmp);
-    return 0;
+    return services_get_status(resp, size);
 }
 
-// ===== LOGS =====
+// ===== LOGS (🔥 ЗАКРЫЛИ) =====
 
 static int cmd_logs(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size) {
 
-    (void)chat_id;
+    if (!security_is_allowed_chat(chat_id)) {
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
+    }
 
     if (argc < 2) {
         snprintf(resp, size,
@@ -203,14 +219,11 @@ static int cmd_logs(int argc, char *argv[],
         used += written;
     }
 
-    char tmp[RESP_MAX];
-
-    if (logs_get(args, tmp, sizeof(tmp)) != 0) {
+    if (logs_get(args, resp, size) != 0) {
         snprintf(resp, size, "❌ Failed to get logs");
         return -1;
     }
 
-    snprintf(resp, size, "%s", tmp);
     return 0;
 }
 
@@ -282,7 +295,8 @@ static int cmd_reboot_confirm(int argc, char *argv[],
 
 static command_t commands[] = {
     {"/start", cmd_start, "Start bot"},
-    {"/help", cmd_help, "Show help"},   // 🔥 FIX
+    {"/help", cmd_help, "Show help"},
+    {"/status", cmd_status, "System status"},   // 🔥 ВЕРНУЛИ
     {"/about", cmd_about, "About bot"},
     {"/ping", cmd_ping, "Ping"},
     {"/services", cmd_services, "List services"},
@@ -353,6 +367,11 @@ int commands_handle(const char *text,
             log_msg(LOG_INFO,
                     "Command: %s (chat_id=%ld)",
                     argv[0], chat_id);
+
+            if (!commands[i].handler) {
+                snprintf(response, resp_size, "Command not implemented");
+                return -1;
+            }
 
             return commands[i].handler(
                 argc, argv, chat_id, response, resp_size
