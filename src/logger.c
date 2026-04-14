@@ -5,9 +5,13 @@
 #include <stdarg.h>
 #include <string.h>
 #include <time.h>
+#include <pthread.h>   // 🔥 mutex
 
 static FILE *log_file = NULL;
 static int log_to_stderr = 0;  // fallback
+
+// 🔥 thread safety
+static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // ===== уровень → строка =====
 
@@ -21,23 +25,41 @@ static const char *level_to_string(log_level_t level) {
     }
 }
 
-// ===== timestamp (thread-safe) =====
+// ===== timestamp (thread-safe + ms) =====
 
 static void get_timestamp(char *buf, size_t size) {
     time_t now = time(NULL);
     struct tm tm_info;
 
     if (localtime_r(&now, &tm_info) == NULL) {
-        snprintf(buf, size, "0000-00-00 00:00:00");
+        snprintf(buf, size, "0000-00-00 00:00:00.000");
         return;
     }
 
+    // базовое время
     strftime(buf, size, "%Y-%m-%d %H:%M:%S", &tm_info);
+
+    // 🔥 добавляем миллисекунды
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
+    size_t len = strlen(buf);
+    if (len < size) {
+        snprintf(buf + len, size - len, ".%03ld",
+                 ts.tv_nsec / 1000000);
+    }
 }
 
 // ===== init =====
 
 int logger_init(const char *path) {
+
+    // 🔥 защита от NULL
+    if (!path) {
+        log_to_stderr = 1;
+        fprintf(stderr, "logger: NULL path, using stderr\n");
+        return -1;
+    }
 
     log_file = fopen(path, "a");
 
@@ -64,12 +86,16 @@ void logger_close() {
         log_file = NULL;
     }
 
-    log_to_stderr = 0;
+    // 🔥 оставляем fallback включённым
+    log_to_stderr = 1;
 }
 
 // ===== основной лог =====
 
 void log_msg(log_level_t level, const char *fmt, ...) {
+
+    // 🔥 защита от NULL fmt
+    if (!fmt) return;
 
     FILE *file_out = log_file;
     FILE *console_out = stderr;
@@ -78,7 +104,7 @@ void log_msg(log_level_t level, const char *fmt, ...) {
         return;
     }
 
-    char timestamp[32];
+    char timestamp[40];
     get_timestamp(timestamp, sizeof(timestamp));
 
     char message[1024];
@@ -104,6 +130,9 @@ void log_msg(log_level_t level, const char *fmt, ...) {
         }
     }
 
+    // 🔥 critical section
+    pthread_mutex_lock(&log_mutex);
+
     // ===== запись в файл =====
     if (file_out) {
         if (fprintf(file_out, "[%s] [%s] %s\n",
@@ -125,6 +154,8 @@ void log_msg(log_level_t level, const char *fmt, ...) {
                 message);
 
         fflush(stderr);
+
+        pthread_mutex_unlock(&log_mutex);
         return;
     }
 
@@ -137,4 +168,6 @@ void log_msg(log_level_t level, const char *fmt, ...) {
 
         fflush(console_out);
     }
+
+    pthread_mutex_unlock(&log_mutex);
 }
