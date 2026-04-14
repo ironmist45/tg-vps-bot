@@ -1,5 +1,32 @@
+# build
 build/
 *.o
+*.a
+*.so
 tg-bot
+
+# config (real)
 config/config.conf
+!config/config.example.conf
+
+# logs
 *.log
+
+# runtime
+*.dat
+*.tmp
+*.pid
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# crashes
+core
+core.*
