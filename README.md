@@ -1,115 +1,201 @@
-# tg-vps-bot
+# 🚀 Telegram Server Bot (C)
 
-Telegram bot for VPS monitoring written in C.
-
----
-
-## 📌 Overview
-
-`tg-vps-bot` is a lightweight, fast, and secure system administration tool that allows you to monitor and control your VPS via Telegram.
-
-The bot runs as a daemon and provides real-time access to system status, services, logs, and critical operations like reboot — directly from your phone.
+Production-ready Telegram bot for server monitoring and management, written in pure C.
 
 ---
 
-## 🎯 Target Platform
-
-- Ubuntu 18.04+ (tested on 18.04.6 LTS)
-- gcc 7+
-- systemd
-
----
-
-## ⚙️ Features
+## ✨ Features
 
 ### 🖥 System Monitoring
-- Hostname
-- Kernel version
-- CPU load
-- RAM usage (used / total)
-- Disk usage (used / total)
-- Uptime
-- IP address
+
+* CPU load (1 / 5 / 15 min)
+* Memory usage (MB + %)
+* Disk usage (GB + %)
+* Uptime
+* Active users
 
 ---
 
-### 🔧 Service Monitoring
-- ssh.service
-- shadowsocks-libev.service
-- mtg.service
+### ⚙️ Service Management
+
+* Check status via `systemctl`
+* Supports:
+
+  * SSH
+  * Shadowsocks
+  * MTG
+* Clean formatted output with status indicators:
+
+  * 🟢 UP
+  * 🔴 DOWN
+  * 🟡 FAIL
 
 ---
 
-### 📜 Logs
-- View logs via `journalctl`
-- Per-service log access
+### 📜 Logs & Users
+
+* View service logs (`/logs`)
+* Inspect active users
+* Flexible arguments support
 
 ---
 
-### 👤 Users
-- Show currently logged-in users
+### 🛡 Security (PRO level)
+
+* 🔐 **Single allowed chat_id**
+* 🚫 All unauthorized access is logged:
+
+  ```
+  ACCESS DENIED: chat_id=... text=...
+  ```
+* 🔑 **Stateless reboot tokens**
+
+  * Time-based validation
+  * Configurable TTL
+* 🧪 Input validation:
+
+  * Message length limit
+  * IP validation (Fail2Ban)
 
 ---
 
-### 🤖 Bot Info
-- `/start` — system overview + bot info
-- `/about` — version, build, uptime, PID
+### 🔥 Fail2Ban Integration
+
+* Check jail status
+* Ban / unban IPs
+* Secure wrapper execution
+* Full audit logging:
+
+  ```
+  FAIL2BAN BAN: 1.2.3.4 (chat_id=...)
+  ```
 
 ---
 
-### 🔁 Reboot (Safe)
-- `/reboot` generates a one-time token
-- `/reboot_confirm <token>` executes reboot
+### 🔄 Process Control
+
+* Restart bot via Telegram
+* Reboot server (with confirmation token)
+* Tracks who requested reboot
 
 ---
 
-## 🔐 Security
+### ⚡ Telegram Engine
 
-- ✅ Chat whitelist (`CHAT_ID`)
-- 🔑 One-time tokens (invalidate after use)
-- ⏱ Token TTL (e.g. 60–80 sec)
-- 🚫 Rate limiting (anti-spam protection)
-- 🧾 Audit logging (who triggered reboot)
-- 🔍 Input validation
-
----
-
-## ✨ UX Improvements
-
-- Telegram Markdown formatting
-- Clean and readable responses
-- Structured command output
+* Long polling (no webhooks)
+* Offset persistence (anti-duplicate)
+* Runtime duplicate protection
+* MarkdownV2 formatting
+* Automatic message truncation (4096 limit)
 
 ---
 
-# 🔥 Что улучшено
+### 🧠 Reliability & Stability
 
-- Добавлен `/about`
-- Добавлены:
-  - tokens + TTL
-  - rate-limit
-  - audit logs
-- Описан UX (Markdown)
-- Добавлена структура проекта
-- README стал “GitHub-ready”
+* Safe JSON parsing (no crashes on invalid data)
+* NULL checks everywhere
+* Curl timeouts & keepalive
+* Graceful shutdown:
+
+  * Stops Telegram
+  * Flushes logs
+  * Syncs filesystem
+* Offset write optimization (reduces disk load)
 
 ---
-## 🚀 Release v1.2.6 (Orion)
 
-### ✨ Features
-- /logs с фильтрами и алиасами
-- улучшенный /status
-- latency в /ping
+### 📊 Logging System
 
-### 🛠 Fixes
-- исправлен getloadavg
-- фикс логов shadowsocks
-- исправлены warnings
+* Levels: DEBUG / INFO / WARN / ERROR
+* Timestamped logs
+* File + stderr fallback
+* Safe formatting (no crashes on bad input)
+* Response preview (clean, no emoji/markdown)
 
-### 🔐 Security
-- whitelist сервисов
-- защита reboot через токен
+---
 
-### 📦 Build
-- static binary
-- tested on Ubuntu 18.04
+### 🧰 CLI Interface
+
+```bash
+tg-bot --config /etc/tg-bot/config.conf
+```
+
+Options:
+
+* `-c, --config` — config path
+* `-h, --help`
+* `-v, --version`
+
+---
+
+## 🏗 Architecture
+
+Modular C design:
+
+* `main.c` — lifecycle & signals
+* `telegram.c` — API communication
+* `commands.c` — command dispatcher
+* `system.c` — system stats
+* `services.c` — service monitoring
+* `security.c` — auth & tokens
+* `logger.c` — logging
+* `utils.c` — helpers
+
+---
+
+## 🧪 Production-Ready Details
+
+* Offset saved safely via temp file + rename
+* Protection against malformed Telegram updates
+* No memory leaks in polling loop
+* Handles network timeouts gracefully
+* Safe string operations (no overflows)
+
+---
+
+## 🔐 Security Notes
+
+* Bot responds **only to one chat_id**
+* All other attempts are logged
+* No shell injection (IP validation)
+* No direct root commands (wrapper used)
+
+---
+
+## 📦 Example Commands
+
+```
+/start
+/status
+/services
+/users
+/logs ssh 50
+/fail2ban status
+/fail2ban ban 1.2.3.4
+/reboot
+```
+
+---
+
+## 🧠 What Makes It Special
+
+* Written in pure C (no heavy frameworks)
+* Extremely lightweight
+* Full control over memory and performance
+* Designed for real server environments
+
+---
+
+## 🚧 Future Improvements
+
+* Rate limiting (anti-spam)
+* Chat blacklist / whitelist
+* Metrics export (Prometheus)
+* Async request handling
+* Multi-user roles
+
+---
+
+## 📄 License
+
+MIT (or your choice)
