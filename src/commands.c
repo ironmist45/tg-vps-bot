@@ -96,10 +96,14 @@ static int cmd_status(int argc, char *argv[],
     (void)argc; (void)argv;
 
     if (!security_is_allowed_chat(chat_id)) {
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
+    log_msg(LOG_WARN,
+            "DENY %s (chat_id=%ld)",
+            argv[0], chat_id);
 
+    snprintf(resp, size, "❌ Access denied");
+    return -1;
+}
+  
     if (system_get_status(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get system status");
         return -1;
@@ -167,9 +171,13 @@ static int cmd_services(int argc, char *argv[],
     (void)argc; (void)argv;
 
     if (!security_is_allowed_chat(chat_id)) {
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
+    log_msg(LOG_WARN,
+            "DENY %s (chat_id=%ld)",
+            argv[0], chat_id);
+
+    snprintf(resp, size, "❌ Access denied");
+    return -1;
+}
 
     if (services_get_status(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get services");
@@ -185,9 +193,13 @@ static int cmd_logs(int argc, char *argv[],
                    char *resp, size_t size) {
 
     if (!security_is_allowed_chat(chat_id)) {
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
+    log_msg(LOG_WARN,
+            "DENY %s (chat_id=%ld)",
+            argv[0], chat_id);
+
+    snprintf(resp, size, "❌ Access denied");
+    return -1;
+}
 
     if (argc < 2) {
         snprintf(resp, size,
@@ -231,10 +243,14 @@ static int cmd_users(int argc, char *argv[],
     (void)argc; (void)argv;
 
     if (!security_is_allowed_chat(chat_id)) {
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
+    log_msg(LOG_WARN,
+            "DENY %s (chat_id=%ld)",
+            argv[0], chat_id);
 
+    snprintf(resp, size, "❌ Access denied");
+    return -1;
+}
+  
     if (users_get(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get users");
         return -1;
@@ -249,9 +265,13 @@ static int cmd_fail2ban(int argc, char *argv[],
                        char *resp, size_t size) {
 
     if (!security_is_allowed_chat(chat_id)) {
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
+    log_msg(LOG_WARN,
+            "DENY %s (chat_id=%ld)",
+            argv[0], chat_id);
+
+    snprintf(resp, size, "❌ Access denied");
+    return -1;
+}
 
     if (argc < 2) {
         snprintf(resp, size,
@@ -360,9 +380,13 @@ static int cmd_reboot(int argc, char *argv[],
     (void)argc; (void)argv;
 
     if (!security_is_allowed_chat(chat_id)) {
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
+    log_msg(LOG_WARN,
+            "DENY %s (chat_id=%ld)",
+            argv[0], chat_id);
+
+    snprintf(resp, size, "❌ Access denied");
+    return -1;
+}
 
     int token = security_generate_reboot_token(chat_id);
 
@@ -382,9 +406,13 @@ static int cmd_reboot_confirm(int argc, char *argv[],
     if (argc < 2) return -1;
 
     if (!security_is_allowed_chat(chat_id)) {
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
+    log_msg(LOG_WARN,
+            "DENY %s (chat_id=%ld)",
+            argv[0], chat_id);
+
+    snprintf(resp, size, "❌ Access denied");
+    return -1;
+}
 
     g_reboot_requested_by = chat_id;   // 👈 КТО запросил ребут
     g_shutdown_requested = 2;
@@ -576,6 +604,10 @@ int commands_handle(const char *text,
         }
     }
 
-    snprintf(response, resp_size, "Unknown command");
-    return -1;
+    log_msg(LOG_WARN,
+        "UNKNOWN CMD %s (chat_id=%ld)",
+        argv[0], chat_id);
+
+snprintf(response, resp_size, "Unknown command");
+return -1;
 }
