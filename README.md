@@ -24,7 +24,7 @@ Production-ready Telegram bot for server monitoring and management, written in p
   * SSH
   * Shadowsocks
   * MTG
-* Clean formatted output with status indicators:
+* Clean formatted output with the following status indicators:
 
   * 🟢 UP
   * 🔴 DOWN
