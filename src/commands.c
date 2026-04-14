@@ -480,82 +480,134 @@ int commands_handle(const char *text,
                 return -1;
             }
 
+            int commands_handle(const char *text,
+                    long chat_id,
+                    char *response,
+                    size_t resp_size) {
+
+    if (!text || text[0] != '/') {
+        snprintf(response, resp_size, "Invalid command");
+        return -1;
+    }
+
+    char buffer[512];
+    strncpy(buffer, text, sizeof(buffer) - 1);
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    char *argv[MAX_ARGS];
+    int argc = split_args(buffer, argv, MAX_ARGS);
+
+    if (argc == 0) {
+        snprintf(response, resp_size, "Empty command");
+        return -1;
+    }
+
+    for (int i = 0; i < commands_count; i++) {
+
+        if (strcmp(argv[0], commands[i].name) == 0) {
+
+            log_msg(LOG_INFO,
+                    "CMD %s (chat_id=%ld)",
+                    argv[0], chat_id);
+
+            if (!commands[i].handler) {
+                snprintf(response, resp_size,
+                         "Command not implemented");
+                return -1;
+            }
+
             int rc = commands[i].handler(
-    argc, argv, chat_id, response, resp_size
-);
+                argc, argv, chat_id, response, resp_size
+            );
 
-// ===== fallback если пустой ответ =====
-if (response[0] == '\0') {
-    snprintf(response, resp_size,
-             (rc == 0) ? "OK" : "Error");
-}
+            // ===== fallback если пустой ответ =====
+            if (response[0] == '\0') {
+                snprintf(response, resp_size,
+                         (rc == 0) ? "OK" : "Error");
+            }
 
-// ===== LOG RESPONSE (🔥 УЛУЧШЕННЫЙ) =====
-if (response && response[0] != '\0') {
+            // ===== PREVIEW BUILD =====
+            char preview[256];
+            size_t j = 0;
 
-    char preview[256];
-    size_t j = 0;
+            int last_was_sep = 1;
+            int last_was_space = 0;
 
-    for (size_t i = 0; response[i] && j < sizeof(preview) - 1; i++) {
+            for (size_t k = 0; response[k] && j < sizeof(preview) - 1; k++) {
 
-        char c = response[i];
+                char c = response[k];
 
-        // 🔹 перенос строки → " | "
-        if (c == '\n' || c == '\r') {
+                // переносы → |
+                if (c == '\n' || c == '\r') {
 
-            if (j > 0 && preview[j - 1] != '|') {
+                    while (response[k + 1] == '\n' ||
+                           response[k + 1] == '\r') {
+                        k++;
+                    }
 
-                if (j > 0 && preview[j - 1] == ' ')
+                    if (!last_was_sep && j > 0) {
+                        preview[j++] = ' ';
+                        if (j < sizeof(preview) - 1) preview[j++] = '|';
+                        if (j < sizeof(preview) - 1) preview[j++] = ' ';
+                    }
+
+                    last_was_sep = 1;
+                    last_was_space = 0;
+                    continue;
+                }
+
+                // убрать markdown
+                if (c == '*' || c == '`' || c == '_') {
+                    continue;
+                }
+
+                // убрать пробел перед "/"
+                if (c == '/' && j > 0 && preview[j - 1] == ' ') {
                     j--;
+                }
 
-                preview[j++] = ' ';
-                if (j < sizeof(preview) - 1) preview[j++] = '|';
-                if (j < sizeof(preview) - 1) preview[j++] = ' ';
+                // нормализация пробелов
+                if (c == ' ') {
+                    if (last_was_space || last_was_sep) {
+                        continue;
+                    }
+                    last_was_space = 1;
+                } else {
+                    last_was_space = 0;
+                    last_was_sep = 0;
+                }
+
+                preview[j++] = c;
+
+                // truncate (🔥 120 символов)
+                if (j >= 120) {
+                    if (j < sizeof(preview) - 4) {
+                        preview[j++] = '.';
+                        preview[j++] = '.';
+                        preview[j++] = '.';
+                    }
+                    break;
+                }
             }
 
-            continue;
-        }
+            preview[j] = '\0';
 
-        // 🔹 убираем markdown
-        if (c == '*' || c == '`' || c == '_') {
-            continue;
-        }
+            size_t full_len = strlen(response);
 
-        // 🔹 убираем двойные пробелы
-        if (c == ' ' && j > 0 && preview[j - 1] == ' ') {
-            continue;
-        }
-
-        preview[j++] = c;
-
-        // 🔹 ограничение длины
-        if (j >= 220) {
-            if (j < sizeof(preview) - 4) {
-                preview[j++] = '.';
-                preview[j++] = '.';
-                preview[j++] = '.';
+            // ===== LOG RESPONSE =====
+            if (strcmp(argv[0], "/logs") != 0) {
+                log_msg(LOG_DEBUG,
+                        "RES %s (%zu chars) → %s",
+                        argv[0], full_len, preview);
+            } else {
+                log_msg(LOG_DEBUG,
+                        "RES %s (%zu chars) → <skipped>",
+                        argv[0], full_len);
             }
-            break;
+
+            return rc;
         }
     }
-
-    preview[j] = '\0';
-
-    if (strcmp(argv[0], "/logs") != 0) {
-        log_msg(LOG_DEBUG,
-                "Response to %s (chat_id=%ld): %s",
-                argv[0], chat_id, preview);
-    }
-
-} else {
-    log_msg(LOG_DEBUG,
-            "Response to %s (chat_id=%ld): <empty>",
-            argv[0], chat_id);
-}
-
-return rc;
-        }  // ← закрывает if (strcmp(...))
-    }      // ← закрывает for
 
     snprintf(response, resp_size, "Unknown command");
     return -1;
