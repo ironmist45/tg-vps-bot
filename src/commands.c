@@ -441,46 +441,9 @@ static int cmd_help(int argc, char *argv[],
 
     return 0;
 }
-
 // ===== DISPATCHER =====
 
 int commands_handle(const char *text,
-                    long chat_id,
-                    char *response,
-                    size_t resp_size) {
-
-    if (!text || text[0] != '/') {
-        snprintf(response, resp_size, "Invalid command");
-        return -1;
-    }
-
-    char buffer[512];
-    strncpy(buffer, text, sizeof(buffer) - 1);
-    buffer[sizeof(buffer) - 1] = '\0';
-
-    char *argv[MAX_ARGS];
-    int argc = split_args(buffer, argv, MAX_ARGS);
-
-    if (argc == 0) {
-        snprintf(response, resp_size, "Empty command");
-        return -1;
-    }
-
-    for (int i = 0; i < commands_count; i++) {
-
-        if (strcmp(argv[0], commands[i].name) == 0) {
-
-            log_msg(LOG_INFO,
-                    "Command: %s (chat_id=%ld)",
-                    argv[0], chat_id);
-
-            if (!commands[i].handler) {
-                snprintf(response, resp_size,
-                         "Command not implemented");
-                return -1;
-            }
-
-            int commands_handle(const char *text,
                     long chat_id,
                     char *response,
                     size_t resp_size) {
@@ -579,7 +542,7 @@ int commands_handle(const char *text,
 
                 preview[j++] = c;
 
-                // truncate (🔥 120 символов)
+                // truncate
                 if (j >= 120) {
                     if (j < sizeof(preview) - 4) {
                         preview[j++] = '.';
