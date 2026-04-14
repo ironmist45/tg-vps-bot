@@ -35,9 +35,17 @@ typedef struct {
 
 // ===== forward =====
 
-static int cmd_help(int argc, char *argv[],
-                   long chat_id,
-                   char *resp, size_t size);
+static int cmd_help(int, char **, long, char *, size_t);
+static int cmd_start(int, char **, long, char *, size_t);
+static int cmd_status(int, char **, long, char *, size_t);
+static int cmd_about(int, char **, long, char *, size_t);
+static int cmd_ping(int, char **, long, char *, size_t);
+static int cmd_services(int, char **, long, char *, size_t);
+static int cmd_logs(int, char **, long, char *, size_t);
+static int cmd_users(int, char **, long, char *, size_t);
+static int cmd_fail2ban(int, char **, long, char *, size_t);
+static int cmd_reboot(int, char **, long, char *, size_t);
+static int cmd_reboot_confirm(int, char **, long, char *, size_t);
 
 // ===== utils =====
 
@@ -51,21 +59,15 @@ static int split_args(char *input, char *argv[], int max_args) {
     return argc;
 }
 
-// 🔥 простая проверка IP (IPv4)
-static int is_valid_ip(const char *ip) {
-    if (!ip) return 0;
-
-    int dots = 0;
-    for (const char *p = ip; *p; p++) {
-        if (*p == '.') dots++;
-        else if (!isdigit(*p)) return 0;
+static int is_safe_ip(const char *ip) {
+    for (size_t i = 0; ip[i]; i++) {
+        if (!(isdigit((unsigned char)ip[i]) || ip[i] == '.'))
+            return 0;
     }
-
-    if (dots != 3) return 0;
     return 1;
 }
 
-// ===== START =====
+// ===== COMMANDS =====
 
 static int cmd_start(int argc, char *argv[],
                     long chat_id,
@@ -80,19 +82,11 @@ static int cmd_start(int argc, char *argv[],
     }
 
     snprintf(resp, size,
-        "*🚀 %s v%s (%s)*\n\n"
-        "%s\n\n"
-        "👉 Use /help to see commands",
-        APP_NAME,
-        APP_VERSION,
-        APP_CODENAME,
-        status
-    );
+        "*🚀 %s v%s (%s)*\n\n%s\n\n👉 /help",
+        APP_NAME, APP_VERSION, APP_CODENAME, status);
 
     return 0;
 }
-
-// ===== STATUS =====
 
 static int cmd_status(int argc, char *argv[],
                      long chat_id,
@@ -108,7 +102,110 @@ static int cmd_status(int argc, char *argv[],
     return system_get_status(resp, size);
 }
 
-// ===== USERS =====
+static int cmd_about(int argc, char *argv[],
+                    long chat_id,
+                    char *resp, size_t size) {
+
+    (void)argc; (void)argv; (void)chat_id;
+
+    time_t now = time(NULL);
+    long uptime = now - g_start_time;
+
+    int days = uptime / 86400;
+    int hours = (uptime % 86400) / 3600;
+    int mins = (uptime % 3600) / 60;
+
+    snprintf(resp, size,
+        "*ℹ️ ABOUT*\n\n"
+        "%s v%s (%s)\n"
+        "PID: %d\n"
+        "Uptime: %dd %dh %dm",
+        APP_NAME, APP_VERSION, APP_CODENAME,
+        getpid(), days, hours, mins);
+
+    return 0;
+}
+
+// 🔥 ВЕРНУЛИ LATENCY
+static int cmd_ping(int argc, char *argv[],
+                   long chat_id,
+                   char *resp, size_t size) {
+
+    (void)argc; (void)argv; (void)chat_id;
+
+    struct timespec start, end;
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    usleep(1000);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    long ms =
+        (end.tv_sec - start.tv_sec) * 1000 +
+        (end.tv_nsec - start.tv_nsec) / 1000000;
+
+    snprintf(resp, size,
+        "*🏓 PING*\n\n"
+        "Response: `pong`\n"
+        "Latency: `%ld ms`",
+        ms);
+
+    return 0;
+}
+
+static int cmd_services(int argc, char *argv[],
+                       long chat_id,
+                       char *resp, size_t size) {
+
+    (void)argc; (void)argv;
+
+    if (!security_is_allowed_chat(chat_id)) {
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
+    }
+
+    return services_get_status(resp, size);
+}
+
+// 🔥 ВЕРНУЛИ ПОЛНЫЙ /logs
+static int cmd_logs(int argc, char *argv[],
+                   long chat_id,
+                   char *resp, size_t size) {
+
+    if (!security_is_allowed_chat(chat_id)) {
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
+    }
+
+    if (argc < 2) {
+        snprintf(resp, size,
+            "*📜 LOGS MENU*\n\n"
+            "`/logs ssh`\n"
+            "`/logs mtg`\n"
+            "`/logs shadowsocks`\n\n"
+            "`/logs <service> <N>`\n"
+            "`/logs <service> error`");
+        return 0;
+    }
+
+    char args[256] = {0};
+    size_t used = 0;
+
+    for (int i = 1; i < argc; i++) {
+        int written = snprintf(args + used,
+                               sizeof(args) - used,
+                               "%s%s",
+                               argv[i],
+                               (i < argc - 1) ? " " : "");
+
+        if (written < 0 ||
+            (size_t)written >= sizeof(args) - used)
+            break;
+
+        used += written;
+    }
+
+    return logs_get(args, resp, size);
+}
 
 static int cmd_users(int argc, char *argv[],
                     long chat_id,
@@ -137,178 +234,110 @@ static int cmd_fail2ban(int argc, char *argv[],
 
     if (argc < 2) {
         snprintf(resp, size,
-            "*🛡 FAIL2BAN*\n\n"
+            "*Fail2Ban*\n\n"
             "`/fail2ban status`\n"
             "`/fail2ban sshd`\n"
             "`/fail2ban jail list`\n"
-            "`/ban <IP>`\n"
-            "`/unban <IP>`\n"
-        );
+            "`/fail2ban ban <ip>`\n"
+            "`/fail2ban unban <ip>`");
         return 0;
     }
 
-    FILE *fp = NULL;
+    char cmd[256] = {0};
 
-    if (strcmp(argv[1], "status") == 0) {
-        fp = popen("fail2ban-client status 2>/dev/null", "r");
+    if (strcmp(argv[1], "status") == 0)
+        snprintf(cmd, sizeof(cmd), "fail2ban-client status");
 
-    } else if (strcmp(argv[1], "sshd") == 0) {
-        fp = popen("fail2ban-client status sshd 2>/dev/null", "r");
+    else if (strcmp(argv[1], "sshd") == 0)
+        snprintf(cmd, sizeof(cmd), "fail2ban-client status sshd");
 
-    } else if (strcmp(argv[1], "jail") == 0 && argc >= 3 &&
-               strcmp(argv[2], "list") == 0) {
+    else if (strcmp(argv[1], "jail") == 0 &&
+             argc >= 3 &&
+             strcmp(argv[2], "list") == 0)
+        snprintf(cmd, sizeof(cmd), "fail2ban-client status");
 
-        fp = popen("fail2ban-client status | grep 'Jail list'", "r");
+    else if (strcmp(argv[1], "ban") == 0 && argc >= 3) {
 
-    } else {
-        snprintf(resp, size, "Unknown option");
+        if (!is_safe_ip(argv[2])) {
+            snprintf(resp, size, "Invalid IP");
+            return -1;
+        }
+
+        snprintf(cmd, sizeof(cmd),
+                 "fail2ban-client set sshd banip %s",
+                 argv[2]);
+    }
+
+    else if (strcmp(argv[1], "unban") == 0 && argc >= 3) {
+
+        if (!is_safe_ip(argv[2])) {
+            snprintf(resp, size, "Invalid IP");
+            return -1;
+        }
+
+        snprintf(cmd, sizeof(cmd),
+                 "fail2ban-client set sshd unbanip %s",
+                 argv[2]);
+    }
+
+    else {
+        snprintf(resp, size, "Invalid fail2ban command");
         return -1;
     }
 
+    FILE *fp = popen(cmd, "r");
     if (!fp) {
-        snprintf(resp, size, "❌ Failed to execute fail2ban");
+        snprintf(resp, size, "Execution failed");
         return -1;
     }
 
-    char line[256];
-    resp[0] = '\0';
-
-    while (fgets(line, sizeof(line), fp)) {
-        if (strlen(resp) + strlen(line) >= size - 1)
+    size_t used = 0;
+    while (fgets(resp + used, size - used, fp)) {
+        used = strlen(resp);
+        if (used >= size - 1)
             break;
-        strcat(resp, line);
     }
 
     pclose(fp);
     return 0;
 }
 
-// ===== BAN =====
+// ===== REBOOT =====
 
-static int cmd_ban(int argc, char *argv[],
-                   long chat_id,
-                   char *resp, size_t size) {
-
-    if (!security_is_allowed_chat(chat_id)) {
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
-
-    if (argc < 2 || !is_valid_ip(argv[1])) {
-        snprintf(resp, size, "Usage: /ban <IP>");
-        return -1;
-    }
-
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd),
-             "fail2ban-client set sshd banip %s 2>/dev/null", argv[1]);
-
-    int ret = system(cmd);
-
-    if (ret != 0) {
-        snprintf(resp, size, "❌ Ban failed");
-        return -1;
-    }
-
-    snprintf(resp, size, "🚫 Banned: %s", argv[1]);
-    return 0;
-}
-
-// ===== UNBAN =====
-
-static int cmd_unban(int argc, char *argv[],
+static int cmd_reboot(int argc, char *argv[],
                      long chat_id,
                      char *resp, size_t size) {
 
+    (void)argc; (void)argv;
+
     if (!security_is_allowed_chat(chat_id)) {
         snprintf(resp, size, "❌ Access denied");
         return -1;
     }
 
-    if (argc < 2 || !is_valid_ip(argv[1])) {
-        snprintf(resp, size, "Usage: /unban <IP>");
-        return -1;
-    }
-
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd),
-             "fail2ban-client set sshd unbanip %s 2>/dev/null", argv[1]);
-
-    int ret = system(cmd);
-
-    if (ret != 0) {
-        snprintf(resp, size, "❌ Unban failed");
-        return -1;
-    }
-
-    snprintf(resp, size, "✅ Unbanned: %s", argv[1]);
-    return 0;
-}
-
-// ===== ABOUT =====
-
-static int cmd_about(int argc, char *argv[],
-                    long chat_id,
-                    char *resp, size_t size) {
-
-    (void)argc; (void)argv; (void)chat_id;
-
-    time_t now = time(NULL);
-    long uptime = now - g_start_time;
-
-    int days = uptime / 86400;
-    int hours = (uptime % 86400) / 3600;
-    int mins = (uptime % 3600) / 60;
+    int token = security_generate_reboot_token(chat_id);
 
     snprintf(resp, size,
-        "*ℹ️ ABOUT*\n\n"
-        "*%s v%s (%s)*\n\n"
-        "👤 Author: %s\n"
-        "📅 Year: %s\n\n"
-        "⚙️ Build: %s %s\n"
-        "🖥 Target: %s\n\n"
-        "🆔 PID: %d\n"
-        "⏱ Uptime: %dd %dh %dm",
-        APP_NAME,
-        APP_VERSION,
-        APP_CODENAME,
-        APP_AUTHOR,
-        APP_YEAR,
-        BUILD_DATE,
-        BUILD_TIME,
-        TARGET_OS,
-        getpid(),
-        days, hours, mins
-    );
+        "⚠️ Confirm reboot:\n`/reboot_confirm %d`",
+        token);
 
     return 0;
 }
 
-// ===== PING =====
+static int cmd_reboot_confirm(int argc, char *argv[],
+                             long chat_id,
+                             char *resp, size_t size) {
 
-static int cmd_ping(int argc, char *argv[],
-                   long chat_id,
-                   char *resp, size_t size) {
+    if (argc < 2) return -1;
 
-    (void)argc; (void)argv; (void)chat_id;
+    if (!security_is_allowed_chat(chat_id)) {
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
+    }
 
-    struct timespec start, end;
+    g_shutdown_requested = 2;
 
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    usleep(1000);
-    clock_gettime(CLOCK_MONOTONIC, &end);
-
-    long ms =
-        (end.tv_sec - start.tv_sec) * 1000 +
-        (end.tv_nsec - start.tv_nsec) / 1000000;
-
-    snprintf(resp, size,
-        "*🏓 PING*\n\n"
-        "Response: `pong`\n"
-        "Latency: `%ld ms`",
-        ms
-    );
-
+    snprintf(resp, size, "♻️ Rebooting...");
     return 0;
 }
 
@@ -316,18 +345,16 @@ static int cmd_ping(int argc, char *argv[],
 
 static command_t commands[] = {
     {"/start", cmd_start, "Start bot"},
-    {"/help", cmd_help, "Show help"},
+    {"/help", cmd_help, "Help"},
     {"/status", cmd_status, "System status"},
-    {"/users", cmd_users, "Active users"},
-    {"/fail2ban", cmd_fail2ban, "Fail2Ban info"},
-    {"/ban", cmd_ban, "Ban IP"},
-    {"/unban", cmd_unban, "Unban IP"},
-    {"/about", cmd_about, "About bot"},
+    {"/about", cmd_about, "About"},
     {"/ping", cmd_ping, "Ping"},
-    {"/services", cmd_services, "List services"},
+    {"/services", cmd_services, "Services"},
+    {"/users", cmd_users, "Users"},
     {"/logs", cmd_logs, "Logs"},
+    {"/fail2ban", cmd_fail2ban, "Fail2Ban"},
     {"/reboot", cmd_reboot, "Reboot"},
-    {"/reboot_confirm", cmd_reboot_confirm, "Confirm reboot"},
+    {"/reboot_confirm", cmd_reboot_confirm, NULL},
 };
 
 static const int commands_count =
@@ -341,19 +368,20 @@ static int cmd_help(int argc, char *argv[],
 
     (void)argc; (void)argv; (void)chat_id;
 
-    size_t used = 0;
-
-    snprintf(resp, size, "*📚 COMMANDS*\n\n");
-    used = strlen(resp);
+    size_t used = snprintf(resp, size, "*📚 COMMANDS*\n\n");
 
     for (int i = 0; i < commands_count; i++) {
+
+        if (!commands[i].description)
+            continue;
 
         int written = snprintf(resp + used, size - used,
                                "`%s` — %s\n",
                                commands[i].name,
                                commands[i].description);
 
-        if (written < 0 || (size_t)written >= size - used)
+        if (written < 0 ||
+            (size_t)written >= size - used)
             break;
 
         used += written;
@@ -387,11 +415,18 @@ int commands_handle(const char *text,
     }
 
     for (int i = 0; i < commands_count; i++) {
+
         if (strcmp(argv[0], commands[i].name) == 0) {
 
             log_msg(LOG_INFO,
                     "Command: %s (chat_id=%ld)",
                     argv[0], chat_id);
+
+            if (!commands[i].handler) {
+                snprintf(response, resp_size,
+                         "Command not implemented");
+                return -1;
+            }
 
             return commands[i].handler(
                 argc, argv, chat_id, response, resp_size
