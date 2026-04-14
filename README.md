@@ -234,6 +234,16 @@ Expected:
 gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0
 ```
 
+## Build Notes
+
+Project is built in Ubuntu 18.04 environment using Docker.
+
+Linking model:
+- cJSON: static
+- libcurl / OpenSSL: dynamic
+
+Do NOT modify linker flags unless you know what you are doing!
+
 ## 📄 License
 
 MIT (or your choice)
