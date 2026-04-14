@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the structure and organization of the project.
+This document describes the structure and organization of the project Tg-Bot.
 
 ## Project Layout
 
