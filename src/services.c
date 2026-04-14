@@ -4,14 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_SERVICES 10
+// ===== whitelist сервисов =====
 
 typedef struct {
     const char *name;
     const char *display;
 } service_t;
-
-// ===== whitelist сервисов =====
 
 static service_t services[] = {
     {"ssh", "SSH"},
@@ -37,6 +35,7 @@ static int get_service_status(const char *service, char *out, size_t size) {
     }
 
     if (fgets(out, size, fp) == NULL) {
+        log_msg(LOG_WARN, "systemctl returned no output for %s", service);
         snprintf(out, size, "unknown");
         pclose(fp);
         return -1;
@@ -46,6 +45,11 @@ static int get_service_status(const char *service, char *out, size_t size) {
 
     // убрать \n
     out[strcspn(out, "\n")] = 0;
+
+    // 🔥 убрать ведущие пробелы (на всякий случай)
+    while (*out == ' ') {
+        memmove(out, out + 1, strlen(out));
+    }
 
     return 0;
 }
@@ -77,8 +81,9 @@ static void format_line(char *dst, size_t size,
 
     const char *status_fmt = format_status(status);
 
+    // 🔥 чуть более аккуратный вывод
     snprintf(dst, size,
-             "%-14s : %s\n",
+             "%-12s  %s\n",
              name,
              status_fmt);
 }
@@ -112,7 +117,8 @@ int services_get_status(char *buffer, size_t size) {
         if (strlen(buffer) + strlen(line) >= size - 1)
             break;
 
-        strcat(buffer, line);
+        // 🔥 безопасный append
+        strncat(buffer, line, size - strlen(buffer) - 1);
     }
 
     return 0;
