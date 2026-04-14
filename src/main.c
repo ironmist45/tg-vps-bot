@@ -20,6 +20,9 @@
 // ===== uptime =====
 time_t g_start_time;
 
+// 👉 кто запросил reboot (бонус)
+long g_reboot_requested_by = 0;
+
 // ===== signals =====
 static volatile sig_atomic_t g_reload_config = 0;
 volatile sig_atomic_t g_shutdown_requested = 0; // 0=none,1=restart,2=reboot
@@ -39,6 +42,21 @@ static void handle_sigterm(int sig) {
     log_msg(LOG_WARN, "Received SIGTERM, shutting down...");
     g_shutdown_requested = 1;
     g_running = 0;
+}
+
+// ===== UTILS =====
+
+static void log_uptime() {
+    time_t now = time(NULL);
+    long uptime = now - g_start_time;
+
+    int days = uptime / 86400;
+    int hours = (uptime % 86400) / 3600;
+    int mins = (uptime % 3600) / 60;
+
+    log_msg(LOG_INFO,
+        "Uptime: %dd %dh %dm",
+        days, hours, mins);
 }
 
 // ===== GRACEFUL SHUTDOWN =====
@@ -75,12 +93,31 @@ static void handle_shutdown() {
     if (handled) return;
     handled = 1;
 
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     // ===== REBOOT =====
     if (g_shutdown_requested == 2) {
 
         log_msg(LOG_WARN, "Reboot requested");
 
+        if (g_reboot_requested_by != 0) {
+            log_msg(LOG_INFO,
+                "Requested by chat_id=%ld",
+                g_reboot_requested_by);
+        }
+
+        log_uptime();
+
         graceful_shutdown();
+
+        clock_gettime(CLOCK_MONOTONIC, &end);
+
+        long ms =
+            (end.tv_sec - start.tv_sec) * 1000 +
+            (end.tv_nsec - start.tv_nsec) / 1000000;
+
+        log_msg(LOG_INFO, "Shutdown took %ld ms", ms);
 
         log_msg(LOG_WARN, "Rebooting via reboot(RB_AUTOBOOT)...");
 
@@ -106,7 +143,23 @@ static void handle_shutdown() {
 
         log_msg(LOG_WARN, "Restart requested");
 
+        if (g_reboot_requested_by != 0) {
+            log_msg(LOG_INFO,
+                "Requested by chat_id=%ld",
+                g_reboot_requested_by);
+        }
+
+        log_uptime();
+
         graceful_shutdown();
+
+        clock_gettime(CLOCK_MONOTONIC, &end);
+
+        long ms =
+            (end.tv_sec - start.tv_sec) * 1000 +
+            (end.tv_nsec - start.tv_nsec) / 1000000;
+
+        log_msg(LOG_INFO, "Shutdown took %ld ms", ms);
 
         execl("/bin/systemctl",
               "systemctl",
