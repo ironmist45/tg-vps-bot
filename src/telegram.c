@@ -315,7 +315,6 @@ int telegram_poll() {
             g_last_processed_update = uid;
             last_update_id = uid + 1;
 
-            // 🔥 сохраняем сразу (анти-дубль даже при ошибках)
             save_offset(last_update_id);
 
             cJSON *message = cJSON_GetObjectItem(update, "message");
@@ -331,8 +330,13 @@ int telegram_poll() {
             long cid = (long)chat_id->valuedouble;
             const char *msg_text = text->valuestring;
 
-            if (!security_is_allowed_chat(cid))
+            // 🔥 ЛОГ ВСЕХ попыток доступа
+            if (!security_is_allowed_chat(cid)) {
+                log_msg(LOG_WARN,
+                        "ACCESS DENIED: chat_id=%ld text=%s",
+                        cid, msg_text);
                 continue;
+            }
 
             if (security_validate_text(msg_text) != 0)
                 continue;
