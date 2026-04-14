@@ -71,12 +71,6 @@ static int cmd_start(int argc, char *argv[],
     return 0;
 }
 
-// ===== HELP =====
-
-static int cmd_help(int argc, char *argv[],
-                   long chat_id,
-                   char *resp, size_t size);
-
 // ===== ABOUT =====
 
 static int cmd_about(int argc, char *argv[],
@@ -144,6 +138,30 @@ static int cmd_ping(int argc, char *argv[],
     return 0;
 }
 
+// ===== SERVICES (🔥 НОВОЕ) =====
+
+static int cmd_services(int argc, char *argv[],
+                       long chat_id,
+                       char *resp, size_t size) {
+
+    (void)argc; (void)argv;
+
+    if (!security_is_allowed_chat(chat_id)) {
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
+    }
+
+    char tmp[RESP_MAX];
+
+    if (services_get_status(tmp, sizeof(tmp)) != 0) {
+        snprintf(resp, size, "❌ Failed to get services");
+        return -1;
+    }
+
+    snprintf(resp, size, "%s", tmp);
+    return 0;
+}
+
 // ===== LOGS =====
 
 static int cmd_logs(int argc, char *argv[],
@@ -173,10 +191,8 @@ static int cmd_logs(int argc, char *argv[],
                                argv[i],
                                (i < argc - 1) ? " " : "");
 
-        if (written < 0 || (size_t)written >= sizeof(args) - used) {
-            log_msg(LOG_WARN, "logs args truncated");
+        if (written < 0 || (size_t)written >= sizeof(args) - used)
             break;
-        }
 
         used += written;
     }
@@ -200,9 +216,7 @@ static int cmd_reboot(int argc, char *argv[],
 
     (void)argc; (void)argv;
 
-    // 🔐 проверка доступа
     if (!security_is_allowed_chat(chat_id)) {
-        log_msg(LOG_WARN, "Unauthorized reboot attempt: %ld", chat_id);
         snprintf(resp, size, "❌ Access denied");
         return -1;
     }
@@ -213,9 +227,6 @@ static int cmd_reboot(int argc, char *argv[],
         snprintf(resp, size, "⏱ Too many requests");
         return -1;
     }
-
-    log_msg(LOG_INFO, "Issued reboot token %d for chat_id=%ld",
-            token, chat_id);
 
     snprintf(resp, size,
         "⚠️ REBOOT\nConfirm:\n/reboot_confirm %d",
@@ -236,7 +247,6 @@ static int cmd_reboot_confirm(int argc, char *argv[],
     }
 
     if (!security_is_allowed_chat(chat_id)) {
-        log_msg(LOG_WARN, "Unauthorized confirm: %ld", chat_id);
         snprintf(resp, size, "❌ Access denied");
         return -1;
     }
@@ -244,12 +254,8 @@ static int cmd_reboot_confirm(int argc, char *argv[],
     char *endptr = NULL;
     long token = strtol(argv[1], &endptr, 10);
 
-    log_msg(LOG_INFO,
-        "Reboot confirm attempt: chat_id=%ld token=%ld raw='%s'",
-        chat_id, token, argv[1]);
-
     if (*endptr != '\0') {
-        snprintf(resp, size, "Invalid token format");
+        snprintf(resp, size, "Invalid token");
         return -1;
     }
 
@@ -270,9 +276,10 @@ static int cmd_reboot_confirm(int argc, char *argv[],
 
 static command_t commands[] = {
     {"/start", cmd_start, "Start bot"},
-    {"/help", cmd_help, "Show help"},
+    {"/help", NULL, "Show help"},
     {"/about", cmd_about, "About bot"},
     {"/ping", cmd_ping, "Ping"},
+    {"/services", cmd_services, "List services"}, // 🔥 FIX
     {"/logs", cmd_logs, "Logs"},
     {"/reboot", cmd_reboot, "Reboot"},
     {"/reboot_confirm", cmd_reboot_confirm, "Confirm reboot"},
@@ -295,6 +302,7 @@ static int cmd_help(int argc, char *argv[],
     used = strlen(resp);
 
     for (int i = 0; i < commands_count; i++) {
+
         int written = snprintf(resp + used, size - used,
                                "`%s` — %s\n",
                                commands[i].name,
@@ -340,9 +348,11 @@ int commands_handle(const char *text,
                     "Command: %s (chat_id=%ld)",
                     argv[0], chat_id);
 
-            return commands[i].handler(
-                argc, argv, chat_id, response, resp_size
-            );
+            if (commands[i].handler) {
+                return commands[i].handler(
+                    argc, argv, chat_id, response, resp_size
+                );
+            }
         }
     }
 
