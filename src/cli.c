@@ -7,6 +7,12 @@
 #include <getopt.h>
 
 int cli_parse(int argc, char *argv[], cli_args_t *args) {
+
+    // 🔥 защита от NULL
+    if (!args) {
+        return -1;
+    }
+
     memset(args, 0, sizeof(cli_args_t));
 
     int opt;
@@ -22,10 +28,12 @@ int cli_parse(int argc, char *argv[], cli_args_t *args) {
 
     while ((opt = getopt_long(argc, argv, "c:hv", long_options, NULL)) != -1) {
         switch (opt) {
+
             case 'c':
-                strncpy(args->config_path, optarg,
-                        sizeof(args->config_path) - 1);
-                args->config_path[sizeof(args->config_path) - 1] = '\0';
+                // 🔥 безопаснее и чище чем strncpy
+                snprintf(args->config_path,
+                         sizeof(args->config_path),
+                         "%s", optarg);
                 break;
 
             case 'h':
@@ -37,8 +45,15 @@ int cli_parse(int argc, char *argv[], cli_args_t *args) {
                 break;
 
             case '?':
+                fprintf(stderr, "Unknown option\n");
                 return -1;
         }
+    }
+
+    // 🔥 лишние аргументы (например: ./bot foo)
+    if (optind < argc) {
+        fprintf(stderr, "Unexpected arguments\n");
+        return -1;
     }
 
     return 0;
