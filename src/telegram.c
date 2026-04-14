@@ -333,7 +333,7 @@ int telegram_poll() {
             // 🔥 ЛОГ ВСЕХ попыток доступа
             if (!security_is_allowed_chat(cid)) {
                 log_msg(LOG_WARN,
-                        "ACCESS DENIED: chat_id=%ld text=%s",
+                        "ACCESS DENIED: chat_id=%ld text=%.32s",
                         cid, msg_text);
                 continue;
             }
