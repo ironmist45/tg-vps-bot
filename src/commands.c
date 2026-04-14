@@ -32,6 +32,12 @@ typedef struct {
     const char *description;
 } command_t;
 
+// ===== forward =====
+
+static int cmd_help(int argc, char *argv[],
+                   long chat_id,
+                   char *resp, size_t size);
+
 // ===== utils =====
 
 static int split_args(char *input, char *argv[], int max_args) {
@@ -138,7 +144,7 @@ static int cmd_ping(int argc, char *argv[],
     return 0;
 }
 
-// ===== SERVICES (🔥 НОВОЕ) =====
+// ===== SERVICES =====
 
 static int cmd_services(int argc, char *argv[],
                        long chat_id,
@@ -276,10 +282,10 @@ static int cmd_reboot_confirm(int argc, char *argv[],
 
 static command_t commands[] = {
     {"/start", cmd_start, "Start bot"},
-    {"/help", NULL, "Show help"},
+    {"/help", cmd_help, "Show help"},   // 🔥 FIX
     {"/about", cmd_about, "About bot"},
     {"/ping", cmd_ping, "Ping"},
-    {"/services", cmd_services, "List services"}, // 🔥 FIX
+    {"/services", cmd_services, "List services"},
     {"/logs", cmd_logs, "Logs"},
     {"/reboot", cmd_reboot, "Reboot"},
     {"/reboot_confirm", cmd_reboot_confirm, "Confirm reboot"},
@@ -348,11 +354,9 @@ int commands_handle(const char *text,
                     "Command: %s (chat_id=%ld)",
                     argv[0], chat_id);
 
-            if (commands[i].handler) {
-                return commands[i].handler(
-                    argc, argv, chat_id, response, resp_size
-                );
-            }
+            return commands[i].handler(
+                argc, argv, chat_id, response, resp_size
+            );
         }
     }
 
