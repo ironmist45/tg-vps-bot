@@ -488,33 +488,71 @@ int commands_handle(const char *text,
             if (response[0] == '\0') {
                 snprintf(response, resp_size,
                          (rc == 0) ? "OK" : "Error");
+}
+
+// ===== LOG RESPONSE (🔥 УЛУЧШЕННЫЙ) =====
+if (response && response[0] != '\0') {
+
+    char preview[256];
+    size_t j = 0;
+
+    for (size_t i = 0; response[i] && j < sizeof(preview) - 1; i++) {
+
+        char c = response[i];
+
+        // 🔹 перенос строки → " | "
+        if (c == '\n' || c == '\r') {
+
+            if (j > 0 && preview[j - 1] != '|') {
+
+                // убрать лишний пробел перед |
+                if (j > 0 && preview[j - 1] == ' ')
+                    j--;
+
+                preview[j++] = ' ';
+                if (j < sizeof(preview) - 1) preview[j++] = '|';
+                if (j < sizeof(preview) - 1) preview[j++] = ' ';
             }
 
-            // ===== LOG RESPONSE (🔥 НОВОЕ) =====
-            if (response && response[0] != '\0') {
+            continue;
+        }
 
-                char preview[256];
+        // 🔹 убираем markdown
+        if (c == '*' || c == '`' || c == '_') {
+            continue;
+        }
 
-                strncpy(preview, response, sizeof(preview) - 1);
-                preview[sizeof(preview) - 1] = '\0';
+        // 🔹 убираем двойные пробелы
+        if (c == ' ' && j > 0 && preview[j - 1] == ' ') {
+            continue;
+        }
 
-                // опционально: не логировать шумные команды
-                if (strcmp(argv[0], "/logs") != 0) {
-                    log_msg(LOG_DEBUG,
-                            "Response to %s (chat_id=%ld): %s",
-                            argv[0], chat_id, preview);
-                }
+        preview[j++] = c;
 
-            } else {
-                log_msg(LOG_DEBUG,
-                        "Response to %s (chat_id=%ld): <empty>",
-                        argv[0], chat_id);
+        // 🔹 ограничение длины
+        if (j >= 220) {
+            if (j < sizeof(preview) - 4) {
+                preview[j++] = '.';
+                preview[j++] = '.';
+                preview[j++] = '.';
             }
-
-            return rc;
+            break;
         }
     }
 
-    snprintf(response, resp_size, "Unknown command");
-    return -1;
+    preview[j] = '\0';
+
+    // 🔹 не логируем шумные команды
+    if (strcmp(argv[0], "/logs") != 0) {
+        log_msg(LOG_DEBUG,
+                "Response to %s (chat_id=%ld): %s",
+                argv[0], chat_id, preview);
+    }
+
+} else {
+    log_msg(LOG_DEBUG,
+            "Response to %s (chat_id=%ld): <empty>",
+            argv[0], chat_id);
 }
+
+return rc;
