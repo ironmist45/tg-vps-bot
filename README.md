@@ -244,6 +244,14 @@ Linking model:
 
 Do NOT modify linker flags unless you know what you are doing!
 
+## Philosophy
+
+Built with focus on reliability, control and independence.
+
+Inspired by the idea that infrastructure should remain in your hands.
+
+> Stay independent. :-)
+
 ## 📄 License
 
 MIT © ironmist45
