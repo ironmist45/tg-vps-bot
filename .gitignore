@@ -1,32 +1,46 @@
-# build
+# ===== build =====
 build/
 *.o
 *.a
 *.so
+*.out
+
+# binary
 tg-bot
 
-# config (real)
+# ===== config =====
 config/config.conf
 !config/config.example.conf
 
-# logs
+# ===== logs =====
 *.log
 
-# runtime
+# ===== runtime =====
 *.dat
 *.tmp
 *.pid
+*.lock
 
-# IDE
+# ===== coverage / debug =====
+*.gcno
+*.gcda
+*.gcov
+
+# ===== IDE =====
 .vscode/
 .idea/
 *.swp
+*.swo
 *~
 
-# OS
+# ===== OS =====
 .DS_Store
 Thumbs.db
 
-# crashes
+# ===== crashes =====
 core
 core.*
+
+# ===== misc =====
+*.bak
+*.old
