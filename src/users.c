@@ -21,14 +21,15 @@ static void format_time(time_t t, char *buf, size_t size) {
 
 static void safe_append(char *dst, size_t size, const char *src) {
     size_t len = strlen(dst);
-    size_t left = (len < size) ? (size - len - 1) : 0;
 
-    if (left > 0) {
-        strncat(dst, src, left);
-    }
+    if (len >= size - 1)
+        return;
+
+    size_t left = size - len - 1;
+    strncat(dst, src, left);
 }
 
-// ===== основной API =====
+// ===== LOW LEVEL =====
 
 int users_get_logged(char *buffer, size_t size) {
 
@@ -36,10 +37,7 @@ int users_get_logged(char *buffer, size_t size) {
 
     buffer[0] = '\0';
 
-    safe_append(buffer, size,
-        "*👤 LOGGED USERS*\n\n");
-
-    setutent(); // открыть utmp
+    setutent();
 
     int count = 0;
 
@@ -54,12 +52,21 @@ int users_get_logged(char *buffer, size_t size) {
                         timebuf,
                         sizeof(timebuf));
 
-            // 👉 красивый Telegram-стиль
+            const char *user = entry->ut_user;
+            const char *tty  = entry->ut_line;
+
+            // IP / host может быть пустым
+            const char *host = entry->ut_host;
+            if (!host || strlen(host) == 0)
+                host = "local";
+
             snprintf(line, sizeof(line),
                      "• `%s` (%s)\n"
+                     "  🌐 %s\n"
                      "  ⏱ %s\n",
-                     entry->ut_user,
-                     entry->ut_line,
+                     user,
+                     tty,
+                     host,
                      timebuf);
 
             if (strlen(buffer) + strlen(line) >= size - 1)
@@ -70,12 +77,34 @@ int users_get_logged(char *buffer, size_t size) {
         }
     }
 
-    endutent(); // закрыть
+    endutent();
 
     if (count == 0) {
         safe_append(buffer, size,
             "_No active sessions_\n");
     }
+
+    return count;
+}
+
+// ===== HIGH LEVEL =====
+
+int users_get(char *buffer, size_t size) {
+
+    char tmp[2048] = {0};
+
+    int count = users_get_logged(tmp, sizeof(tmp));
+
+    if (count < 0) {
+        snprintf(buffer, size, "❌ Failed to get users");
+        return -1;
+    }
+
+    snprintf(buffer, size,
+        "*👤 USERS (%d)*\n\n%s",
+        count,
+        tmp
+    );
 
     return 0;
 }
