@@ -100,7 +100,11 @@ static int cmd_status(int argc, char *argv[],
         return -1;
     }
 
-    return system_get_status(resp, size);
+    if (system_get_status(resp, size) != 0) {
+        snprintf(resp, size, "⚠️ Failed to get system status");
+        return -1;
+}
+return 0;
 }
 
 static int cmd_about(int argc, char *argv[],
@@ -167,7 +171,11 @@ static int cmd_services(int argc, char *argv[],
         return -1;
     }
 
-    return services_get_status(resp, size);
+    if (services_get_status(resp, size) != 0) {
+        snprintf(resp, size, "⚠️ Failed to get services");
+        return -1;
+}
+return 0;
 }
 
 // ===== LOGS =====
@@ -207,7 +215,11 @@ static int cmd_logs(int argc, char *argv[],
         used += written;
     }
 
-    return logs_get(args, resp, size);
+    if (users_get(resp, size) != 0) {
+        snprintf(resp, size, "⚠️ Failed to get users");
+        return -1;
+}
+return 0;
 }
 
 // ===== USERS =====
@@ -223,7 +235,11 @@ static int cmd_users(int argc, char *argv[],
         return -1;
     }
 
-    return users_get_logged(resp, size);
+    if (users_get(resp, size) != 0) {
+        snprintf(resp, size, "⚠️ Failed to get users");
+        return -1;
+}
+return 0;
 }
 
 // ===== FAIL2BAN (🔥 FIXED + LOGGING) =====
@@ -254,7 +270,7 @@ static int cmd_fail2ban(int argc, char *argv[],
 
         if (argc == 2) {
             snprintf(cmd, sizeof(cmd),
-                     "/usr/local/bin/f2b-wrapper status 2>&1");
+                     "sudo -n /usr/local/bin/f2b-wrapper status 2>&1");
         } else if (argc >= 3 && strcmp(argv[2], "sshd") == 0) {
             snprintf(cmd, sizeof(cmd),
                      "sudo -n /usr/local/bin/f2b-wrapper status sshd 2>&1");
@@ -464,9 +480,16 @@ int commands_handle(const char *text,
                 return -1;
             }
 
-            return commands[i].handler(
+            int rc = commands[i].handler(
                 argc, argv, chat_id, response, resp_size
             );
+
+            if (response[0] == '\0') {
+                snprintf(response, resp_size,
+                         (rc == 0) ? "OK" : "Error");
+}
+
+return rc;
         }
     }
 
