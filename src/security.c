@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <string.h> // 🔥 FIX
+#include <string.h>
 
 #define SECRET_KEY 0x5F3759DF
 
@@ -14,7 +14,6 @@ static int g_token_ttl = 60;
 // ===== INIT =====
 
 void security_init(void) {
-    srand(time(NULL));
     log_msg(LOG_INFO, "Security initialized (stateless tokens)");
 }
 
@@ -37,15 +36,28 @@ int security_is_allowed_chat(long chat_id) {
 
 int security_validate_text(const char *text) {
     if (!text) return -1;
-    if (strlen(text) > 1024) return -1;
+
+    size_t len = strlen(text);
+
+    if (len == 0 || len > 1024)
+        return -1;
+
     return 0;
 }
 
 // ===== TOKEN CORE =====
 
-// простой hash
+// 🔥 улучшенный hash (без отрицательных значений)
 static int make_token(long chat_id, int ts) {
-    return (int)((chat_id ^ ts ^ SECRET_KEY) % 1000000);
+
+    unsigned int x = (unsigned int)(chat_id ^ ts ^ SECRET_KEY);
+
+    // немного "перемешаем" биты
+    x ^= (x >> 16);
+    x *= 0x45d9f3b;
+    x ^= (x >> 16);
+
+    return (int)(x % 1000000); // всегда 0..999999
 }
 
 // ===== GENERATE =====
@@ -59,7 +71,7 @@ int security_generate_reboot_token(long chat_id) {
     int final_token = (ts % 1000000) ^ token;
 
     log_msg(LOG_INFO,
-        "Generated token: chat_id=%ld ts=%d token=%d",
+        "Generated token: chat_id=%ld ts=%d token=%06d",
         chat_id, ts, final_token);
 
     return final_token;
@@ -80,7 +92,7 @@ int security_validate_reboot_token(long chat_id, int input_token) {
         if (expected == input_token) {
 
             log_msg(LOG_INFO,
-                "Token accepted: chat_id=%ld token=%d (age=%d sec)",
+                "Token accepted: chat_id=%ld token=%06d (age=%d sec)",
                 chat_id, input_token, i);
 
             return 0;
@@ -88,7 +100,7 @@ int security_validate_reboot_token(long chat_id, int input_token) {
     }
 
     log_msg(LOG_WARN,
-        "Invalid token: chat_id=%ld token=%d",
+        "Invalid token: chat_id=%ld token=%06d",
         chat_id, input_token);
 
     return -1;
