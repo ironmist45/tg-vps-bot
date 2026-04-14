@@ -484,12 +484,34 @@ int commands_handle(const char *text,
                 argc, argv, chat_id, response, resp_size
             );
 
+            // ===== fallback если пустой ответ =====
             if (response[0] == '\0') {
                 snprintf(response, resp_size,
                          (rc == 0) ? "OK" : "Error");
-}
+            }
 
-return rc;
+            // ===== LOG RESPONSE (🔥 НОВОЕ) =====
+            if (response && response[0] != '\0') {
+
+                char preview[256];
+
+                strncpy(preview, response, sizeof(preview) - 1);
+                preview[sizeof(preview) - 1] = '\0';
+
+                // опционально: не логировать шумные команды
+                if (strcmp(argv[0], "/logs") != 0) {
+                    log_msg(LOG_DEBUG,
+                            "Response to %s (chat_id=%ld): %s",
+                            argv[0], chat_id, preview);
+                }
+
+            } else {
+                log_msg(LOG_DEBUG,
+                        "Response to %s (chat_id=%ld): <empty>",
+                        argv[0], chat_id);
+            }
+
+            return rc;
         }
     }
 
