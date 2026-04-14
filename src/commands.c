@@ -359,6 +359,8 @@ static int cmd_reboot(int argc, char *argv[],
 static int cmd_reboot_confirm(int argc, char *argv[],
                              long chat_id,
                              char *resp, size_t size) {
+    
+    (void)argv; // 🔥 убираем warning
 
     if (argc < 2) return -1;
 
