@@ -114,18 +114,25 @@ Production-ready Telegram bot for server monitoring and management, written in p
 
 ---
 
-### 🧰 CLI Interface
+## 🖥️ CLI Interface
+
+### ▶️ Run
 
 ```bash
 tg-bot --config /etc/tg-bot/config.conf
 ```
+
+### ⚙️ Setup (first run, pls edit & check your config!)
+
+```bash
 cp config/config.example.conf config/config.conf
+```
 
-Options:
+### 🔧 Options
 
-* `-c, --config` — config path
-* `-h, --help`
-* `-v, --version`
+* `-c`, `--config <path>` — config file path
+* `-h`, `--help` — show help
+* `-v`, `--version` — show version
 
 ---
 
