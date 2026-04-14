@@ -13,6 +13,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <signal.h>
+#include <ctype.h>
 
 #define MAX_ARGS 8
 #define RESP_MAX 8192
@@ -50,6 +51,20 @@ static int split_args(char *input, char *argv[], int max_args) {
     return argc;
 }
 
+// 🔥 простая проверка IP (IPv4)
+static int is_valid_ip(const char *ip) {
+    if (!ip) return 0;
+
+    int dots = 0;
+    for (const char *p = ip; *p; p++) {
+        if (*p == '.') dots++;
+        else if (!isdigit(*p)) return 0;
+    }
+
+    if (dots != 3) return 0;
+    return 1;
+}
+
 // ===== START =====
 
 static int cmd_start(int argc, char *argv[],
@@ -77,7 +92,7 @@ static int cmd_start(int argc, char *argv[],
     return 0;
 }
 
-// ===== STATUS (🔥 ВОЗВРАТИЛИ) =====
+// ===== STATUS =====
 
 static int cmd_status(int argc, char *argv[],
                      long chat_id,
@@ -90,11 +105,143 @@ static int cmd_status(int argc, char *argv[],
         return -1;
     }
 
-    if (system_get_status(resp, size) != 0) {
-        snprintf(resp, size, "❌ Failed to get system status");
+    return system_get_status(resp, size);
+}
+
+// ===== USERS =====
+
+static int cmd_users(int argc, char *argv[],
+                    long chat_id,
+                    char *resp, size_t size) {
+
+    (void)argc; (void)argv;
+
+    if (!security_is_allowed_chat(chat_id)) {
+        snprintf(resp, size, "❌ Access denied");
         return -1;
     }
 
+    return users_get(resp, size);
+}
+
+// ===== FAIL2BAN =====
+
+static int cmd_fail2ban(int argc, char *argv[],
+                       long chat_id,
+                       char *resp, size_t size) {
+
+    if (!security_is_allowed_chat(chat_id)) {
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
+    }
+
+    if (argc < 2) {
+        snprintf(resp, size,
+            "*🛡 FAIL2BAN*\n\n"
+            "`/fail2ban status`\n"
+            "`/fail2ban sshd`\n"
+            "`/fail2ban jail list`\n"
+            "`/ban <IP>`\n"
+            "`/unban <IP>`\n"
+        );
+        return 0;
+    }
+
+    FILE *fp = NULL;
+
+    if (strcmp(argv[1], "status") == 0) {
+        fp = popen("fail2ban-client status 2>/dev/null", "r");
+
+    } else if (strcmp(argv[1], "sshd") == 0) {
+        fp = popen("fail2ban-client status sshd 2>/dev/null", "r");
+
+    } else if (strcmp(argv[1], "jail") == 0 && argc >= 3 &&
+               strcmp(argv[2], "list") == 0) {
+
+        fp = popen("fail2ban-client status | grep 'Jail list'", "r");
+
+    } else {
+        snprintf(resp, size, "Unknown option");
+        return -1;
+    }
+
+    if (!fp) {
+        snprintf(resp, size, "❌ Failed to execute fail2ban");
+        return -1;
+    }
+
+    char line[256];
+    resp[0] = '\0';
+
+    while (fgets(line, sizeof(line), fp)) {
+        if (strlen(resp) + strlen(line) >= size - 1)
+            break;
+        strcat(resp, line);
+    }
+
+    pclose(fp);
+    return 0;
+}
+
+// ===== BAN =====
+
+static int cmd_ban(int argc, char *argv[],
+                   long chat_id,
+                   char *resp, size_t size) {
+
+    if (!security_is_allowed_chat(chat_id)) {
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
+    }
+
+    if (argc < 2 || !is_valid_ip(argv[1])) {
+        snprintf(resp, size, "Usage: /ban <IP>");
+        return -1;
+    }
+
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd),
+             "fail2ban-client set sshd banip %s 2>/dev/null", argv[1]);
+
+    int ret = system(cmd);
+
+    if (ret != 0) {
+        snprintf(resp, size, "❌ Ban failed");
+        return -1;
+    }
+
+    snprintf(resp, size, "🚫 Banned: %s", argv[1]);
+    return 0;
+}
+
+// ===== UNBAN =====
+
+static int cmd_unban(int argc, char *argv[],
+                     long chat_id,
+                     char *resp, size_t size) {
+
+    if (!security_is_allowed_chat(chat_id)) {
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
+    }
+
+    if (argc < 2 || !is_valid_ip(argv[1])) {
+        snprintf(resp, size, "Usage: /unban <IP>");
+        return -1;
+    }
+
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd),
+             "fail2ban-client set sshd unbanip %s 2>/dev/null", argv[1]);
+
+    int ret = system(cmd);
+
+    if (ret != 0) {
+        snprintf(resp, size, "❌ Unban failed");
+        return -1;
+    }
+
+    snprintf(resp, size, "✅ Unbanned: %s", argv[1]);
     return 0;
 }
 
@@ -165,138 +312,16 @@ static int cmd_ping(int argc, char *argv[],
     return 0;
 }
 
-// ===== SERVICES =====
-
-static int cmd_services(int argc, char *argv[],
-                       long chat_id,
-                       char *resp, size_t size) {
-
-    (void)argc; (void)argv;
-
-    if (!security_is_allowed_chat(chat_id)) {
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
-
-    return services_get_status(resp, size);
-}
-
-// ===== LOGS (🔥 ЗАКРЫЛИ) =====
-
-static int cmd_logs(int argc, char *argv[],
-                   long chat_id,
-                   char *resp, size_t size) {
-
-    if (!security_is_allowed_chat(chat_id)) {
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
-
-    if (argc < 2) {
-        snprintf(resp, size,
-            "*📜 LOGS MENU*\n\n"
-            "`/logs ssh`\n"
-            "`/logs mtg`\n"
-            "`/logs shadowsocks`\n\n"
-            "`/logs <service> <N>`\n"
-            "`/logs <service> error`\n"
-        );
-        return 0;
-    }
-
-    char args[256] = {0};
-    size_t used = 0;
-
-    for (int i = 1; i < argc; i++) {
-        int written = snprintf(args + used, sizeof(args) - used,
-                               "%s%s",
-                               argv[i],
-                               (i < argc - 1) ? " " : "");
-
-        if (written < 0 || (size_t)written >= sizeof(args) - used)
-            break;
-
-        used += written;
-    }
-
-    if (logs_get(args, resp, size) != 0) {
-        snprintf(resp, size, "❌ Failed to get logs");
-        return -1;
-    }
-
-    return 0;
-}
-
-// ===== REBOOT =====
-
-static int cmd_reboot(int argc, char *argv[],
-                     long chat_id,
-                     char *resp, size_t size) {
-
-    (void)argc; (void)argv;
-
-    if (!security_is_allowed_chat(chat_id)) {
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
-
-    int token = security_generate_reboot_token(chat_id);
-
-    if (token < 0) {
-        snprintf(resp, size, "⏱ Too many requests");
-        return -1;
-    }
-
-    snprintf(resp, size,
-        "⚠️ REBOOT\nConfirm:\n/reboot_confirm %d",
-        token);
-
-    return 0;
-}
-
-// ===== REBOOT CONFIRM =====
-
-static int cmd_reboot_confirm(int argc, char *argv[],
-                             long chat_id,
-                             char *resp, size_t size) {
-
-    if (argc < 2) {
-        snprintf(resp, size, "Usage: /reboot_confirm <token>");
-        return -1;
-    }
-
-    if (!security_is_allowed_chat(chat_id)) {
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
-
-    char *endptr = NULL;
-    long token = strtol(argv[1], &endptr, 10);
-
-    if (*endptr != '\0') {
-        snprintf(resp, size, "Invalid token");
-        return -1;
-    }
-
-    if (security_validate_reboot_token(chat_id, (int)token) != 0) {
-        snprintf(resp, size, "❌ Invalid or expired token");
-        return -1;
-    }
-
-    log_msg(LOG_WARN, "REBOOT CONFIRMED by chat_id=%ld", chat_id);
-
-    g_shutdown_requested = 2;
-
-    snprintf(resp, size, "♻️ Reboot scheduled...");
-    return 0;
-}
-
 // ===== COMMAND TABLE =====
 
 static command_t commands[] = {
     {"/start", cmd_start, "Start bot"},
     {"/help", cmd_help, "Show help"},
-    {"/status", cmd_status, "System status"},   // 🔥 ВЕРНУЛИ
+    {"/status", cmd_status, "System status"},
+    {"/users", cmd_users, "Active users"},
+    {"/fail2ban", cmd_fail2ban, "Fail2Ban info"},
+    {"/ban", cmd_ban, "Ban IP"},
+    {"/unban", cmd_unban, "Unban IP"},
     {"/about", cmd_about, "About bot"},
     {"/ping", cmd_ping, "Ping"},
     {"/services", cmd_services, "List services"},
@@ -367,11 +392,6 @@ int commands_handle(const char *text,
             log_msg(LOG_INFO,
                     "Command: %s (chat_id=%ld)",
                     argv[0], chat_id);
-
-            if (!commands[i].handler) {
-                snprintf(response, resp_size, "Command not implemented");
-                return -1;
-            }
 
             return commands[i].handler(
                 argc, argv, chat_id, response, resp_size
