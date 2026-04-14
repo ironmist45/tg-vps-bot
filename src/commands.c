@@ -253,10 +253,10 @@ static int cmd_fail2ban(int argc, char *argv[],
 
         if (argc == 2) {
             snprintf(cmd, sizeof(cmd),
-                     "sudo /usr/local/bin/f2b-wrapper status 2>&1");
+                     "/usr/local/bin/f2b-wrapper status 2>&1");
         } else if (argc >= 3 && strcmp(argv[2], "sshd") == 0) {
             snprintf(cmd, sizeof(cmd),
-                     "sudo /usr/local/bin/f2b-wrapper status sshd 2>&1");
+                     "/usr/local/bin/f2b-wrapper status sshd 2>&1");
         } else {
             snprintf(resp, size, "Invalid status usage");
             return -1;
@@ -268,7 +268,7 @@ static int cmd_fail2ban(int argc, char *argv[],
              strcmp(argv[2], "list") == 0) {
 
         snprintf(cmd, sizeof(cmd),
-                 "sudo /usr/local/bin/f2b-wrapper status 2>&1");
+                 "/usr/local/bin/f2b-wrapper status 2>&1");
     }
 
     else if (strcmp(argv[1], "ban") == 0 && argc >= 3) {
@@ -283,7 +283,7 @@ static int cmd_fail2ban(int argc, char *argv[],
                 argv[2], chat_id);
 
         snprintf(cmd, sizeof(cmd),
-                 "sudo /usr/local/bin/f2b-wrapper set sshd banip %s 2>&1",
+                 "/usr/local/bin/f2b-wrapper set sshd banip %s 2>&1",
                  argv[2]);
     }
 
@@ -299,7 +299,7 @@ static int cmd_fail2ban(int argc, char *argv[],
                 argv[2], chat_id);
 
         snprintf(cmd, sizeof(cmd),
-                 "sudo /usr/local/bin/f2b-wrapper set sshd unbanip %s 2>&1",
+                 "/usr/local/bin/f2b-wrapper set sshd unbanip %s 2>&1",
                  argv[2]);
     }
 
