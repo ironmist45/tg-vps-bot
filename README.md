@@ -246,4 +246,4 @@ Do NOT modify linker flags unless you know what you are doing!
 
 ## 📄 License
 
-MIT (or your choice)
+MIT © ironmist45
