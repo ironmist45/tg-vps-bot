@@ -370,6 +370,7 @@ static int cmd_reboot_confirm(int argc, char *argv[],
         return -1;
     }
 
+    g_reboot_requested_by = chat_id;   // 👈 КТО запросил ребут
     g_shutdown_requested = 2;
 
     snprintf(resp, size, "♻️ Rebooting...");
