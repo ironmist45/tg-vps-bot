@@ -481,13 +481,13 @@ int commands_handle(const char *text,
             }
 
             int rc = commands[i].handler(
-                argc, argv, chat_id, response, resp_size
-            );
+    argc, argv, chat_id, response, resp_size
+);
 
-            // ===== fallback если пустой ответ =====
-            if (response[0] == '\0') {
-                snprintf(response, resp_size,
-                         (rc == 0) ? "OK" : "Error");
+// ===== fallback если пустой ответ =====
+if (response[0] == '\0') {
+    snprintf(response, resp_size,
+             (rc == 0) ? "OK" : "Error");
 }
 
 // ===== LOG RESPONSE (🔥 УЛУЧШЕННЫЙ) =====
@@ -505,7 +505,6 @@ if (response && response[0] != '\0') {
 
             if (j > 0 && preview[j - 1] != '|') {
 
-                // убрать лишний пробел перед |
                 if (j > 0 && preview[j - 1] == ' ')
                     j--;
 
@@ -542,7 +541,6 @@ if (response && response[0] != '\0') {
 
     preview[j] = '\0';
 
-    // 🔹 не логируем шумные команды
     if (strcmp(argv[0], "/logs") != 0) {
         log_msg(LOG_DEBUG,
                 "Response to %s (chat_id=%ld): %s",
@@ -556,3 +554,9 @@ if (response && response[0] != '\0') {
 }
 
 return rc;
+        }  // ← закрывает if (strcmp(...))
+    }      // ← закрывает for
+
+    snprintf(response, resp_size, "Unknown command");
+    return -1;
+}
