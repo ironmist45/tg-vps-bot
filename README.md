@@ -207,6 +207,7 @@ Modular C design:
 ## ⚠️ Requirements
 
 > This project is tested on a specific environment!
+> Built and optimized specifically for this environment.
 
 * **OS:** Ubuntu 18.04.6
 * **Compiler:** GCC 7.5.0
