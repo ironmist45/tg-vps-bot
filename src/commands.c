@@ -20,6 +20,7 @@
 
 extern time_t g_start_time;
 extern volatile sig_atomic_t g_shutdown_requested;
+extern long g_reboot_requested_by;
 
 // ===== types =====
 
