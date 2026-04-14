@@ -204,6 +204,35 @@ Modular C design:
 
 ---
 
+## ⚠️ Requirements
+
+> This project is tested on a specific environment!
+
+* **OS:** Ubuntu 18.04.6
+* **Compiler:** GCC 7.5.0
+* **Libraries:** `libcurl`, `cJSON`
+
+> ⚡ Other environments may work, but are not guaranteed.
+
+### 📦 Install dependencies (Ubuntu 18.04)
+
+```bash
+sudo apt update
+sudo apt install build-essential libcurl4-openssl-dev libcjson-dev
+```
+
+### 🔍 Check compiler version
+
+```bash
+gcc --version
+```
+
+Expected:
+
+```
+gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0
+```
+
 ## 📄 License
 
 MIT (or your choice)
