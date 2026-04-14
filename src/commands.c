@@ -126,7 +126,8 @@ static int cmd_about(int argc, char *argv[],
     return 0;
 }
 
-// 🔥 ВЕРНУЛИ LATENCY
+// ===== PING =====
+
 static int cmd_ping(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size) {
@@ -152,6 +153,8 @@ static int cmd_ping(int argc, char *argv[],
     return 0;
 }
 
+// ===== SERVICES =====
+
 static int cmd_services(int argc, char *argv[],
                        long chat_id,
                        char *resp, size_t size) {
@@ -166,7 +169,8 @@ static int cmd_services(int argc, char *argv[],
     return services_get_status(resp, size);
 }
 
-// 🔥 ВЕРНУЛИ ПОЛНЫЙ /logs
+// ===== LOGS =====
+
 static int cmd_logs(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size) {
@@ -196,9 +200,7 @@ static int cmd_logs(int argc, char *argv[],
                                "%s%s",
                                argv[i],
                                (i < argc - 1) ? " " : "");
-
-        if (written < 0 ||
-            (size_t)written >= sizeof(args) - used)
+        if (written < 0 || (size_t)written >= sizeof(args) - used)
             break;
 
         used += written;
@@ -206,6 +208,8 @@ static int cmd_logs(int argc, char *argv[],
 
     return logs_get(args, resp, size);
 }
+
+// ===== USERS =====
 
 static int cmd_users(int argc, char *argv[],
                     long chat_id,
@@ -218,7 +222,7 @@ static int cmd_users(int argc, char *argv[],
         return -1;
     }
 
-    return users_get(resp, size);
+    return users_get_logged(resp, size);
 }
 
 // ===== FAIL2BAN =====
@@ -234,9 +238,9 @@ static int cmd_fail2ban(int argc, char *argv[],
 
     if (argc < 2) {
         snprintf(resp, size,
-            "*Fail2Ban*\n\n"
+            "*🛡 Fail2Ban*\n\n"
             "`/fail2ban status`\n"
-            "`/fail2ban sshd`\n"
+            "`/fail2ban status sshd`\n"
             "`/fail2ban jail list`\n"
             "`/fail2ban ban <ip>`\n"
             "`/fail2ban unban <ip>`");
@@ -245,16 +249,18 @@ static int cmd_fail2ban(int argc, char *argv[],
 
     char cmd[256] = {0};
 
-    if (strcmp(argv[1], "status") == 0)
-        snprintf(cmd, sizeof(cmd), "fail2ban-client status");
+    if (strcmp(argv[1], "status") == 0 && argc == 2)
+        snprintf(cmd, sizeof(cmd), "sudo fail2ban-client status 2>&1");
 
-    else if (strcmp(argv[1], "sshd") == 0)
-        snprintf(cmd, sizeof(cmd), "fail2ban-client status sshd");
+    else if (strcmp(argv[1], "status") == 0 && argc >= 3)
+        snprintf(cmd, sizeof(cmd),
+                 "sudo fail2ban-client status %s 2>&1",
+                 argv[2]);
 
     else if (strcmp(argv[1], "jail") == 0 &&
              argc >= 3 &&
              strcmp(argv[2], "list") == 0)
-        snprintf(cmd, sizeof(cmd), "fail2ban-client status");
+        snprintf(cmd, sizeof(cmd), "sudo fail2ban-client status 2>&1");
 
     else if (strcmp(argv[1], "ban") == 0 && argc >= 3) {
 
@@ -264,7 +270,7 @@ static int cmd_fail2ban(int argc, char *argv[],
         }
 
         snprintf(cmd, sizeof(cmd),
-                 "fail2ban-client set sshd banip %s",
+                 "sudo fail2ban-client set sshd banip %s 2>&1",
                  argv[2]);
     }
 
@@ -276,7 +282,7 @@ static int cmd_fail2ban(int argc, char *argv[],
         }
 
         snprintf(cmd, sizeof(cmd),
-                 "fail2ban-client set sshd unbanip %s",
+                 "sudo fail2ban-client set sshd unbanip %s 2>&1",
                  argv[2]);
     }
 
@@ -285,13 +291,17 @@ static int cmd_fail2ban(int argc, char *argv[],
         return -1;
     }
 
+    log_msg(LOG_INFO, "fail2ban exec: %s", cmd);
+
     FILE *fp = popen(cmd, "r");
     if (!fp) {
         snprintf(resp, size, "Execution failed");
         return -1;
     }
 
+    resp[0] = '\0';
     size_t used = 0;
+
     while (fgets(resp + used, size - used, fp)) {
         used = strlen(resp);
         if (used >= size - 1)
@@ -299,6 +309,11 @@ static int cmd_fail2ban(int argc, char *argv[],
     }
 
     pclose(fp);
+
+    if (used == 0) {
+        snprintf(resp, size, "No output (check sudo permissions)");
+    }
+
     return 0;
 }
 
