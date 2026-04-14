@@ -225,7 +225,7 @@ static int cmd_users(int argc, char *argv[],
     return users_get_logged(resp, size);
 }
 
-// ===== FAIL2BAN =====
+// ===== FAIL2BAN (🔥 FIXED + LOGGING) =====
 
 static int cmd_fail2ban(int argc, char *argv[],
                        long chat_id,
@@ -249,18 +249,27 @@ static int cmd_fail2ban(int argc, char *argv[],
 
     char cmd[256] = {0};
 
-    if (strcmp(argv[1], "status") == 0 && argc == 2)
-        snprintf(cmd, sizeof(cmd), "sudo fail2ban-client status 2>&1");
+    if (strcmp(argv[1], "status") == 0) {
 
-    else if (strcmp(argv[1], "status") == 0 && argc >= 3)
-        snprintf(cmd, sizeof(cmd),
-                 "sudo fail2ban-client status %s 2>&1",
-                 argv[2]);
+        if (argc == 2) {
+            snprintf(cmd, sizeof(cmd),
+                     "sudo /usr/local/bin/f2b-wrapper status 2>&1");
+        } else if (argc >= 3 && strcmp(argv[2], "sshd") == 0) {
+            snprintf(cmd, sizeof(cmd),
+                     "sudo /usr/local/bin/f2b-wrapper status sshd 2>&1");
+        } else {
+            snprintf(resp, size, "Invalid status usage");
+            return -1;
+        }
+    }
 
     else if (strcmp(argv[1], "jail") == 0 &&
              argc >= 3 &&
-             strcmp(argv[2], "list") == 0)
-        snprintf(cmd, sizeof(cmd), "sudo fail2ban-client status 2>&1");
+             strcmp(argv[2], "list") == 0) {
+
+        snprintf(cmd, sizeof(cmd),
+                 "sudo /usr/local/bin/f2b-wrapper status 2>&1");
+    }
 
     else if (strcmp(argv[1], "ban") == 0 && argc >= 3) {
 
@@ -269,8 +278,12 @@ static int cmd_fail2ban(int argc, char *argv[],
             return -1;
         }
 
+        log_msg(LOG_WARN,
+                "FAIL2BAN BAN: %s (chat_id=%ld)",
+                argv[2], chat_id);
+
         snprintf(cmd, sizeof(cmd),
-                 "sudo fail2ban-client set sshd banip %s 2>&1",
+                 "sudo /usr/local/bin/f2b-wrapper set sshd banip %s 2>&1",
                  argv[2]);
     }
 
@@ -281,8 +294,12 @@ static int cmd_fail2ban(int argc, char *argv[],
             return -1;
         }
 
+        log_msg(LOG_WARN,
+                "FAIL2BAN UNBAN: %s (chat_id=%ld)",
+                argv[2], chat_id);
+
         snprintf(cmd, sizeof(cmd),
-                 "sudo fail2ban-client set sshd unbanip %s 2>&1",
+                 "sudo /usr/local/bin/f2b-wrapper set sshd unbanip %s 2>&1",
                  argv[2]);
     }
 
@@ -311,7 +328,7 @@ static int cmd_fail2ban(int argc, char *argv[],
     pclose(fp);
 
     if (used == 0) {
-        snprintf(resp, size, "No output (check sudo permissions)");
+        snprintf(resp, size, "No output (check sudo / wrapper)");
     }
 
     return 0;
