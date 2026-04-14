@@ -250,7 +250,7 @@ Built with focus on reliability, control and independence.
 
 Inspired by the idea that infrastructure should remain in your hands.
 
-> Stay independent. :-)
+> Stay independent. 🙂
 
 ## 📄 License
 
