@@ -244,6 +244,10 @@ Linking model:
 
 Do NOT modify linker flags unless you know what you are doing!
 
+## Optional Dependencies
+
+- f2b-wrapper — required only for fail2ban commands
+
 ## Philosophy
 
 Built with focus on reliability, control and independence.
