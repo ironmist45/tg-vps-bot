@@ -7,6 +7,7 @@
 #include <time.h>
 
 #define MAX_LINE 256
+#define MAX_FIELD 64
 
 // ===== формат времени (thread-safe) =====
 
@@ -15,6 +16,17 @@ static void format_time(time_t t, char *buf, size_t size) {
 
     localtime_r(&t, &tm_info);
     strftime(buf, size, "%Y-%m-%d %H:%M", &tm_info);
+}
+
+// ===== безопасное копирование строки =====
+
+static void safe_copy(char *dst, const char *src, size_t size) {
+    if (!src) {
+        strncpy(dst, "unknown", size - 1);
+    } else {
+        strncpy(dst, src, size - 1);
+    }
+    dst[size - 1] = '\0';
 }
 
 // ===== безопасное добавление строки =====
@@ -43,38 +55,53 @@ int users_get_logged(char *buffer, size_t size) {
 
     while ((entry = getutent()) != NULL) {
 
-        if (entry->ut_type == USER_PROCESS) {
+        if (entry->ut_type != USER_PROCESS)
+            continue;
 
-            char line[MAX_LINE];
-            char timebuf[64];
+        char line[MAX_LINE];
+        char timebuf[64];
 
-            format_time(entry->ut_tv.tv_sec,
-                        timebuf,
-                        sizeof(timebuf));
+        format_time(entry->ut_tv.tv_sec,
+                    timebuf,
+                    sizeof(timebuf));
 
-            const char *user = entry->ut_user;
-            const char *tty  = entry->ut_line;
+        // безопасные поля (обрезаем)
+        char user[MAX_FIELD];
+        char tty[MAX_FIELD];
+        char host[MAX_FIELD];
 
-            // IP / host может быть пустым
-            const char *host = entry->ut_host;
-            if (!host || strlen(host) == 0)
-                host = "local";
+        safe_copy(user, entry->ut_user, sizeof(user));
+        safe_copy(tty, entry->ut_line, sizeof(tty));
 
-            snprintf(line, sizeof(line),
-                     "• `%s` (%s)\n"
-                     "  🌐 %s\n"
-                     "  ⏱ %s\n",
-                     user,
-                     tty,
-                     host,
-                     timebuf);
+        if (entry->ut_host && strlen(entry->ut_host) > 0)
+            safe_copy(host, entry->ut_host, sizeof(host));
+        else
+            safe_copy(host, "local", sizeof(host));
 
-            if (strlen(buffer) + strlen(line) >= size - 1)
-                break;
+        // формируем строку
+        int written = snprintf(line, sizeof(line),
+            "• 👤 `%s`\n"
+            "  🖥 `%s`\n"
+            "  🌐 %s\n"
+            "  ⏱ %s\n\n",
+            user,
+            tty,
+            host,
+            timebuf
+        );
 
-            strcat(buffer, line);
-            count++;
+        if (written < 0 || (size_t)written >= sizeof(line)) {
+            log_msg(LOG_WARN, "users: line truncated");
         }
+
+        // проверка переполнения
+        if (strlen(buffer) + strlen(line) >= size - 1) {
+            safe_append(buffer, size, "...\n");
+            break;
+        }
+
+        strcat(buffer, line);
+        count++;
     }
 
     endutent();
@@ -91,7 +118,7 @@ int users_get_logged(char *buffer, size_t size) {
 
 int users_get(char *buffer, size_t size) {
 
-    char tmp[2048] = {0};
+    char tmp[4096] = {0};
 
     int count = users_get_logged(tmp, sizeof(tmp));
 
@@ -100,11 +127,16 @@ int users_get(char *buffer, size_t size) {
         return -1;
     }
 
-    snprintf(buffer, size,
-        "*👤 USERS (%d)*\n\n%s",
+    // финальный красивый вывод
+    int written = snprintf(buffer, size,
+        "*👤 ACTIVE USERS: %d*\n\n%s",
         count,
         tmp
     );
+
+    if (written < 0 || (size_t)written >= size) {
+        log_msg(LOG_WARN, "users: response truncated");
+    }
 
     return 0;
 }
