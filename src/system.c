@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/statvfs.h>
 
 // ===== CPU load =====
 
@@ -40,9 +41,11 @@ static void get_memory(int *used_mb, int *total_mb, int *percent) {
     char unit[16];
 
     while (fscanf(fp, "%63s %ld %15s\n", key, &value, unit) == 3) {
+
         if (strcmp(key, "MemTotal:") == 0) {
             mem_total = value;
-        } else if (strcmp(key, "MemAvailable:") == 0) {
+        }
+        else if (strcmp(key, "MemAvailable:") == 0) {
             mem_available = value;
         }
 
@@ -62,6 +65,33 @@ static void get_memory(int *used_mb, int *total_mb, int *percent) {
     *total_mb = (int)(mem_total / 1024);
     *used_mb  = (int)(used / 1024);
     *percent  = (int)((used * 100) / mem_total);
+}
+
+// ===== disk =====
+
+static void get_disk(int *used_gb, int *total_gb, int *percent) {
+
+    struct statvfs fs;
+
+    if (statvfs("/", &fs) != 0) {
+        log_msg(LOG_WARN, "statvfs failed");
+        *used_gb = *total_gb = *percent = 0;
+        return;
+    }
+
+    unsigned long total = (fs.f_blocks * fs.f_frsize);
+    unsigned long free  = (fs.f_bfree  * fs.f_frsize);
+
+    unsigned long used = total - free;
+
+    *total_gb = (int)(total / (1024 * 1024 * 1024));
+    *used_gb  = (int)(used  / (1024 * 1024 * 1024));
+
+    if (total > 0) {
+        *percent = (int)((used * 100) / total);
+    } else {
+        *percent = 0;
+    }
 }
 
 // ===== uptime =====
@@ -117,8 +147,11 @@ int system_get_status(char *buffer, size_t size) {
     double l1, l5, l15;
     get_load(&l1, &l5, &l15);
 
-    int used, total, percent;
-    get_memory(&used, &total, &percent);
+    int used_mem, total_mem, mem_pct;
+    get_memory(&used_mem, &total_mem, &mem_pct);
+
+    int used_disk, total_disk, disk_pct;
+    get_disk(&used_disk, &total_disk, &disk_pct);
 
     int days, hours, mins;
     get_uptime(&days, &hours, &mins);
@@ -127,18 +160,22 @@ int system_get_status(char *buffer, size_t size) {
 
     snprintf(buffer, size,
         "🖥 *System*\n"
-        "Uptime: `%dd %dh %dm`\n"
-        "Users: `%d`\n\n"
+        "⏱ Uptime: `%dd %dh %dm`\n"
+        "👥 Users: `%d`\n\n"
 
         "⚡ *CPU Load*\n"
-        "1m: `%.2f`  5m: `%.2f`  15m: `%.2f`\n\n"
+        "`%.2f` / `%.2f` / `%.2f`\n\n"
 
-        "💾 *Memory*\n"
-        "%d / %d MB (%d%%)",
+        "🧠 *Memory*\n"
+        "`%d / %d MB (%d%%)`\n\n"
+
+        "💾 *Disk*\n"
+        "`%d / %d GB (%d%%)`",
         days, hours, mins,
         users,
         l1, l5, l15,
-        used, total, percent
+        used_mem, total_mem, mem_pct,
+        used_disk, total_disk, disk_pct
     );
 
     return 0;
