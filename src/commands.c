@@ -499,6 +499,10 @@ int commands_handle(const char *text,
             for (size_t k = 0; response[k] && j < sizeof(preview) - 1; k++) {
 
                 char c = response[k];
+                // 🔹 убрать UTF-8 (эмодзи → ломают preview)
+                if ((unsigned char)c >= 0x80) {
+                    continue;
+                    }
 
                 // переносы → |
                 if (c == '\n' || c == '\r') {
