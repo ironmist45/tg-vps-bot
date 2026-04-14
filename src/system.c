@@ -144,6 +144,10 @@ static int get_user_count() {
 
 int system_get_status(char *buffer, size_t size) {
 
+    if (!buffer || size == 0) {
+        return -1;
+    }
+
     double l1, l5, l15;
     get_load(&l1, &l5, &l15);
 
@@ -158,13 +162,13 @@ int system_get_status(char *buffer, size_t size) {
 
     int users = get_user_count();
 
-    snprintf(buffer, size,
+    int written = snprintf(buffer, size,
         "🖥 *System*\n"
         "⏱ Uptime: `%dd %dh %dm`\n"
         "👥 Users: `%d`\n\n"
 
         "⚡ *CPU Load*\n"
-        "`%.2f` / `%.2f` / `%.2f`\n\n"
+        "`%.2f / %.2f / %.2f`\n\n"
 
         "🧠 *Memory*\n"
         "`%d / %d MB (%d%%)`\n\n"
@@ -177,6 +181,10 @@ int system_get_status(char *buffer, size_t size) {
         used_mem, total_mem, mem_pct,
         used_disk, total_disk, disk_pct
     );
+
+    if (written < 0 || (size_t)written >= size) {
+        log_msg(LOG_WARN, "system_get_status truncated");
+    }
 
     return 0;
 }
