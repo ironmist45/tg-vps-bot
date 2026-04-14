@@ -39,7 +39,6 @@ static long load_offset(void) {
     return offset;
 }
 
-// 🔥 атомарное сохранение
 static void save_offset(long offset) {
     FILE *f = fopen(OFFSET_TMP, "w");
     if (!f) {
@@ -85,9 +84,9 @@ static void escape_markdown(const char *src, char *dst, size_t size) {
 static void truncate_message(char *text) {
     size_t len = strlen(text);
 
-    if (len >= TG_LIMIT) {
+    if (len >= TG_LIMIT && TG_LIMIT > 20) {
         text[TG_LIMIT - 20] = '\0';
-        strcat(text, "\n...\n[truncated]");
+        strncat(text, "\n...\n[truncated]", 20);
     }
 }
 
@@ -115,7 +114,7 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     mem->data = ptr;
     memcpy(&(mem->data[mem->size]), contents, real_size);
     mem->size += real_size;
-    mem->data[mem->size] = 0;
+    mem->data[mem->size] = '\0';
 
     return real_size;
 }
@@ -123,11 +122,10 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 // ===== CURL SETUP =====
 
 static void setup_curl(CURL *curl) {
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 35L);          // общий timeout
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);    // connect timeout
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 35L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
-    // 🔥 стабильность long-poll
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 30L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 15L);
@@ -257,7 +255,6 @@ int telegram_poll() {
     setup_curl(curl);
 
     char url[URL_MAX];
-
     snprintf(url, sizeof(url),
              "%s/getUpdates?timeout=25&offset=%ld",
              g_base_url, last_update_id);
@@ -271,7 +268,6 @@ int telegram_poll() {
     CURLcode res = curl_easy_perform(curl);
 
     if (res == CURLE_OPERATION_TIMEDOUT) {
-        // 🔥 НОРМАЛЬНО для long-poll
         curl_easy_cleanup(curl);
         free(chunk.data);
         return 0;
@@ -319,6 +315,9 @@ int telegram_poll() {
             g_last_processed_update = uid;
             last_update_id = uid + 1;
 
+            // 🔥 сохраняем сразу (анти-дубль даже при ошибках)
+            save_offset(last_update_id);
+
             cJSON *message = cJSON_GetObjectItem(update, "message");
             if (!message) continue;
 
@@ -341,9 +340,6 @@ int telegram_poll() {
             char response[RESP_MAX];
 
             if (commands_handle(msg_text, cid, response, sizeof(response)) == 0) {
-
-                // 🔥 offset сохраняем ТОЛЬКО после успешной обработки
-                save_offset(last_update_id);
 
                 if (strncmp(msg_text, "/logs", 5) == 0) {
                     telegram_send_plain(cid, response);
