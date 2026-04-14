@@ -20,7 +20,7 @@ tg-bot/
 │   ├── logger.h
 │   ├── utils.h
 │   ├── security.h
-│   ├── system.h
+│   ├── system.h 
 │   ├── services.h
 │   ├── users.h
 │   └── logs.h
@@ -39,9 +39,12 @@ tg-bot/
 │   └── logs.c
 │
 ├── external/
-│   └── cJSON/
-│       ├── cJSON.c
-│       └── cJSON.h
+│   ├── cJSON/
+│   │   ├── cJSON.c
+│   │   └── cJSON.h
+│   │
+│   └── f2b-wrapper/
+│       └── (external dependency - Fail2Ban integration!)
 │
 └── build/
     └── (compiled binaries and object files)
