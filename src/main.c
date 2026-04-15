@@ -335,6 +335,8 @@ int main(int argc, char *argv[]) {
     }
 
     logger_set_level(cfg.log_level);
+    log_msg(LOG_INFO, "Log level: %s",
+            logger_level_to_string(cfg.log_level));
 
     log_config(&cfg);
 
