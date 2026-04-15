@@ -328,9 +328,13 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    logger_set_level(cfg.log_level);
+
     if (try_reopen_logger(cfg.log_file) == 0) {
         log_msg(LOG_INFO, "Logger switched: %s", cfg.log_file);
     }
+
+    logger_set_level(cfg.log_level);
 
     log_config(&cfg);
 
@@ -366,6 +370,8 @@ int main(int argc, char *argv[]) {
             if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
                 try_reopen_logger(new_cfg.log_file);
             }
+
+            logger_set_level(new_cfg.log_level);
 
             security_set_allowed_chat(new_cfg.chat_id);
             security_set_token_ttl(new_cfg.token_ttl);
