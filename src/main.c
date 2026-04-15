@@ -347,8 +347,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    LOG_SYS(LOG_INFO, "Bot started");
-    LOG_SYS(LOG_INFO, "Entering main loop");
+    LOG_STATE(LOG_INFO, "Bot started");
+    LOG_STATE(LOG_INFO, "Entering main loop");
 
     // ===== LOOP =====
 
@@ -361,7 +361,7 @@ int main(int argc, char *argv[]) {
 
     if (g_reload_config) {
 
-        LOG_CFG(LOG_INFO, "Reload config");
+        LOG_STATE(LOG_INFO, "Reload config");
 
         config_t new_cfg;
 
@@ -398,7 +398,7 @@ int main(int argc, char *argv[]) {
     usleep(200000);
 }
 
-    LOG_SYS(LOG_INFO, "Bot stopped");
+    LOG_STATE(LOG_INFO, "Bot stopped");
     logger_close();
     return 0;
 }
