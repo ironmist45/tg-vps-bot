@@ -6,14 +6,26 @@
 #include <time.h>
 #include <string.h>
 
-#define SECRET_KEY 0x5F3759DF
+// ⚠️ SECURITY NOTE:
+// This is NOT a cryptographic secret.
+// Tokens are protected by runtime salt (generated at startup).
+// Purpose:
+//   - prevent accidental execution
+//   - add confirmation step for critical actions
+// Real security is enforced by chat_id validation.
+#define TOKEN_SALT 0x5F3759DF
 
 static long g_allowed_chat_id = 0;
 static int g_token_ttl = 60;
+// 🔐 runtime salt (меняется при каждом запуске)
+static unsigned int g_runtime_salt = 0;
 
 // ===== INIT =====
 
 void security_init(void) {
+    // 🔐 генерируем runtime salt
+    g_runtime_salt = (unsigned int)rand();
+
     log_msg(LOG_INFO, "Security initialized (stateless tokens)");
 }
 
@@ -50,7 +62,7 @@ int security_validate_text(const char *text) {
 // 🔥 улучшенный hash (без отрицательных значений)
 static int make_token(long chat_id, int ts) {
 
-    unsigned int x = (unsigned int)(chat_id ^ ts ^ SECRET_KEY);
+    unsigned int x = (unsigned int)(chat_id ^ ts ^ TOKEN_SALT ^ g_runtime_salt);
 
     // немного "перемешаем" биты
     x ^= (x >> 16);
