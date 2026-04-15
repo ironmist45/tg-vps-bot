@@ -2,13 +2,7 @@
 #define CONFIG_H
 
 #include <stddef.h>
-
-typedef enum {
-    LOG_ERROR = 0,
-    LOG_WARN,
-    LOG_INFO,
-    LOG_DEBUG
-} log_level_t;
+#include "logger.h"   // ✅ используем единый enum
 
 typedef struct {
     char token[128];
@@ -18,7 +12,7 @@ typedef struct {
 
     int token_ttl;
 
-    log_level_t log_level;   // ✅ LOG_LEVEL
+    log_level_t log_level;   // теперь из logger.h
 } config_t;
 
 int config_load(const char *path, config_t *cfg);
