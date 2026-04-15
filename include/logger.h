@@ -37,4 +37,7 @@ const char *logger_level_to_string(log_level_t level);
 #define LOG_NET(level, fmt, ...) \
     log_msg(level, "[NET] " fmt, ##__VA_ARGS__)
 
+#define LOG_STATE(level, fmt, ...) \
+    log_msg(level, "[STATE] " fmt, ##__VA_ARGS__)
+
 #endif
