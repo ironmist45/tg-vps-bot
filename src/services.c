@@ -127,7 +127,6 @@ int services_get_status(char *buffer, size_t size) {
             log_msg(LOG_WARN, "services buffer limit reached");
             break;
         }
-            break;
 
         // 🔥 безопасный append
         strncat(buffer, line, size - strlen(buffer) - 1);
