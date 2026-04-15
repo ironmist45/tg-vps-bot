@@ -21,6 +21,10 @@ static void get_load(double *l1, double *l5, double *l15) {
     *l1  = loads[0];
     *l5  = loads[1];
     *l15 = loads[2];
+
+    log_msg(LOG_DEBUG,
+            "load: %.2f %.2f %.2f",
+            *l1, *l5, *l15);
 }
 
 // ===== memory =====
@@ -65,6 +69,10 @@ static void get_memory(int *used_mb, int *total_mb, int *percent) {
     *total_mb = (int)(mem_total / 1024);
     *used_mb  = (int)(used / 1024);
     *percent  = (int)((used * 100) / mem_total);
+
+    log_msg(LOG_DEBUG,
+            "memory: %d/%d MB (%d%%)",
+            *used_mb, *total_mb, *percent);
 }
 
 // ===== disk =====
@@ -92,6 +100,10 @@ static void get_disk(int *used_gb, int *total_gb, int *percent) {
     } else {
         *percent = 0;
     }
+
+    log_msg(LOG_DEBUG,
+            "disk: %d/%d GB (%d%%)",
+            *used_gb, *total_gb, *percent);
 }
 
 // ===== uptime =====
@@ -118,12 +130,20 @@ static void get_uptime(int *days, int *hours, int *mins) {
     *days  = total / 86400;
     *hours = (total % 86400) / 3600;
     *mins  = (total % 3600) / 60;
+
+    log_msg(LOG_DEBUG,
+            "uptime: %dd %dh %dm",
+            *days, *hours, *mins);
 }
 
 // ===== users =====
 
 static int get_user_count() {
-    FILE *fp = popen("who | wc -l", "r");
+    
+    const char *cmd = "who | wc -l";
+    log_msg(LOG_DEBUG, "exec cmd: %s", cmd);
+    
+    FILE *fp = popen(cmd, "r");
     if (!fp) {
         log_msg(LOG_WARN, "popen(who) failed");
         return 0;
@@ -135,7 +155,11 @@ static int get_user_count() {
         users = 0;
     }
 
-    pclose(fp);
+    int rc = pclose(fp);
+
+    log_msg(LOG_INFO,
+            "exec done: rc=%d, users=%d",
+            rc, users);
 
     return users;
 }
@@ -144,6 +168,8 @@ static int get_user_count() {
 
 int system_get_status(char *buffer, size_t size) {
 
+    log_msg(LOG_DEBUG, "system_get_status() called");
+    
     if (!buffer || size == 0) {
         return -1;
     }
@@ -186,5 +212,7 @@ int system_get_status(char *buffer, size_t size) {
         log_msg(LOG_WARN, "system_get_status truncated");
     }
 
+    log_msg(LOG_INFO, "system status built successfully");
+    
     return 0;
 }
