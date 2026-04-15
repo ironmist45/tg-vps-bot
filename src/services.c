@@ -27,9 +27,12 @@ static int get_service_status(const char *service, char *out, size_t size) {
     char cmd[256];
     snprintf(cmd, sizeof(cmd),
              "systemctl is-active %s.service 2>/dev/null", service);
+    
+    log_msg(LOG_DEBUG, "exec cmd: %s", cmd);
 
     FILE *fp = popen(cmd, "r");
     if (!fp) {
+        log_msg(LOG_ERROR, "popen() failed for %s", service);
         snprintf(out, size, "unknown");
         return -1;
     }
@@ -50,6 +53,10 @@ static int get_service_status(const char *service, char *out, size_t size) {
     while (*out == ' ') {
         memmove(out, out + 1, strlen(out));
     }
+
+    log_msg(LOG_DEBUG,
+            "service=%s status=%s",
+            service, out);
 
     return 0;
 }
@@ -92,6 +99,8 @@ static void format_line(char *dst, size_t size,
 
 int services_get_status(char *buffer, size_t size) {
 
+    log_msg(LOG_INFO, "services_get_status() called");
+    
     buffer[0] = '\0';
 
     strncat(buffer, "*🧩 SERVICES*\n\n",
@@ -114,7 +123,10 @@ int services_get_status(char *buffer, size_t size) {
                     services[i].display,
                     status);
 
-        if (strlen(buffer) + strlen(line) >= size - 1)
+        if (strlen(buffer) + strlen(line) >= size - 1) {
+            log_msg(LOG_WARN, "services buffer limit reached");
+            break;
+        }
             break;
 
         // 🔥 безопасный append
