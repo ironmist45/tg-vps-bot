@@ -16,7 +16,7 @@ static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // ===== уровень → строка =====
 
-static const char *level_to_string(log_level_t level) {
+const char *level_to_string(log_level_t level) {
     switch (level) {
         case LOG_DEBUG: return "DEBUG";
         case LOG_INFO:  return "INFO ";
@@ -150,7 +150,7 @@ void log_msg(log_level_t level, const char *fmt, ...) {
     if (file_out) {
         if (fprintf(file_out, "[%s] [%s] %s\n",
                     timestamp,
-                    level_to_string(level),
+                    logger_level_to_string(level),
                     message) < 0) {
 
             fprintf(stderr, "[LOGGER ERROR] write to file failed\n");
