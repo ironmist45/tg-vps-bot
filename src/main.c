@@ -345,8 +345,11 @@ int main(int argc, char *argv[]) {
 
             if (config_load(args.config_path, &new_cfg) == 0) {
 
-                if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
-                    try_reopen_logger(new_cfg.log_file);
+                // 🔥 ALWAYS reopen log (required for logrotate)
+                if (try_reopen_logger(new_cfg.log_file) == 0) {
+                    log_msg(LOG_INFO, "Logger reopened: %s", new_cfg.log_file);
+                } else {
+                    log_msg(LOG_WARN, "Logger reopen failed: %s", new_cfg.log_file);
                 }
 
                 security_set_allowed_chat(new_cfg.chat_id);
@@ -354,9 +357,12 @@ int main(int argc, char *argv[]) {
 
                 cfg = new_cfg;
                 log_config(&cfg);
+            } else {
+                log_msg(LOG_ERROR, "Config reload failed");
             }
 
             g_reload_config = 0;
+}
         }
 
         if (telegram_poll() != 0) {
