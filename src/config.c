@@ -48,9 +48,11 @@ int config_load(const char *path, config_t *cfg) {
         char *key = trim(str);
         char *value = trim(eq + 1);
         // 🔥 убрать \r (Windows строки)
+        key[strcspn(key, "\r")] = 0;
         value[strcspn(value, "\r")] = 0;
 
         // ===== case-insensitive parsing =====
+        log_msg(LOG_ERROR, "KEY RAW = '%s'", key);
 
         if (strcasecmp(key, "TOKEN") == 0) {
             if (safe_copy(cfg->token, sizeof(cfg->token), value) != 0) {
