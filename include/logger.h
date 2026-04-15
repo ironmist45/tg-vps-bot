@@ -20,4 +20,18 @@ void log_msg(log_level_t level, const char *fmt, ...);
 // ✅ НОВОЕ
 const char *logger_level_to_string(log_level_t level);
 
+// ===== MODULE TAG MACROS =====
+
+#define LOG_CFG(level, fmt, ...) \
+    log_msg(level, "[CFG] " fmt, ##__VA_ARGS__)
+
+#define LOG_NET(level, fmt, ...) \
+    log_msg(level, "[NET] " fmt, ##__VA_ARGS__)
+
+#define LOG_SEC(level, fmt, ...) \
+    log_msg(level, "[SEC] " fmt, ##__VA_ARGS__)
+
+#define LOG_SYS(level, fmt, ...) \
+    log_msg(level, "[SYS] " fmt, ##__VA_ARGS__)
+
 #endif
