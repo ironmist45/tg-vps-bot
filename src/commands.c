@@ -96,8 +96,8 @@ static int cmd_status(int argc, char *argv[],
     (void)argc; (void)argv;
 
     if (!security_is_allowed_chat(chat_id)) {
-    log_msg(LOG_WARN,
-            "DENY %s (chat_id=%ld)",
+    LOG_STATE(LOG_WARN,
+            "ACCESS DENIED: cmd=%s (chat_id=%ld)",
             argv[0], chat_id);
 
     snprintf(resp, size, "❌ Access denied");
@@ -171,8 +171,8 @@ static int cmd_services(int argc, char *argv[],
     (void)argc; (void)argv;
 
     if (!security_is_allowed_chat(chat_id)) {
-    log_msg(LOG_WARN,
-            "DENY %s (chat_id=%ld)",
+    LOG_STATE(LOG_WARN,
+            "ACCESS DENIED: cmd=%s (chat_id=%ld)",
             argv[0], chat_id);
 
     snprintf(resp, size, "❌ Access denied");
@@ -193,8 +193,8 @@ static int cmd_logs(int argc, char *argv[],
                    char *resp, size_t size) {
 
     if (!security_is_allowed_chat(chat_id)) {
-        log_msg(LOG_WARN,
-                "DENY %s (chat_id=%ld)",
+        LOG_STATE(LOG_WARN,
+                "ACCESS DENIED: cmd=%s (chat_id=%ld)",
                 argv[0], chat_id);
 
         snprintf(resp, size, "❌ Access denied");
@@ -245,8 +245,8 @@ static int cmd_users(int argc, char *argv[],
     (void)argc; (void)argv;
 
     if (!security_is_allowed_chat(chat_id)) {
-    log_msg(LOG_WARN,
-            "DENY %s (chat_id=%ld)",
+    LOG_STATE(LOG_WARN,
+            "ACCESS DENIED: cmd=%s (chat_id=%ld)",
             argv[0], chat_id);
 
     snprintf(resp, size, "❌ Access denied");
@@ -267,8 +267,8 @@ static int cmd_fail2ban(int argc, char *argv[],
                        char *resp, size_t size) {
 
     if (!security_is_allowed_chat(chat_id)) {
-    log_msg(LOG_WARN,
-            "DENY %s (chat_id=%ld)",
+    LOG_STATE(LOG_WARN,
+            "ACCESS DENIED: cmd=%s (chat_id=%ld)",
             argv[0], chat_id);
 
     snprintf(resp, size, "❌ Access denied");
@@ -317,8 +317,8 @@ static int cmd_fail2ban(int argc, char *argv[],
             return -1;
         }
 
-        log_msg(LOG_WARN,
-                "FAIL2BAN BAN: %s (chat_id=%ld)",
+        LOG_STATE(LOG_WARN,
+                "FAIL2BAN BAN: cmd=%s (chat_id=%ld)",
                 argv[2], chat_id);
 
         snprintf(cmd, sizeof(cmd),
@@ -333,8 +333,8 @@ static int cmd_fail2ban(int argc, char *argv[],
             return -1;
         }
 
-        log_msg(LOG_WARN,
-                "FAIL2BAN UNBAN: %s (chat_id=%ld)",
+        LOG_STATE(LOG_WARN,
+                "FAIL2BAN UNBAN: cmd=%s (chat_id=%ld)",
                 argv[2], chat_id);
 
         snprintf(cmd, sizeof(cmd),
@@ -347,8 +347,8 @@ static int cmd_fail2ban(int argc, char *argv[],
         return -1;
     }
 
-    log_msg(LOG_INFO, "fail2ban exec: %s", cmd);
-    log_msg(LOG_DEBUG, "exec cmd: %s", cmd);
+    log_msg(LOG_INFO, "fail2ban exec: cmd=%s", cmd);
+    log_msg(LOG_DEBUG, "exec cmd: cmd=%s", cmd);
 
     FILE *fp = popen(cmd, "r");
     if (!fp) {
@@ -390,8 +390,8 @@ static int cmd_reboot(int argc, char *argv[],
     (void)argc; (void)argv;
 
     if (!security_is_allowed_chat(chat_id)) {
-    log_msg(LOG_WARN,
-            "DENY %s (chat_id=%ld)",
+    LOG_STATE(LOG_WARN,
+            "ACCESS DENIED:cmd=%s (chat_id=%ld)",
             argv[0], chat_id);
 
     snprintf(resp, size, "❌ Access denied");
@@ -416,8 +416,8 @@ static int cmd_reboot_confirm(int argc, char *argv[],
     if (argc < 2) return -1;
 
     if (!security_is_allowed_chat(chat_id)) {
-    log_msg(LOG_WARN,
-            "DENY %s (chat_id=%ld)",
+    LOG_STATE(LOG_WARN,
+            "ACCESS DENIED: cmd=%s (chat_id=%ld)",
             argv[0], chat_id);
 
     snprintf(resp, size, "❌ Access denied");
