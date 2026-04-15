@@ -28,17 +28,17 @@ static int get_service_status(const char *service, char *out, size_t size) {
     snprintf(cmd, sizeof(cmd),
              "systemctl is-active %s.service 2>/dev/null", service);
     
-    log_msg(LOG_DEBUG, "exec cmd: %s", cmd);
+    LOG_SYS(LOG_DEBUG, "exec cmd: %s", cmd);
 
     FILE *fp = popen(cmd, "r");
     if (!fp) {
-        log_msg(LOG_ERROR, "popen() failed for %s", service);
+        LOG_SYS(LOG_ERROR, "popen() failed for %s", service);
         snprintf(out, size, "unknown");
         return -1;
     }
 
     if (fgets(out, size, fp) == NULL) {
-        log_msg(LOG_WARN, "systemctl returned no output for %s", service);
+        LOG_SYS(LOG_WARN, "systemctl returned no output for %s", service);
         snprintf(out, size, "unknown");
         pclose(fp);
         return -1;
@@ -54,7 +54,7 @@ static int get_service_status(const char *service, char *out, size_t size) {
         memmove(out, out + 1, strlen(out));
     }
 
-    log_msg(LOG_DEBUG,
+    LOG_SYS(LOG_DEBUG,
             "service=%s status=%s",
             service, out);
 
@@ -84,10 +84,12 @@ static const char *format_status(const char *status) {
 
 int services_get_status(char *buffer, size_t size) {
 
-    log_msg(LOG_INFO, "services_get_status() called");
+    LOG_STATE(LOG_INFO, "services_get_status() called");
+    LOG_STATE(LOG_DEBUG, "services count: %d", services_count);
+    LOG_STATE(LOG_DEBUG, "collecting services status...");
 
     if (!buffer || size == 0) {
-        log_msg(LOG_ERROR, "Invalid buffer");
+        LOG_SYS(LOG_ERROR, "Invalid buffer");
         return -1;
     }
 
@@ -99,12 +101,12 @@ int services_get_status(char *buffer, size_t size) {
                            "*🧩 SERVICES*\n\n");
 
     if (written < 0) {
-        log_msg(LOG_ERROR, "snprintf error (header)");
+        LOG_SYS(LOG_ERROR, "snprintf error (header)");
         return -1;
     }
 
     if ((size_t)written >= size - offset) {
-        log_msg(LOG_WARN, "services buffer truncated (header)");
+        LOG_SYS(LOG_WARN, "services buffer truncated (header)");
         return 0;
     }
 
@@ -118,7 +120,7 @@ int services_get_status(char *buffer, size_t size) {
         if (get_service_status(services[i].name,
                                status,
                                sizeof(status)) != 0) {
-            log_msg(LOG_WARN,
+            LOG_SYS(LOG_WARN,
                     "Failed to get status: %s",
                     services[i].name);
         }
@@ -126,7 +128,7 @@ int services_get_status(char *buffer, size_t size) {
     const char *status_fmt = format_status(status);
 
         // 🔍 подробный debug
-        log_msg(LOG_DEBUG,
+        LOG_SYS(LOG_DEBUG,
                 "service=%s display=%s status=%s",
                 services[i].name,
                 services[i].display,
@@ -134,7 +136,7 @@ int services_get_status(char *buffer, size_t size) {
 
         // 🛑 защита: буфер уже почти заполнен
         if (offset >= size - 1) {
-            log_msg(LOG_WARN, "buffer full before writing");
+            LOG_SYS(LOG_WARN, "buffer full before writing");
             break;
         }
 
@@ -145,18 +147,18 @@ int services_get_status(char *buffer, size_t size) {
                                status_fmt);
 
         if (written < 0) {
-            log_msg(LOG_ERROR, "snprintf error (line)");
+            LOG_SYS(LOG_ERROR, "snprintf error (line)");
             break;
         }
 
         if (offset >= size || (size_t)written >= size - offset) {
-            log_msg(LOG_WARN, "services buffer limit reached");
+            LOG_SYS(LOG_WARN, "services buffer limit reached");
             break;
         }
 
         offset += (size_t)written;
 }
-    log_msg(LOG_DEBUG, "services response ready: %zu bytes", offset);
+    LOG_STATE(LOG_DEBUG, "services response ready: %zu bytes", offset);
 
     return 0;
 }
