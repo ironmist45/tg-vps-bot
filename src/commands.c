@@ -348,6 +348,7 @@ static int cmd_fail2ban(int argc, char *argv[],
     }
 
     log_msg(LOG_INFO, "fail2ban exec: %s", cmd);
+    log_msg(LOG_DEBUG, "exec cmd: %s", cmd);
 
     FILE *fp = popen(cmd, "r");
     if (!fp) {
@@ -357,14 +358,21 @@ static int cmd_fail2ban(int argc, char *argv[],
 
     resp[0] = '\0';
     size_t used = 0;
+    int lines = 0;
 
     while (fgets(resp + used, size - used, fp)) {
         used = strlen(resp);
+        lines++;
+      
         if (used >= size - 1)
             break;
     }
 
-    pclose(fp);
+    int rc = pclose(fp);
+
+    log_msg(LOG_INFO,
+            "exec done: rc=%d, lines=%d, bytes=%zu",
+            rc, lines, used);
 
     if (used == 0) {
         snprintf(resp, size, "No output (check sudo / wrapper)");
