@@ -62,7 +62,7 @@ static void sanitize_line(char *line) {
 
 int logs_get(const char *service, char *buffer, size_t size) {
 
-    log_msg(LOG_INFO, "logs_get() called with service='%s'",
+    LOG_STATE(LOG_INFO, "logs_get() called with service='%s'",
             service ? service : "NULL");
 
     // ===== список сервисов =====
