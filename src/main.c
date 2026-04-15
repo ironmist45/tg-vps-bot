@@ -27,9 +27,6 @@ long g_reboot_requested_by = 0;
 static volatile sig_atomic_t g_reload_config = 0;
 volatile sig_atomic_t g_shutdown_requested = 0; // 0=none,1=restart,2=reboot
 
-// ===== STATE =====
-static volatile int g_running = 1;
-
 // 🔥 защита от повторных сигналов
 static volatile sig_atomic_t g_signal_received = 0;
 
@@ -49,7 +46,6 @@ static void handle_sigterm(int sig) {
 
     LOG_SYS(LOG_WARN, "Received SIGTERM, shutting down...");
     g_shutdown_requested = 1;
-    g_running = 0;
 }
 
 // ===== UTILS =====
@@ -99,6 +95,14 @@ static void graceful_shutdown() {
 // ===== SHUTDOWN HANDLER =====
 
 static void handle_shutdown() {
+
+    const char *mode =
+        (g_shutdown_requested == 2) ? "reboot" :
+        (g_shutdown_requested == 1) ? "restart" :
+        "unknown";
+
+    LOG_SYS(LOG_INFO, "Shutdown handler entered (%s)", mode);
+    LOG_SYS(LOG_DEBUG, "shutdown mode raw=%d", g_shutdown_requested);
 
     static int handled = 0;
     
@@ -189,7 +193,11 @@ static void handle_shutdown() {
         LOG_SYS(LOG_ERROR,
                 "exec restart failed: errno=%d (%s)",
                 errno, strerror(errno));
-    }
+        }
+
+    // если вдруг не reboot/restart (на всякий случай)
+    LOG_STATE(LOG_INFO, "Bot stopped");
+
 }
 
 // ===== DEBUG =====
@@ -355,7 +363,7 @@ int main(int argc, char *argv[]) {
 
     // ===== LOOP =====
 
-    while (g_running) {
+    while (1) {
 
     if (g_shutdown_requested) {
         handle_shutdown();
@@ -393,15 +401,8 @@ int main(int argc, char *argv[]) {
         sleep(5);
     }
 
-    if (!g_running) {
-        LOG_SYS(LOG_DEBUG, "Loop exit requested");
-        break;
-    }
-
     usleep(200000);
 }
 
-    LOG_STATE(LOG_INFO, "Bot stopped");
-    logger_close();
     return 0;
 }
