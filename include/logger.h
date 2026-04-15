@@ -17,4 +17,7 @@ void logger_set_level(log_level_t level);
 
 void log_msg(log_level_t level, const char *fmt, ...);
 
+// ✅ НОВОЕ
+const char *logger_level_to_string(log_level_t level);
+
 #endif
