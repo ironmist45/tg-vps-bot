@@ -13,6 +13,8 @@ typedef enum {
 int logger_init(const char *path);
 void logger_close();
 
+void logger_set_level(log_level_t level);
+
 void log_msg(log_level_t level, const char *fmt, ...);
 
 #endif
