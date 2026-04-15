@@ -45,6 +45,8 @@ static void safe_append(char *dst, size_t size, const char *src) {
 
 int users_get_logged(char *buffer, size_t size) {
 
+    log_msg(LOG_INFO, "users_get_logged() called");
+
     struct utmp *entry;
 
     buffer[0] = '\0';
@@ -90,12 +92,17 @@ int users_get_logged(char *buffer, size_t size) {
             timebuf
         );
 
+        log_msg(LOG_DEBUG,
+                "user session: user=%s tty=%s host=%s",
+                user, tty, host);
+
         if (written < 0 || (size_t)written >= sizeof(line)) {
             log_msg(LOG_WARN, "users: line truncated");
         }
 
         // проверка переполнения
         if (strlen(buffer) + strlen(line) >= size - 1) {
+            log_msg(LOG_WARN, "users buffer limit reached");
             safe_append(buffer, size, "...\n");
             break;
         }
@@ -107,10 +114,13 @@ int users_get_logged(char *buffer, size_t size) {
     endutent();
 
     if (count == 0) {
+        log_msg(LOG_INFO, "no active user sessions");
         safe_append(buffer, size,
             "_No active sessions_\n");
     }
 
+    log_msg(LOG_INFO, "users_get_logged(): count=%d", count);
+    
     return count;
 }
 
@@ -118,11 +128,14 @@ int users_get_logged(char *buffer, size_t size) {
 
 int users_get(char *buffer, size_t size) {
 
+    log_msg(LOG_INFO, "users_get() called");
+    
     char tmp[4096] = {0};
 
     int count = users_get_logged(tmp, sizeof(tmp));
 
     if (count < 0) {
+        log_msg(LOG_ERROR, "users_get_logged() failed");
         snprintf(buffer, size, "❌ Failed to get users");
         return -1;
     }
@@ -137,6 +150,10 @@ int users_get(char *buffer, size_t size) {
     if (written < 0 || (size_t)written >= size) {
         log_msg(LOG_WARN, "users: response truncated");
     }
+
+    log_msg(LOG_INFO,
+            "users response: count=%d, bytes=%zu",
+            count, strlen(buffer));
 
     return 0;
 }
