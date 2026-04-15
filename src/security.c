@@ -26,7 +26,8 @@ void security_init(void) {
     // 🔐 генерируем runtime salt
     g_runtime_salt = (unsigned int)rand();
 
-    log_msg(LOG_INFO, "Security initialized (stateless tokens)");
+    LOG_SEC(LOG_INFO, "Security initialized (stateless tokens)");
+    LOG_SEC(LOG_DEBUG, "runtime salt=0x%X", g_runtime_salt);
 }
 
 // ===== CONFIG =====
@@ -82,9 +83,12 @@ int security_generate_reboot_token(long chat_id) {
 
     int final_token = (ts % 1000000) ^ token;
 
-    log_msg(LOG_INFO,
+    LOG_SEC(LOG_INFO,
         "Generated token: chat_id=%ld ts=%d token=%06d",
         chat_id, ts, final_token);
+    LOG_SEC(LOG_DEBUG,
+        "token components: ts_mod=%d raw=%d",
+        ts % 1000000, token);
 
     return final_token;
 }
@@ -92,6 +96,14 @@ int security_generate_reboot_token(long chat_id) {
 // ===== VALIDATE =====
 
 int security_validate_reboot_token(long chat_id, int input_token) {
+
+    // 🔥 проверка формата токена
+    if (input_token < 0 || input_token > 999999) {
+        LOG_SEC(LOG_WARN,
+            "Invalid token format: %d (chat_id=%ld)",
+            input_token, chat_id);
+        return -1;
+    }
 
     time_t now = time(NULL);
 
@@ -101,9 +113,13 @@ int security_validate_reboot_token(long chat_id, int input_token) {
 
         int expected = (ts % 1000000) ^ make_token(chat_id, ts);
 
+        LOG_SEC(LOG_DEBUG,
+            "check: ts=%d expected=%06d input=%06d",
+            ts, expected, input_token);
+
         if (expected == input_token) {
 
-            log_msg(LOG_INFO,
+            LOG_SEC(LOG_INFO,
                 "Token accepted: chat_id=%ld token=%06d (age=%d sec)",
                 chat_id, input_token, i);
 
@@ -111,7 +127,7 @@ int security_validate_reboot_token(long chat_id, int input_token) {
         }
     }
 
-    log_msg(LOG_WARN,
+    LOG_SEC(LOG_WARN,
         "Invalid token: chat_id=%ld token=%06d",
         chat_id, input_token);
 
