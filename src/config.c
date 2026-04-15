@@ -50,10 +50,13 @@ int config_load(const char *path, config_t *cfg) {
         // 🔥 убрать \r (Windows строки)
         key[strcspn(key, "\r")] = 0;
         value[strcspn(value, "\r")] = 0;
+        // ✅ DEBUG (правильное место)
+        log_msg(LOG_DEBUG,
+            "config: line=%d key='%s' value='%s'",
+            line_num, key, value);
 
         // ===== case-insensitive parsing =====
-        log_msg(LOG_ERROR, "KEY RAW = '%s'", key);
-
+        
         if (strcasecmp(key, "TOKEN") == 0) {
             if (safe_copy(cfg->token, sizeof(cfg->token), value) != 0) {
                 log_msg(LOG_ERROR, "TOKEN too long");
@@ -87,7 +90,6 @@ int config_load(const char *path, config_t *cfg) {
             }
         }
 else if (strcasecmp(key, "LOG_LEVEL") == 0) {
-    log_msg(LOG_ERROR, "LOG_LEVEL RAW VALUE = '%s'", value);
     if (strcasecmp(value, "ERROR") == 0) {
         cfg->log_level = LOG_ERROR;
     } else if (strcasecmp(value, "WARN") == 0) {
