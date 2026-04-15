@@ -85,6 +85,7 @@ int config_load(const char *path, config_t *cfg) {
             }
         }
 else if (strcasecmp(key, "LOG_LEVEL") == 0) {
+    log_msg(LOG_ERROR, "LOG_LEVEL RAW VALUE = '%s'", value);
     if (strcasecmp(value, "ERROR") == 0) {
         cfg->log_level = LOG_ERROR;
     } else if (strcasecmp(value, "WARN") == 0) {
