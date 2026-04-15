@@ -80,11 +80,11 @@ int config_load(const char *path, config_t *cfg) {
             if (parse_int(value, &cfg->token_ttl) != 0) {
                 log_msg(LOG_WARN, "Invalid TOKEN_TTL, using default");
                 cfg->token_ttl = 60;
+            }
         }
-    }
-        else if (strcasecmp(key, "LOG_LEVEL") == 0) {
-            if (strcasecmp(value, "ERROR") == 0) {
-                cfg->log_level = LOG_ERROR;
+else if (strcasecmp(key, "LOG_LEVEL") == 0) {
+    if (strcasecmp(value, "ERROR") == 0) {
+        cfg->log_level = LOG_ERROR;
     } else if (strcasecmp(value, "WARN") == 0) {
         cfg->log_level = LOG_WARN;
     } else if (strcasecmp(value, "INFO") == 0) {
