@@ -264,6 +264,8 @@ static void log_config(const config_t *cfg) {
     LOG_CFG(LOG_INFO, "TOKEN_TTL: %d", cfg->token_ttl);
     LOG_CFG(LOG_INFO, "POLL_TIMEOUT: %d", cfg->poll_timeout);
     LOG_CFG(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
+    LOG_CFG(LOG_INFO, "LOG_LEVEL: %s",
+            logger_level_to_string(cfg->log_level));
 }
 
 // ===== MAIN =====
@@ -333,9 +335,10 @@ int main(int argc, char *argv[]) {
     }
 
     logger_set_level(cfg.log_level);
-    LOG_CFG(LOG_INFO, "Log level: %s",
-            logger_level_to_string(cfg.log_level));
 
+    LOG_SYS(LOG_INFO, "Logger level applied: %s",
+            logger_level_to_string(cfg.log_level));
+    
     log_config(&cfg);
 
     security_set_allowed_chat(cfg.chat_id);
