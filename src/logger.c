@@ -103,7 +103,7 @@ void logger_close() {
 void log_msg(log_level_t level, const char *fmt, ...) {
 
     // 🔥 фильтрация по уровню
-    if (level > current_log_level) {
+    if (level < current_log_level) {
         return;
     }
 
