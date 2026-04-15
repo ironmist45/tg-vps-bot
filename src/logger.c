@@ -16,7 +16,7 @@ static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // ===== уровень → строка =====
 
-const char *level_to_string(log_level_t level) {
+const char *logger_level_to_string(log_level_t level) {
     switch (level) {
         case LOG_DEBUG: return "DEBUG";
         case LOG_INFO:  return "INFO ";
