@@ -137,6 +137,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
     }
 
     log_msg(LOG_INFO, "Executing command: %s", cmd);
+    log_msg(LOG_DEBUG, "exec cmd: %s", cmd);
 
     FILE *fp = popen(cmd, "r");
     if (!fp) {
@@ -179,7 +180,10 @@ int logs_get(const char *service, char *buffer, size_t size) {
     }
 
     int rc = pclose(fp);
-    log_msg(LOG_INFO, "pclose() rc=%d, lines=%d", rc, line_count);
+    
+    log_msg(LOG_INFO,
+            "exec done: rc=%d, lines=%d, bytes=%zu",
+            rc, line_count, strlen(buffer));
 
     // ===== fallback если пусто =====
 
@@ -199,6 +203,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
         }
 
         log_msg(LOG_INFO, "Fallback command: %s", cmd);
+        log_msg(LOG_DEBUG, "exec cmd: %s", cmd);
 
         fp = popen(cmd, "r");
         if (!fp) {
@@ -227,7 +232,11 @@ int logs_get(const char *service, char *buffer, size_t size) {
             safe_append(buffer, size, "\n");
         }
 
-        pclose(fp);
+        int rc2 = pclose(fp);
+
+        log_msg(LOG_INFO,
+                "fallback exec done: rc=%d, lines=%d, bytes=%zu",
+                rc2, line_count, strlen(buffer));
     }
 
     // ===== если всё ещё пусто =====
@@ -238,7 +247,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
             svc);
     }
 
-    log_msg(LOG_INFO, "Final buffer size: %zu", strlen(buffer));
+    log_msg(LOG_DEBUG, "final buffer size: %zu", strlen(buffer));
 
     return 0;
 }
