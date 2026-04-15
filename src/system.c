@@ -14,7 +14,7 @@ static void get_load(double *l1, double *l5, double *l15) {
 
     if (getloadavg(loads, 3) == -1) {
         *l1 = *l5 = *l15 = 0.0;
-        log_msg(LOG_WARN, "getloadavg() failed");
+        LOG_STATE(LOG_WARN, "getloadavg() failed");
         return;
     }
 
@@ -22,8 +22,8 @@ static void get_load(double *l1, double *l5, double *l15) {
     *l5  = loads[1];
     *l15 = loads[2];
 
-    log_msg(LOG_DEBUG,
-            "load: %.2f %.2f %.2f",
+    LOG_STATE(LOG_DEBUG,
+            "cpu load: %.2f %.2f %.2f",
             *l1, *l5, *l15);
 }
 
@@ -32,7 +32,7 @@ static void get_load(double *l1, double *l5, double *l15) {
 static void get_memory(int *used_mb, int *total_mb, int *percent) {
     FILE *fp = fopen("/proc/meminfo", "r");
     if (!fp) {
-        log_msg(LOG_ERROR, "Failed to open /proc/meminfo");
+        LOG_STATE(LOG_ERROR, "Failed to open /proc/meminfo");
         *used_mb = *total_mb = *percent = 0;
         return;
     }
@@ -70,7 +70,7 @@ static void get_memory(int *used_mb, int *total_mb, int *percent) {
     *used_mb  = (int)(used / 1024);
     *percent  = (int)((used * 100) / mem_total);
 
-    log_msg(LOG_DEBUG,
+    LOG_STATE(LOG_DEBUG,
             "memory: %d/%d MB (%d%%)",
             *used_mb, *total_mb, *percent);
 }
@@ -82,7 +82,7 @@ static void get_disk(int *used_gb, int *total_gb, int *percent) {
     struct statvfs fs;
 
     if (statvfs("/", &fs) != 0) {
-        log_msg(LOG_WARN, "statvfs failed");
+        LOG_STATE(LOG_WARN, "statvfs failed");
         *used_gb = *total_gb = *percent = 0;
         return;
     }
@@ -101,7 +101,7 @@ static void get_disk(int *used_gb, int *total_gb, int *percent) {
         *percent = 0;
     }
 
-    log_msg(LOG_DEBUG,
+    LOG_STATE(LOG_DEBUG,
             "disk: %d/%d GB (%d%%)",
             *used_gb, *total_gb, *percent);
 }
@@ -131,7 +131,7 @@ static void get_uptime(int *days, int *hours, int *mins) {
     *hours = (total % 86400) / 3600;
     *mins  = (total % 3600) / 60;
 
-    log_msg(LOG_DEBUG,
+    LOG_STATE(LOG_DEBUG,
             "uptime: %dd %dh %dm",
             *days, *hours, *mins);
 }
@@ -141,11 +141,11 @@ static void get_uptime(int *days, int *hours, int *mins) {
 static int get_user_count() {
     
     const char *cmd = "who | wc -l";
-    log_msg(LOG_DEBUG, "exec cmd: %s", cmd);
+    LOG_STATE(LOG_DEBUG, "exec cmd: %s", cmd);
     
     FILE *fp = popen(cmd, "r");
     if (!fp) {
-        log_msg(LOG_WARN, "popen(who) failed");
+        LOG_STATE(LOG_WARN, "popen(who) failed");
         return 0;
     }
 
@@ -157,8 +157,8 @@ static int get_user_count() {
 
     int rc = pclose(fp);
 
-    log_msg(LOG_INFO,
-            "exec done: rc=%d, users=%d",
+    LOG_STATE(LOG_INFO,
+            "users: rc=%d count=%d",
             rc, users);
 
     return users;
@@ -168,7 +168,7 @@ static int get_user_count() {
 
 int system_get_status(char *buffer, size_t size) {
 
-    log_msg(LOG_DEBUG, "system_get_status() called");
+    LOG_STATE(LOG_DEBUG, "system_get_status() called");
     
     if (!buffer || size == 0) {
         return -1;
@@ -212,7 +212,8 @@ int system_get_status(char *buffer, size_t size) {
         log_msg(LOG_WARN, "system_get_status truncated");
     }
 
-    log_msg(LOG_INFO, "system status built successfully");
+    LOG_STATE(LOG_INFO, "system status built successfully (len=%d)",
+                        written);
     
     return 0;
 }
