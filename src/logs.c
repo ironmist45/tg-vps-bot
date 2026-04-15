@@ -120,9 +120,48 @@ int logs_get(const char *service, char *buffer, size_t size) {
         filter = arg2;
     }
 
-    // ограничение
-    if (lines <= 0 || lines > 1000)
+    // 🔒 sanitize filter (strict)
+    if (filter) {
+
+        size_t flen = strlen(filter);
+
+        // 📏 ограничение длины
+        if (flen > 32) {
+            log_msg(LOG_WARN, "filter too long: %s", filter);
+            snprintf(buffer, size, "❌ Filter too long");
+            return -1;
+        }
+
+        // 🔍 проверка символов
+        for (size_t i = 0; i < flen; i++) {
+            char c = filter[i];
+
+            if (!isalnum((unsigned char)c) &&
+                c != '-' &&
+                c != '_' &&
+                c != '.') {
+
+                log_msg(LOG_WARN,
+                        "invalid filter rejected: %s (bad char: %c)",
+                        filter, c);
+
+                snprintf(buffer, size, "❌ Invalid filter");
+                return -1;
+            }
+        }
+
+    // ✅ лог успешного фильтра
+    log_msg(LOG_DEBUG, "filter accepted: %s", filter);
+}
+
+    // ограничение journalctl 200 строк!
+    if (lines <= 0)
         lines = 30;
+
+    if (lines > 200) {
+        log_msg(LOG_WARN, "lines limit exceeded (%d), clamped to 200", lines);
+        lines = 200;
+    }
 
     char cmd[512];
 
@@ -162,7 +201,17 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
     while (fgets(line, sizeof(line), fp)) {
 
+        // 🔥 early truncation (Telegram-safe)
+        if (strlen(buffer) > 3500) {
+            safe_append(buffer, size, "\n...\n[truncated]");
+            log_msg(LOG_WARN, "logs truncated early (size limit)");
+            break;
+        }
+
         sanitize_line(line);
+
+        // 🔥 убрать ANSI / мусор
+        line[strcspn(line, "\x1b")] = '\0';
 
         if (line_count < DEBUG_LINES) {
             log_msg(LOG_DEBUG, "LOG LINE[%d]: %s", line_count, line);
@@ -222,7 +271,17 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
         while (fgets(line, sizeof(line), fp)) {
 
+            if (strlen(buffer) > 3500) {
+                safe_append(buffer, size, "\n...\n[truncated]");
+                log_msg(LOG_WARN, "fallback logs truncated early");
+                break;
+            }
+
             sanitize_line(line);
+
+            // 🔥 убрать ANSI / мусор
+            line[strcspn(line, "\x1b")] = '\0';
+            
             line_count++;
 
             if (strlen(buffer) + strlen(line) >= size - 5)
