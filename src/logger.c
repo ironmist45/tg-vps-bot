@@ -9,6 +9,7 @@
 
 static FILE *log_file = NULL;
 static int log_to_stderr = 0;  // fallback
+static log_level_t current_log_level = LOG_INFO;  // ✅ НОВОЕ
 
 // 🔥 thread safety
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -78,6 +79,12 @@ int logger_init(const char *path) {
     return 0;
 }
 
+// ===== set log level =====
+
+void logger_set_level(log_level_t level) {
+    current_log_level = level;
+}
+
 // ===== close =====
 
 void logger_close() {
@@ -94,6 +101,11 @@ void logger_close() {
 // ===== основной лог =====
 
 void log_msg(log_level_t level, const char *fmt, ...) {
+
+    // 🔥 фильтрация по уровню
+    if (level < current_log_level) {
+        return;
+    }
 
     // 🔥 защита от NULL fmt
     if (!fmt) return;
