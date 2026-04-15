@@ -377,10 +377,10 @@ int main(int argc, char *argv[]) {
         sleep(5);
     }
 
-    // ✅ ВАЖНО: ВНУТРИ while
-    if (!g_running)
+    if (!g_running) {
         log_msg(LOG_DEBUG, "Loop exit requested");
         break;
+    }
 
     usleep(200000);
 }
