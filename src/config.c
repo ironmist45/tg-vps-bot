@@ -124,8 +124,6 @@ else {
 
     // ===== минимальный лог =====
     LOG_CFG(LOG_INFO, "Config loaded (log_level=%d)", cfg->log_level);
-    LOG_CFG(LOG_INFO, "Log level: %s",
-            logger_level_to_string(cfg->log_level));
-
+    
     return 0;
 }
