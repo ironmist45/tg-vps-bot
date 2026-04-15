@@ -100,16 +100,35 @@ static void format_line(char *dst, size_t size,
 int services_get_status(char *buffer, size_t size) {
 
     log_msg(LOG_INFO, "services_get_status() called");
-    
-    buffer[0] = '\0';
 
-    strncat(buffer, "*🧩 SERVICES*\n\n",
-            size - strlen(buffer) - 1);
+    if (!buffer || size == 0) {
+        log_msg(LOG_ERROR, "Invalid buffer");
+        return -1;
+    }
 
+    size_t offset = 0;
+
+    // ===== заголовок =====
+    int written = snprintf(buffer + offset,
+                           size - offset,
+                           "*🧩 SERVICES*\n\n");
+
+    if (written < 0) {
+        log_msg(LOG_ERROR, "snprintf error (header)");
+        return -1;
+    }
+
+    if ((size_t)written >= size - offset) {
+        log_msg(LOG_WARN, "services buffer truncated (header)");
+        return 0;
+    }
+
+    offset += (size_t)written;
+
+    // ===== сервисы =====
     for (int i = 0; i < services_count; i++) {
 
         char status[64] = {0};
-        char line[128] = {0};
 
         if (get_service_status(services[i].name,
                                status,
@@ -119,18 +138,40 @@ int services_get_status(char *buffer, size_t size) {
                     services[i].name);
         }
 
-        format_line(line, sizeof(line),
-                    services[i].display,
-                    status);
+    const char *status_fmt = format_status(status);
 
-        if (strlen(buffer) + strlen(line) >= size - 1) {
+        // 🔍 подробный debug
+        log_msg(LOG_DEBUG,
+                "service=%s display=%s status=%s",
+                services[i].name,
+                services[i].display,
+                status_fmt);
+
+        // 🛑 защита: буфер уже почти заполнен
+        if (offset >= size - 1) {
+            log_msg(LOG_WARN, "buffer full before writing");
+            break;
+        }
+
+        int written = snprintf(buffer + offset,
+                               size - offset,
+                               "%-12s  %s\n",
+                               services[i].display,
+                               status_fmt);
+
+        if (written < 0) {
+            log_msg(LOG_ERROR, "snprintf error (line)");
+            break;
+        }
+
+        if (offset >= size || (size_t)written >= size - offset) {
             log_msg(LOG_WARN, "services buffer limit reached");
             break;
         }
 
-        // 🔥 безопасный append
-        strncat(buffer, line, size - strlen(buffer) - 1);
-    }
+        offset += (size_t)written;
+}
+    log_msg(LOG_DEBUG, "services response ready: %zu bytes", offset);
 
     return 0;
 }
