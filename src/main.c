@@ -85,9 +85,11 @@ static void graceful_shutdown() {
 
     // 3. flush логов
     log_msg(LOG_INFO, "Flushing logs...");
+    fflush(NULL);
     
     // 4. sync файловой системы
     log_msg(LOG_INFO, "Shutdown sequence complete");
+    fflush(NULL);
     
     logger_close();
     
@@ -176,6 +178,7 @@ static void handle_shutdown() {
             (end.tv_nsec - start.tv_nsec) / 1000000;
 
         log_msg(LOG_INFO, "Shutdown took %ld ms", ms);
+        fflush(NULL);
 
         execl("/bin/systemctl",
               "systemctl",
@@ -246,6 +249,9 @@ static int try_reopen_logger(const char *path) {
     if (!f) return -1;
     fclose(f);
 
+    // 🔥 ВАЖНО: сбросить буферы перед закрытием
+    fflush(NULL);
+
     logger_close();
     return logger_init(path);
 }
@@ -309,6 +315,7 @@ int main(int argc, char *argv[]) {
     log_msg(LOG_INFO, "==== START ====");
     log_msg(LOG_INFO, "%s v%s (%s)",
             APP_NAME, APP_VERSION, APP_CODENAME);
+    fflush(NULL); // 🔥 flush стартовой шапки
     log_user_info();
     log_workdir();
     check_journal_access();
