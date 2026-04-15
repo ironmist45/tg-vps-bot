@@ -38,14 +38,14 @@ static long load_offset(void) {
 
     fclose(f);
 
-    log_msg(LOG_INFO, "Loaded offset: %ld", offset);
+    LOG_STATE(LOG_INFO, "Loaded offset: %ld", offset);
     return offset;
 }
 
 static void save_offset(long offset) {
     FILE *f = fopen(OFFSET_TMP, "w");
     if (!f) {
-        log_msg(LOG_WARN, "Failed to save offset (tmp)");
+        LOG_STATE(LOG_WARN, "Failed to save offset (tmp)");
         return;
     }
 
@@ -53,7 +53,7 @@ static void save_offset(long offset) {
     fclose(f);
 
     if (rename(OFFSET_TMP, OFFSET_FILE) != 0) {
-        log_msg(LOG_WARN, "Failed to rename offset file");
+        LOG_STATE(LOG_WARN, "Failed to rename offset file");
     }
 }
 
@@ -109,7 +109,7 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 
     char *ptr = realloc(mem->data, mem->size + real_size + 1);
     if (!ptr) {
-        log_msg(LOG_ERROR, "realloc failed");
+        LOG_NET(LOG_ERROR, "realloc failed");
         free(mem->data);
         mem->data = NULL;
         mem->size = 0;
@@ -176,6 +176,7 @@ int telegram_send_message(long chat_id, const char *text) {
 
     char url[URL_MAX];
     snprintf(url, sizeof(url), "%s/sendMessage", g_base_url);
+    LOG_NET(LOG_DEBUG, "send message request");
     LOG_NET(LOG_DEBUG, "send url: %s", url);
 
     char tmp[RESP_MAX];
@@ -271,7 +272,7 @@ int telegram_poll() {
 
     if (last_update_id == -1) {
         last_update_id = load_offset();
-        log_msg(LOG_INFO, "Starting poll from offset: %ld", last_update_id);
+        LOG_NET(LOG_INFO, "Starting poll from offset: %ld", last_update_id);
     }
 
     CURL *curl = curl_easy_init();
