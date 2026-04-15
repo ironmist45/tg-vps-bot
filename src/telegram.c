@@ -89,7 +89,9 @@ static void truncate_message(char *text) {
 
     if (len >= TG_LIMIT && TG_LIMIT > 20) {
         text[TG_LIMIT - 20] = '\0';
-        strncat(text, "\n...\n[truncated]", 20);
+        snprintf(text + strlen(text),
+                 TG_LIMIT - strlen(text),
+                 "\n...\n[truncated]");
     }
 }
 
@@ -166,7 +168,7 @@ void telegram_shutdown(void) {
 int telegram_send_message(long chat_id, const char *text) {
 
     if (!text) return -1;
-
+    
     CURL *curl = curl_easy_init();
     if (!curl) return -1;
 
@@ -174,6 +176,7 @@ int telegram_send_message(long chat_id, const char *text) {
 
     char url[URL_MAX];
     snprintf(url, sizeof(url), "%s/sendMessage", g_base_url);
+    log_msg(LOG_DEBUG, "send url: %s", url);
 
     char tmp[RESP_MAX];
     strncpy(tmp, text, sizeof(tmp) - 1);
@@ -192,8 +195,17 @@ int telegram_send_message(long chat_id, const char *text) {
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback);
-
+      
+    log_msg(LOG_DEBUG,
+            "send md: chat_id=%ld len=%zu",
+            chat_id, strlen(text));
+    
     CURLcode res = curl_easy_perform(curl);
+    
+    log_msg(LOG_DEBUG,
+            "send curl result: %d (%s)",
+            res,
+            curl_easy_strerror(res));
 
     if (res != CURLE_OK) {
         log_msg(LOG_ERROR, "curl send error: %s", curl_easy_strerror(res));
@@ -208,7 +220,11 @@ int telegram_send_message(long chat_id, const char *text) {
 int telegram_send_plain(long chat_id, const char *text) {
 
     if (!text) return -1;
-
+    
+    log_msg(LOG_DEBUG,
+            "send plain: chat_id=%ld len=%zu",
+            chat_id, strlen(text));
+    
     CURL *curl = curl_easy_init();
     if (!curl) return -1;
 
@@ -234,6 +250,11 @@ int telegram_send_plain(long chat_id, const char *text) {
 
     CURLcode res = curl_easy_perform(curl);
 
+    log_msg(LOG_DEBUG,
+            "send plain curl result: %d (%s)",
+            res,
+            curl_easy_strerror(res));
+
     if (res != CURLE_OK) {
         log_msg(LOG_ERROR, "curl send error: %s", curl_easy_strerror(res));
     }
@@ -250,6 +271,7 @@ int telegram_poll() {
 
     if (last_update_id == -1) {
         last_update_id = load_offset();
+        log_msg(LOG_INFO, "Starting poll from offset: %ld", last_update_id);
     }
 
     CURL *curl = curl_easy_init();
@@ -262,6 +284,8 @@ int telegram_poll() {
              "%s/getUpdates?timeout=25&offset=%ld",
              g_base_url, last_update_id);
 
+    log_msg(LOG_DEBUG, "poll url: %s", url);
+
     struct memory chunk = {0};
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
@@ -269,6 +293,11 @@ int telegram_poll() {
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
 
     CURLcode res = curl_easy_perform(curl);
+
+    log_msg(LOG_DEBUG,
+            "poll curl result: %d (%s)",
+            res,
+            curl_easy_strerror(res));
 
     if (res == CURLE_OPERATION_TIMEDOUT) {
         curl_easy_cleanup(curl);
@@ -292,7 +321,9 @@ int telegram_poll() {
 
     cJSON *json = cJSON_Parse(chunk.data);
     if (!json) {
-        log_msg(LOG_ERROR, "JSON parse error");
+    log_msg(LOG_ERROR,
+            "JSON parse error, raw=%.512s",
+            chunk.data ? chunk.data : "NULL");
         curl_easy_cleanup(curl);
         free(chunk.data);
         return -1;
@@ -300,7 +331,9 @@ int telegram_poll() {
 
     cJSON *ok = cJSON_GetObjectItem(json, "ok");
     if (!cJSON_IsTrue(ok)) {
-        log_msg(LOG_ERROR, "Telegram API returned not ok");
+    log_msg(LOG_ERROR,
+            "Telegram API not ok: %.512s",
+            chunk.data);
         cJSON_Delete(json);
         curl_easy_cleanup(curl);
         free(chunk.data);
@@ -312,15 +345,20 @@ int telegram_poll() {
     if (cJSON_IsArray(result)) {
 
         int count = cJSON_GetArraySize(result);
+        log_msg(LOG_DEBUG, "updates received: %d", count);
 
         for (int i = 0; i < count; i++) {
 
             cJSON *update = cJSON_GetArrayItem(result, i);
 
             cJSON *update_id = cJSON_GetObjectItem(update, "update_id");
-            if (!update_id) continue;
+            if (!update_id) {
+                log_msg(LOG_WARN, "update without update_id");
+                continue;
+            }
 
             long uid = (long)update_id->valuedouble;
+            log_msg(LOG_DEBUG, "update_id=%ld", uid);
 
             if (uid <= g_last_processed_update)
                 continue;
@@ -329,24 +367,36 @@ int telegram_poll() {
             last_update_id = uid + 1;
 
             if (++g_offset_counter >= 5) {
+                log_msg(LOG_DEBUG, "saving offset: %ld", last_update_id);
                 save_offset(last_update_id);
                 g_offset_counter = 0;
             }
 
             cJSON *message = cJSON_GetObjectItem(update, "message");
-            if (!message) continue;
+            if (!message) {
+                log_msg(LOG_DEBUG, "skipping update: no message");
+                continue;
+            }
 
             cJSON *chat = cJSON_GetObjectItem(message, "chat");
-            if (!chat) continue;
+            if (!chat) {
+                log_msg(LOG_DEBUG, "skipping update: no chat");
+                continue;
+            }
 
             cJSON *chat_id = cJSON_GetObjectItem(chat, "id");
             cJSON *text = cJSON_GetObjectItem(message, "text");
 
-            if (!chat_id || !text || !cJSON_IsString(text))
+            if (!chat_id || !text || !cJSON_IsString(text)) {
+                log_msg(LOG_DEBUG, "skipping update: no text");
                 continue;
+            }
 
             long cid = (long)chat_id->valuedouble;
             const char *msg_text = text->valuestring;
+            log_msg(LOG_INFO,
+                    "incoming: chat_id=%ld len=%zu text=%.64s",
+                    cid, strlen(msg_text), msg_text);
 
             if (!security_is_allowed_chat(cid)) {
                 log_msg(LOG_WARN,
@@ -361,6 +411,9 @@ int telegram_poll() {
             char response[RESP_MAX];
 
             if (commands_handle(msg_text, cid, response, sizeof(response)) == 0) {
+                log_msg(LOG_DEBUG,
+                        "response ready: %zu bytes",
+                        strlen(response));
 
                 if (strncmp(msg_text, "/logs", 5) == 0) {
                     telegram_send_plain(cid, response);
