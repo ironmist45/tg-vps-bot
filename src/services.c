@@ -80,21 +80,6 @@ static const char *format_status(const char *status) {
     return "⚪ UNKNOWN";
 }
 
-// ===== строка =====
-
-static void format_line(char *dst, size_t size,
-                        const char *name,
-                        const char *status) {
-
-    const char *status_fmt = format_status(status);
-
-    // 🔥 чуть более аккуратный вывод
-    snprintf(dst, size,
-             "%-12s  %s\n",
-             name,
-             status_fmt);
-}
-
 // ===== основной API =====
 
 int services_get_status(char *buffer, size_t size) {
