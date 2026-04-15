@@ -4,10 +4,10 @@
 #include <stdio.h>
 
 typedef enum {
-    LOG_DEBUG = 0,
-    LOG_INFO,
+    LOG_ERROR = 0,
     LOG_WARN,
-    LOG_ERROR
+    LOG_INFO,
+    LOG_DEBUG
 } log_level_t;
 
 int logger_init(const char *path);
