@@ -176,7 +176,7 @@ void log_msg(log_level_t level, const char *fmt, ...) {
     if (console_out) {
         fprintf(console_out, "[%s] [%s] %s\n",
                 timestamp,
-                level_to_string(level),
+                logger_level_to_string(level),
                 message);
 
         fflush(console_out);
