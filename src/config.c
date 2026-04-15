@@ -11,7 +11,7 @@
 int config_load(const char *path, config_t *cfg) {
     FILE *f = fopen(path, "r");
     if (!f) {
-        log_msg(LOG_ERROR, "Cannot open config file: %s", path);
+        LOG_CFG(LOG_ERROR, "Cannot open config file: %s", path);
         return -1;
     }
 
@@ -39,7 +39,7 @@ int config_load(const char *path, config_t *cfg) {
 
         char *eq = strchr(str, '=');
         if (!eq) {
-            log_msg(LOG_WARN, "Invalid line %d (no '=')", line_num);
+            LOG_CFG(LOG_WARN, "Invalid line %d (no '=')", line_num);
             continue;
         }
 
@@ -51,41 +51,41 @@ int config_load(const char *path, config_t *cfg) {
         key[strcspn(key, "\r")] = 0;
         value[strcspn(value, "\r")] = 0;
         // ✅ DEBUG (правильное место)
-        log_msg(LOG_DEBUG,
-            "config: line=%d key='%s' value='%s'",
+        LOG_CFG(LOG_DEBUG,
+            "line=%d key='%s' value='%s'",
             line_num, key, value);
 
         // ===== case-insensitive parsing =====
         
         if (strcasecmp(key, "TOKEN") == 0) {
             if (safe_copy(cfg->token, sizeof(cfg->token), value) != 0) {
-                log_msg(LOG_ERROR, "TOKEN too long");
+                LOG_CFG(LOG_ERROR, "TOKEN too long");
                 fclose(f);
                 return -1;
             }
         }
         else if (strcasecmp(key, "CHAT_ID") == 0) {
             if (parse_long(value, &cfg->chat_id) != 0) {
-                log_msg(LOG_ERROR, "Invalid CHAT_ID at line %d", line_num);
+                LOG_CFG(LOG_ERROR, "Invalid CHAT_ID at line %d", line_num);
                 fclose(f);
                 return -1;
             }
         }
         else if (strcasecmp(key, "POLL_TIMEOUT") == 0) {
             if (parse_int(value, &cfg->poll_timeout) != 0) {
-                log_msg(LOG_WARN, "Invalid POLL_TIMEOUT, using default");
+                LOG_CFG(LOG_WARN, "Invalid POLL_TIMEOUT, using default");
                 cfg->poll_timeout = 30;
             }
         }
         else if (strcasecmp(key, "LOG_FILE") == 0) {
             if (safe_copy(cfg->log_file, sizeof(cfg->log_file), value) != 0) {
-                log_msg(LOG_WARN, "LOG_FILE too long, using default");
+                LOG_CFG(LOG_WARN, "LOG_FILE too long, using default");
                 safe_copy(cfg->log_file, sizeof(cfg->log_file), "/var/log/tg-bot.log");
             }
         }
         else if (strcasecmp(key, "TOKEN_TTL") == 0) {
             if (parse_int(value, &cfg->token_ttl) != 0) {
-                log_msg(LOG_WARN, "Invalid TOKEN_TTL, using default");
+                LOG_CFG(LOG_WARN, "Invalid TOKEN_TTL, using default");
                 cfg->token_ttl = 60;
             }
         }
@@ -99,12 +99,12 @@ else if (strcasecmp(key, "LOG_LEVEL") == 0) {
     } else if (strcasecmp(value, "DEBUG") == 0) {
         cfg->log_level = LOG_DEBUG;
     } else {
-        log_msg(LOG_WARN, "Invalid LOG_LEVEL '%s', using default", value);
+        LOG_CFG(LOG_WARN, "Invalid LOG_LEVEL '%s', using default", value);
         cfg->log_level = LOG_INFO;
     }
 }
 else {
-    log_msg(LOG_DEBUG, "Unknown config key: %s", key);
+    LOG_CFG(LOG_DEBUG, "Unknown config key: %s", key);
 }
     }
     
@@ -123,7 +123,9 @@ else {
     }
 
     // ===== минимальный лог =====
-    log_msg(LOG_INFO, "Config loaded (log_level=%d)", cfg->log_level);
+    LOG_CFG(LOG_INFO, "Config loaded (log_level=%d)", cfg->log_level);
+    LOG_CFG(LOG_INFO, "Log level: %s",
+            logger_level_to_string(cfg->log_level));
 
     return 0;
 }
