@@ -99,6 +99,7 @@ else if (strcasecmp(key, "LOG_LEVEL") == 0) {
 else {
     log_msg(LOG_DEBUG, "Unknown config key: %s", key);
 }
+    }
     
     fclose(f);
 
