@@ -332,49 +332,44 @@ int main(int argc, char *argv[]) {
 
     while (g_running) {
 
-        if (g_shutdown_requested) {
-            handle_shutdown();
-            break;
-        }
+    if (g_shutdown_requested) {
+        handle_shutdown();
+        break;
+    }
 
-        if (g_reload_config) {
+    if (g_reload_config) {
 
-            log_msg(LOG_INFO, "Reload config");
+        log_msg(LOG_INFO, "Reload config");
 
-            config_t new_cfg;
+        config_t new_cfg;
 
-            if (config_load(args.config_path, &new_cfg) == 0) {
+        if (config_load(args.config_path, &new_cfg) == 0) {
 
-                // 🔥 ALWAYS reopen log (required for logrotate)
-                if (try_reopen_logger(new_cfg.log_file) == 0) {
-                    log_msg(LOG_INFO, "Logger reopened: %s", new_cfg.log_file);
-                } else {
-                    log_msg(LOG_WARN, "Logger reopen failed: %s", new_cfg.log_file);
-                }
-
-                security_set_allowed_chat(new_cfg.chat_id);
-                security_set_token_ttl(new_cfg.token_ttl);
-
-                cfg = new_cfg;
-                log_config(&cfg);
-            } else {
-                log_msg(LOG_ERROR, "Config reload failed");
+            if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
+                try_reopen_logger(new_cfg.log_file);
             }
 
-            g_reload_config = 0;
-}
+            security_set_allowed_chat(new_cfg.chat_id);
+            security_set_token_ttl(new_cfg.token_ttl);
+
+            cfg = new_cfg;
+            log_config(&cfg);
         }
 
-        if (telegram_poll() != 0) {
-            log_msg(LOG_WARN, "Polling error");
-            sleep(5);
-        }
-
-        // 🔥 ускоренный выход при shutdown
-        if (!g_running) break;
-
-        usleep(200000);
+        g_reload_config = 0;
     }
+
+    if (telegram_poll() != 0) {
+        log_msg(LOG_WARN, "Polling error");
+        sleep(5);
+    }
+
+    // ✅ ВАЖНО: ВНУТРИ while
+    if (!g_running)
+        break;
+
+    usleep(200000);
+}
 
     log_msg(LOG_INFO, "Bot stopped");
     logger_close();
