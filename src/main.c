@@ -404,5 +404,6 @@ int main(int argc, char *argv[]) {
     usleep(200000);
 }
 
+    logger_close(); // fallback на всякий случай
     return 0;
 }
