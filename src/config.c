@@ -47,6 +47,8 @@ int config_load(const char *path, config_t *cfg) {
 
         char *key = trim(str);
         char *value = trim(eq + 1);
+        // 🔥 убрать \r (Windows строки)
+        value[strcspn(value, "\r")] = 0;
 
         // ===== case-insensitive parsing =====
 
