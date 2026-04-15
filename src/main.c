@@ -47,7 +47,7 @@ static void handle_sigterm(int sig) {
     if (g_signal_received) return;
     g_signal_received = 1;
 
-    log_msg(LOG_WARN, "Received SIGTERM, shutting down...");
+    LOG_SYS(LOG_WARN, "Received SIGTERM, shutting down...");
     g_shutdown_requested = 1;
     g_running = 0;
 }
@@ -62,7 +62,7 @@ static void log_uptime() {
     int hours = (uptime % 86400) / 3600;
     int mins = (uptime % 3600) / 60;
 
-    log_msg(LOG_INFO,
+    LOG_SYS(LOG_INFO,
         "Uptime: %dd %dh %dm",
         days, hours, mins);
 }
@@ -75,7 +75,7 @@ static void graceful_shutdown() {
     if (done) return;
     done = 1;
 
-    log_msg(LOG_INFO, "Graceful shutdown: stopping services...");
+    LOG_SYS(LOG_INFO, "Graceful shutdown: stopping services...");
 
     // 1. остановить telegram
     telegram_shutdown();
@@ -84,11 +84,11 @@ static void graceful_shutdown() {
     usleep(200000); // 200 ms
 
     // 3. flush логов
-    log_msg(LOG_INFO, "Flushing logs...");
+    LOG_SYS(LOG_INFO, "Flushing logs...");
     fflush(NULL);
     
     // 4. sync файловой системы
-    log_msg(LOG_INFO, "Shutdown sequence complete");
+    LOG_SYS(LOG_INFO, "Shutdown sequence complete");
     fflush(NULL);
     
     logger_close();
@@ -103,7 +103,7 @@ static void handle_shutdown() {
     static int handled = 0;
     
     if (handled) {
-        log_msg(LOG_DEBUG, "handle_shutdown already executed");
+        LOG_SYS(LOG_DEBUG, "handle_shutdown already executed");
         return;
     }
     
@@ -115,10 +115,10 @@ static void handle_shutdown() {
     // ===== REBOOT =====
     if (g_shutdown_requested == 2) {
 
-        log_msg(LOG_WARN, "Reboot requested");
+        LOG_SYS(LOG_WARN, "Reboot requested");
 
         if (g_reboot_requested_by != 0) {
-            log_msg(LOG_INFO,
+            LOG_SYS(LOG_INFO,
                 "Requested by chat_id=%ld",
                 g_reboot_requested_by);
         }
@@ -133,22 +133,22 @@ static void handle_shutdown() {
             (end.tv_sec - start.tv_sec) * 1000 +
             (end.tv_nsec - start.tv_nsec) / 1000000;
 
-        log_msg(LOG_INFO, "Shutdown took %ld ms", ms);
+        LOG_SYS(LOG_INFO, "Shutdown took %ld ms", ms);
 
-        log_msg(LOG_WARN, "Rebooting via reboot(RB_AUTOBOOT)...");
+        LOG_SYS(LOG_WARN, "Rebooting via reboot(RB_AUTOBOOT)...");
 
         if (reboot(RB_AUTOBOOT) != 0) {
-            log_msg(LOG_ERROR,
+            LOG_SYS(LOG_ERROR,
                     "reboot() failed: errno=%d (%s)",
                     errno, strerror(errno));
 
-            log_msg(LOG_WARN, "Fallback: systemctl reboot");
+            LOG_SYS(LOG_WARN, "Fallback: systemctl reboot");
 
             fflush(NULL); // flush всех буферов
 
             execl("/bin/systemctl", "systemctl", "reboot", NULL);
 
-            log_msg(LOG_ERROR,
+            LOG_SYS(LOG_ERROR,
                     "fallback exec failed: errno=%d (%s)",
                     errno, strerror(errno));
         }
@@ -159,10 +159,10 @@ static void handle_shutdown() {
     // ===== RESTART =====
     if (g_shutdown_requested == 1) {
 
-        log_msg(LOG_WARN, "Restart requested");
+        LOG_SYS(LOG_WARN, "Restart requested");
 
         if (g_reboot_requested_by != 0) {
-            log_msg(LOG_INFO,
+            LOG_SYS(LOG_INFO,
                 "Requested by chat_id=%ld",
                 g_reboot_requested_by);
         }
@@ -177,7 +177,7 @@ static void handle_shutdown() {
             (end.tv_sec - start.tv_sec) * 1000 +
             (end.tv_nsec - start.tv_nsec) / 1000000;
 
-        log_msg(LOG_INFO, "Shutdown took %ld ms", ms);
+        LOG_SYS(LOG_INFO, "Shutdown took %ld ms", ms);
         fflush(NULL);
 
         execl("/bin/systemctl",
@@ -186,7 +186,7 @@ static void handle_shutdown() {
               "tg-bot",
               NULL);
 
-        log_msg(LOG_ERROR,
+        LOG_SYS(LOG_ERROR,
                 "exec restart failed: errno=%d (%s)",
                 errno, strerror(errno));
     }
@@ -201,17 +201,17 @@ static void log_user_info() {
     struct passwd *pw = getpwuid(uid);
     struct passwd *epw = getpwuid(euid);
 
-    log_msg(LOG_INFO, "User UID: %d (%s)",
+    LOG_SYS(LOG_INFO, "User UID: %d (%s)",
             uid, pw ? pw->pw_name : "unknown");
 
-    log_msg(LOG_INFO, "Effective UID: %d (%s)",
+    LOG_SYS(LOG_INFO, "Effective UID: %d (%s)",
             euid, epw ? epw->pw_name : "unknown");
 }
 
 static void log_workdir() {
     char buf[256];
     if (getcwd(buf, sizeof(buf))) {
-        log_msg(LOG_INFO, "Working directory: %s", buf);
+        LOG_SYS(LOG_INFO, "Working directory: %s", buf);
     }
 }
 
@@ -224,9 +224,9 @@ static void check_journal_access() {
 
     if (fgets(line, sizeof(line), f)) {
         if (strstr(line, "not seeing messages")) {
-            log_msg(LOG_WARN, "journalctl: NO ACCESS");
+            LOG_SYS(LOG_WARN, "journalctl: NO ACCESS");
         } else {
-            log_msg(LOG_INFO, "journalctl: access OK");
+            LOG_SYS(LOG_INFO, "journalctl: access OK");
         }
     }
 
@@ -236,7 +236,7 @@ static void check_journal_access() {
 static void check_logfile_access(const char *path) {
     FILE *f = fopen(path, "a");
     if (!f) {
-        log_msg(LOG_WARN, "No write access: %s", path);
+        LOG_SYS(LOG_WARN, "No write access: %s", path);
         return;
     }
     fclose(f);
@@ -259,11 +259,11 @@ static int try_reopen_logger(const char *path) {
 // ===== CONFIG LOG =====
 
 static void log_config(const config_t *cfg) {
-    log_msg(LOG_INFO, "===== CONFIG =====");
-    log_msg(LOG_INFO, "CHAT_ID: %ld", cfg->chat_id);
-    log_msg(LOG_INFO, "TOKEN_TTL: %d", cfg->token_ttl);
-    log_msg(LOG_INFO, "POLL_TIMEOUT: %d", cfg->poll_timeout);
-    log_msg(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
+    LOG_CFG(LOG_INFO, "===== CONFIG =====");
+    LOG_CFG(LOG_INFO, "CHAT_ID: %ld", cfg->chat_id);
+    LOG_CFG(LOG_INFO, "TOKEN_TTL: %d", cfg->token_ttl);
+    LOG_CFG(LOG_INFO, "POLL_TIMEOUT: %d", cfg->poll_timeout);
+    LOG_CFG(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
 }
 
 // ===== MAIN =====
@@ -273,7 +273,7 @@ int main(int argc, char *argv[]) {
     srand(time(NULL));
     g_start_time = time(NULL);
 
-    log_msg(LOG_INFO, "Process started (PID=%d)", getpid());
+    LOG_SYS(LOG_INFO, "Process started (PID=%d)", getpid());
 
     struct sigaction sa = {0};
     sa.sa_handler = handle_sighup;
@@ -312,8 +312,8 @@ int main(int argc, char *argv[]) {
 
     logger_init(fallback_log);
 
-    log_msg(LOG_INFO, "==== START ====");
-    log_msg(LOG_INFO, "%s v%s (%s)",
+    LOG_SYS(LOG_INFO, "==== START ====");
+    LOG_SYS(LOG_INFO, "%s v%s (%s)",
             APP_NAME, APP_VERSION, APP_CODENAME);
     fflush(NULL); // 🔥 flush стартовой шапки
     log_user_info();
@@ -324,18 +324,16 @@ int main(int argc, char *argv[]) {
     config_t cfg;
 
     if (config_load(args.config_path, &cfg) != 0) {
-        log_msg(LOG_ERROR, "Config load failed");
+        LOG_CFG(LOG_ERROR, "Config load failed");
         return 1;
     }
 
-    logger_set_level(cfg.log_level);
-
     if (try_reopen_logger(cfg.log_file) == 0) {
-        log_msg(LOG_INFO, "Logger switched: %s", cfg.log_file);
+        LOG_CFG(LOG_INFO, "Logger switched: %s", cfg.log_file);
     }
 
     logger_set_level(cfg.log_level);
-    log_msg(LOG_INFO, "Log level: %s",
+    LOG_CFG(LOG_INFO, "Log level: %s",
             logger_level_to_string(cfg.log_level));
 
     log_config(&cfg);
@@ -345,12 +343,12 @@ int main(int argc, char *argv[]) {
     security_init();
 
     if (telegram_init(cfg.token) != 0) {
-        log_msg(LOG_ERROR, "Telegram init failed");
+        LOG_NET(LOG_ERROR, "Telegram init failed");
         return 1;
     }
 
-    log_msg(LOG_INFO, "Bot started");
-    log_msg(LOG_INFO, "Entering main loop");
+    LOG_SYS(LOG_INFO, "Bot started");
+    LOG_SYS(LOG_INFO, "Entering main loop");
 
     // ===== LOOP =====
 
@@ -363,7 +361,7 @@ int main(int argc, char *argv[]) {
 
     if (g_reload_config) {
 
-        log_msg(LOG_INFO, "Reload config");
+        LOG_CFG(LOG_INFO, "Reload config");
 
         config_t new_cfg;
 
@@ -388,19 +386,19 @@ int main(int argc, char *argv[]) {
     int poll_rc = telegram_poll();
 
     if (poll_rc != 0) {
-        log_msg(LOG_WARN, "Polling error (rc=%d)", poll_rc);
+        LOG_NET(LOG_WARN, "Polling error (rc=%d)", poll_rc);
         sleep(5);
     }
 
     if (!g_running) {
-        log_msg(LOG_DEBUG, "Loop exit requested");
+        LOG_SYS(LOG_DEBUG, "Loop exit requested");
         break;
     }
 
     usleep(200000);
 }
 
-    log_msg(LOG_INFO, "Bot stopped");
+    LOG_SYS(LOG_INFO, "Bot stopped");
     logger_close();
     return 0;
 }
