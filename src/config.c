@@ -20,6 +20,7 @@ int config_load(const char *path, config_t *cfg) {
     cfg->poll_timeout = 30;
     cfg->token_ttl = 60;
     safe_copy(cfg->log_file, sizeof(cfg->log_file), "/var/log/tg-bot.log");
+    cfg->log_level = LOG_INFO;  // ✅ default logging level
 
     char line[LINE_MAX_LEN];
     int line_num = 0;
@@ -79,13 +80,25 @@ int config_load(const char *path, config_t *cfg) {
             if (parse_int(value, &cfg->token_ttl) != 0) {
                 log_msg(LOG_WARN, "Invalid TOKEN_TTL, using default");
                 cfg->token_ttl = 60;
-            }
         }
-        else {
-            log_msg(LOG_DEBUG, "Unknown config key: %s", key);
-        }
+        else if (strcasecmp(key, "LOG_LEVEL") == 0) {
+            if (strcasecmp(value, "ERROR") == 0) {
+                cfg->log_level = LOG_ERROR;
+    } else if (strcasecmp(value, "WARN") == 0) {
+        cfg->log_level = LOG_WARN;
+    } else if (strcasecmp(value, "INFO") == 0) {
+        cfg->log_level = LOG_INFO;
+    } else if (strcasecmp(value, "DEBUG") == 0) {
+        cfg->log_level = LOG_DEBUG;
+    } else {
+        log_msg(LOG_WARN, "Invalid LOG_LEVEL '%s', using default", value);
+        cfg->log_level = LOG_INFO;
     }
-
+}
+else {
+    log_msg(LOG_DEBUG, "Unknown config key: %s", key);
+}
+    
     fclose(f);
 
     // ===== validation =====
@@ -101,7 +114,7 @@ int config_load(const char *path, config_t *cfg) {
     }
 
     // ===== минимальный лог =====
-    log_msg(LOG_INFO, "Config loaded");
+    log_msg(LOG_INFO, "Config loaded (log_level=%d)", cfg->log_level);
 
     return 0;
 }
