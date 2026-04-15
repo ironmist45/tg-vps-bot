@@ -82,6 +82,7 @@ int logger_init(const char *path) {
 
 void logger_close() {
     if (log_file) {
+        fflush(log_file); // 🔥 критично
         fclose(log_file);
         log_file = NULL;
     }
