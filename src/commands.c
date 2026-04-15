@@ -193,13 +193,13 @@ static int cmd_logs(int argc, char *argv[],
                    char *resp, size_t size) {
 
     if (!security_is_allowed_chat(chat_id)) {
-    log_msg(LOG_WARN,
-            "DENY %s (chat_id=%ld)",
-            argv[0], chat_id);
+        log_msg(LOG_WARN,
+                "DENY %s (chat_id=%ld)",
+                argv[0], chat_id);
 
-    snprintf(resp, size, "❌ Access denied");
-    return -1;
-}
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
+    }
 
     if (argc < 2) {
         snprintf(resp, size,
@@ -227,11 +227,13 @@ static int cmd_logs(int argc, char *argv[],
         used += written;
     }
 
-    if (users_get(resp, size) != 0) {
-        snprintf(resp, size, "⚠️ Failed to get users");
+    // ✅ FIX /logs
+    if (logs_get(args, resp, size) != 0) {
+        snprintf(resp, size, "⚠️ Failed to get logs");
         return -1;
-}
-return 0;
+    }
+
+    return 0;
 }
 
 // ===== USERS =====
