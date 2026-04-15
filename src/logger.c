@@ -163,7 +163,7 @@ void log_msg(log_level_t level, const char *fmt, ...) {
     if (!file_out && log_to_stderr) {
         fprintf(stderr, "[%s] [%s] %s\n",
                 timestamp,
-                level_to_string(level),
+                logger_level_to_string(level),
                 message);
 
         fflush(stderr);
