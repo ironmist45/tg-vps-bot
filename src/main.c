@@ -85,12 +85,13 @@ static void graceful_shutdown() {
 
     // 3. flush логов
     log_msg(LOG_INFO, "Flushing logs...");
-    logger_close();
-
+    
     // 4. sync файловой системы
-    sync();
-
     log_msg(LOG_INFO, "Shutdown sequence complete");
+    
+    logger_close();
+    
+    sync();
 }
 
 // ===== SHUTDOWN HANDLER =====
@@ -98,7 +99,12 @@ static void graceful_shutdown() {
 static void handle_shutdown() {
 
     static int handled = 0;
-    if (handled) return;
+    
+    if (handled) {
+        log_msg(LOG_DEBUG, "handle_shutdown already executed");
+        return;
+    }
+    
     handled = 1;
 
     struct timespec start, end;
@@ -135,6 +141,8 @@ static void handle_shutdown() {
                     errno, strerror(errno));
 
             log_msg(LOG_WARN, "Fallback: systemctl reboot");
+
+            fflush(NULL); // flush всех буферов
 
             execl("/bin/systemctl", "systemctl", "reboot", NULL);
 
@@ -299,6 +307,8 @@ int main(int argc, char *argv[]) {
     logger_init(fallback_log);
 
     log_msg(LOG_INFO, "==== START ====");
+    log_msg(LOG_INFO, "%s v%s (%s)",
+            APP_NAME, APP_VERSION, APP_CODENAME);
     log_user_info();
     log_workdir();
     check_journal_access();
@@ -327,6 +337,7 @@ int main(int argc, char *argv[]) {
     }
 
     log_msg(LOG_INFO, "Bot started");
+    log_msg(LOG_INFO, "Entering main loop");
 
     // ===== LOOP =====
 
@@ -359,13 +370,16 @@ int main(int argc, char *argv[]) {
         g_reload_config = 0;
     }
 
-    if (telegram_poll() != 0) {
-        log_msg(LOG_WARN, "Polling error");
+    int poll_rc = telegram_poll();
+
+    if (poll_rc != 0) {
+        log_msg(LOG_WARN, "Polling error (rc=%d)", poll_rc);
         sleep(5);
     }
 
     // ✅ ВАЖНО: ВНУТРИ while
     if (!g_running)
+        log_msg(LOG_DEBUG, "Loop exit requested");
         break;
 
     usleep(200000);
