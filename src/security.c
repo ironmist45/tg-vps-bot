@@ -65,7 +65,7 @@ int security_validate_text(const char *text) {
     if (len == 0 || len > 1024)
         return -1;
 
-    // запрещаем бинарные/управляющие символы
+    // запрещаем бинарные / управляющие символы
     for (size_t i = 0; i < len; i++) {
         
         unsigned char c = text[i];
@@ -201,8 +201,8 @@ int security_validate_reboot_token(long chat_id, int input_token) {
     }
 
     LOG_SEC(LOG_WARN,
-    "Invalid token: chat_id=%ld token=%06d",
-    chat_id, input_token);
+        "Invalid token: chat_id=%ld token=%06d",
+        chat_id, input_token);
 
     register_failed_attempt(now);
     
