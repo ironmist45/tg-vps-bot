@@ -195,6 +195,17 @@ static int exec_command(char *const argv[],
     int status;
     waitpid(pid, &status, 0);
 
+    if (!WIFEXITED(status)) {
+        return -1;
+    }
+
+    int exit_code = WEXITSTATUS(status);
+
+    if (exit_code != 0) {
+        return -1;
+    }
+
+
     return 0;
 }
 
