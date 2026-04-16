@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "logs.h"
 #include "logger.h"
 
@@ -165,15 +167,9 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
     char cmd[512];
 
-    if (filter) {
-        snprintf(cmd, sizeof(cmd),
-            "journalctl -u %s.service -n %d --no-pager 2>&1 | grep -i '%s'",
-            real_service, lines, filter);
-    } else {
-        snprintf(cmd, sizeof(cmd),
-            "journalctl -u %s.service -n %d --no-pager 2>&1",
-            real_service, lines);
-    }
+    snprintf(cmd, sizeof(cmd),
+        "journalctl -u %s.service -n %d --no-pager 2>&1",
+        real_service, lines);
 
     log_msg(LOG_INFO, "Executing command: %s", cmd);
     log_msg(LOG_DEBUG, "exec cmd: %s", cmd);
@@ -213,6 +209,11 @@ int logs_get(const char *service, char *buffer, size_t size) {
         // 🔥 убрать ANSI / мусор
         line[strcspn(line, "\x1b")] = '\0';
 
+        // 🔍 фильтрация в C (вместо grep)
+        if (filter && !strcasestr(line, filter)) {
+            continue;
+        }
+
         if (line_count < DEBUG_LINES) {
             log_msg(LOG_DEBUG, "LOG LINE[%d]: %s", line_count, line);
         }
@@ -241,15 +242,9 @@ int logs_get(const char *service, char *buffer, size_t size) {
         log_msg(LOG_WARN,
                 "No logs for %s, trying global journal", svc);
 
-        if (filter) {
-            snprintf(cmd, sizeof(cmd),
-                "journalctl -n %d --no-pager 2>&1 | grep -i '%s'",
-                lines, filter);
-        } else {
-            snprintf(cmd, sizeof(cmd),
-                "journalctl -n %d --no-pager 2>&1 | grep -i '%s'",
-                lines, svc);
-        }
+        snprintf(cmd, sizeof(cmd),
+            "journalctl -n %d --no-pager 2>&1",
+            lines);
 
         log_msg(LOG_INFO, "Fallback command: %s", cmd);
         log_msg(LOG_DEBUG, "exec cmd: %s", cmd);
@@ -265,7 +260,8 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
         snprintf(buffer, size,
             "📜 LOGS: %s (fallback)\n\n",
-            svc);
+            svc,
+            filter ? " [filtered]" : ""
 
         line_count = 0;
 
@@ -282,6 +278,10 @@ int logs_get(const char *service, char *buffer, size_t size) {
             // 🔥 убрать ANSI / мусор
             line[strcspn(line, "\x1b")] = '\0';
             
+            if (filter && !strcasestr(line, filter)) {
+                continue;
+            }
+
             line_count++;
 
             if (strlen(buffer) + strlen(line) >= size - 5)
