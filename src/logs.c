@@ -7,6 +7,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <unistd.h>
+#include <sys/wait.h>
 
 #define MAX_LINE 256
 #define DEBUG_LINES 5
@@ -58,6 +60,72 @@ static void safe_append(char *dst, size_t size, const char *src) {
 
 static void sanitize_line(char *line) {
     line[strcspn(line, "\r")] = '\0';
+}
+
+// ===== exec helper (копия из commands.c) =====
+
+static int exec_command(char *const argv[],
+                        char *resp,
+                        size_t size) {
+
+    int pipefd[2];
+
+    if (pipe(pipefd) < 0) {
+        return -1;
+    }
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return -1;
+    }
+
+    if (pid == 0) {
+        // CHILD
+
+        if (dup2(pipefd[1], STDOUT_FILENO) < 0 ||
+            dup2(pipefd[1], STDERR_FILENO) < 0) {
+            _exit(127);
+        }
+
+        close(pipefd[0]);
+        close(pipefd[1]);
+
+        execv("/usr/bin/journalctl", argv);
+
+        _exit(127);
+    }
+
+    // PARENT
+    close(pipefd[1]);
+
+    resp[0] = '\0';
+    size_t used = 0;
+
+    FILE *fp = fdopen(pipefd[0], "r");
+    if (!fp) {
+        close(pipefd[0]);
+        return -1;
+    }
+
+    while (fgets(resp + used, size - used, fp)) {
+        size_t len = strlen(resp + used);
+        used += len;
+
+        if (used >= size - 1) {
+            strncat(resp, "\n...truncated...", size - strlen(resp) - 1);
+            break;
+        }
+    }
+
+    fclose(fp);
+
+    int status;
+    waitpid(pid, &status, 0);
+
+    return 0;
 }
 
 // ===== основной API =====
@@ -165,21 +233,35 @@ int logs_get(const char *service, char *buffer, size_t size) {
         lines = 200;
     }
 
-    char cmd[512];
+   // ===== prepare args for exec =====
 
-    snprintf(cmd, sizeof(cmd),
-        "journalctl -u %s.service -n %d --no-pager 2>&1",
+    char lines_str[16];
+    snprintf(lines_str, sizeof(lines_str), "%d", lines);
+
+    char *const args[] = {
+        "journalctl",
+        "-u",
+        real_service,
+        "-n",
+        lines_str,
+        "--no-pager",
+        NULL
+    };
+
+// лог команды (безопасно)
+log_msg(LOG_INFO,
+        "exec journalctl: service=%s lines=%d",
         real_service, lines);
 
-    log_msg(LOG_INFO, "Executing command: %s", cmd);
-    log_msg(LOG_DEBUG, "exec cmd: %s", cmd);
+// ===== execute =====
 
-    FILE *fp = popen(cmd, "r");
-    if (!fp) {
-        log_msg(LOG_ERROR, "popen() failed");
-        snprintf(buffer, size, "❌ Failed to read logs");
-        return -1;
-    }
+char tmp[4096];
+
+if (exec_command(args, tmp, sizeof(tmp)) != 0) {
+    log_msg(LOG_ERROR, "exec_command failed");
+    snprintf(buffer, size, "❌ Failed to read logs");
+    return -1;
+}
 
     buffer[0] = '\0';
 
@@ -192,10 +274,11 @@ int logs_get(const char *service, char *buffer, size_t size) {
         filter ? " [filtered]" : ""
     );
 
-    char line[MAX_LINE];
     int line_count = 0;
 
-    while (fgets(line, sizeof(line), fp)) {
+    char *saveptr;
+    char *line = strtok_r(tmp, "\n", &saveptr);
+    while (line) {
 
         // 🔥 early truncation (Telegram-safe)
         if (strlen(buffer) > 3500) {
@@ -211,6 +294,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
         // 🔍 фильтрация в C (вместо grep)
         if (filter && !strcasestr(line, filter)) {
+            line = strtok_r(NULL, "\n", &saveptr);
             continue;
         }
 
@@ -227,13 +311,13 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
         safe_append(buffer, size, line);
         safe_append(buffer, size, "\n");
+
+        line = strtok_r(NULL, "\n", &saveptr);
     }
 
-    int rc = pclose(fp);
-    
     log_msg(LOG_INFO,
-            "exec done: rc=%d, lines=%d, bytes=%zu",
-            rc, line_count, strlen(buffer));
+            "exec done: lines=%d, bytes=%zu",
+            line_count, strlen(buffer));
 
     // ===== fallback если пусто =====
 
@@ -262,6 +346,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
             "📜 LOGS: %s (fallback)\n\n",
             svc,
             filter ? " [filtered]" : ""
+        );
 
         line_count = 0;
 
