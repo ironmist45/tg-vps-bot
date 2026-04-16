@@ -412,11 +412,12 @@ static int cmd_fail2ban(int argc, char *argv[],
     if (argc < 2) {
         snprintf(resp, size,
             "*🛡 Fail2Ban*\n\n"
-            "`/fail2ban status`\n"
-            "`/fail2ban status sshd`\n"
-            "`/fail2ban jail list`\n"
-            "`/fail2ban ban <ip>`\n"
-            "`/fail2ban unban <ip>`");
+            "```\n"
+            "/fail2ban status\n"
+            "/fail2ban status sshd\n"
+            "/fail2ban ban <ip>\n"
+            "/fail2ban unban <ip>");
+            "\n```");
         return 0;
     }
 
@@ -439,7 +440,7 @@ static int cmd_fail2ban(int argc, char *argv[],
             "-n",
             "/usr/local/bin/f2b-wrapper",
             "status",
-            "sshd",
+            argv[2],
             NULL
         };
 
@@ -449,21 +450,6 @@ static int cmd_fail2ban(int argc, char *argv[],
         snprintf(resp, size, "Invalid status usage");
         return -1;
     }
-}
-
-    else if (strcmp(argv[1], "jail") == 0 &&
-             argc >= 3 &&
-             strcmp(argv[2], "list") == 0) {
-
-        char *const args[] = {
-            "sudo",
-            "-n",
-            "/usr/local/bin/f2b-wrapper",
-            "status",
-            NULL
-    };
-
-    return exec_command(args, resp, size);
 }
 
     else if (strcmp(argv[1], "ban") == 0 && argc >= 3) {
