@@ -12,9 +12,12 @@
 #include <sys/select.h>
 #include <signal.h>
 #include <errno.h>
+#include <signal.h>
+#include <time.h>
 
 #define MAX_LINE 256
 #define DEBUG_LINES 5
+#define EXEC_TIMEOUT_MS 6000  // 6 секунд
 #define EXEC_TIMEOUT_SEC 5
 
 // ===== service mapping (alias → systemd) =====
@@ -233,8 +236,44 @@ static int exec_command(char *const argv[],
 
     fclose(fp);
 
-    int status;
-    waitpid(pid, &status, 0);
+    int status = 0;
+    int waited = 0;
+    int finished = 0;
+
+    while (waited < EXEC_TIMEOUT_MS) {
+
+        pid_t rc = waitpid(pid, &status, WNOHANG);
+
+        if (rc == pid) {
+            finished = 1;
+            break;
+        }
+
+        if (rc == -1) {
+            log_msg(LOG_ERROR, "waitpid failed: pid=%d", pid);
+            break;
+        }
+
+        usleep(100000); // 100 ms
+        waited += 100;
+    }
+
+    // 🔥 если не завершился — убиваем
+    if (!finished) {
+
+        log_msg(LOG_WARN,
+            "exec timeout (%d ms), killing pid=%d",
+            EXEC_TIMEOUT_MS, pid);
+
+        kill(pid, SIGKILL);
+
+        // обязательно добираем процесс
+        waitpid(pid, &status, 0);
+
+        return -1;
+    }
+
+    return 0;
 
     if (!WIFEXITED(status)) {
         return -1;
