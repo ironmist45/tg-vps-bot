@@ -58,7 +58,8 @@ int logger_init(const char *path) {
     // 🔥 защита от NULL
     if (!path) {
         log_to_stderr = 1;
-        fprintf(stderr, "logger: NULL path, using stderr\n");
+        LOG_FALLBACK(LOG_ERROR,
+            "logger init failed: NULL path, using stderr");
         return -1;
     }
 
@@ -67,7 +68,8 @@ int logger_init(const char *path) {
     if (!log_file) {
         // fallback на stderr
         log_to_stderr = 1;
-        fprintf(stderr, "logger: failed to open %s, using stderr\n", path);
+        LOG_FALLBACK(LOG_ERROR,
+            "logger init failed: cannot open %s, using stderr", path);
         return -1;
     }
 
