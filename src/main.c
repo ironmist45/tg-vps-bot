@@ -86,9 +86,7 @@ static void graceful_shutdown() {
     // 4. sync файловой системы
     LOG_SYS(LOG_INFO, "Shutdown sequence complete");
     fflush(NULL);
-    
-    logger_close();
-    
+   
     sync();
 }
 
@@ -146,6 +144,9 @@ static void handle_shutdown() {
         LOG_SYS(LOG_INFO, "Shutdown took %ld ms", ms);
 
         LOG_SYS(LOG_WARN, "Rebooting via reboot(RB_AUTOBOOT)...");
+        logger_close(); // 🔥 закрываем логгер ПЕРЕД reboot
+        fflush(NULL);
+        sync();
 
         if (reboot(RB_AUTOBOOT) != 0) {
             LOG_SYS(LOG_ERROR,
@@ -193,7 +194,9 @@ static void handle_shutdown() {
             (end.tv_nsec - start.tv_nsec) / 1000000;
 
         LOG_SYS(LOG_INFO, "Shutdown took %ld ms", ms);
+        logger_close(); // 🔥 ВАЖНО: закрываем логгер ПОСЛЕ всех логов
         fflush(NULL);
+        sync();
 
         if (is_ci()) {
             LOG_SYS(LOG_INFO, "Skipping systemctl restart (CI environment)");
