@@ -256,6 +256,6 @@ Inspired by the idea that infrastructure should remain in your hands.
 
 > Stay independent. 🙂
 
-## 📄 License
+## 📄 License ![License](https://img.shields.io/badge/license-MIT-green)
 
 MIT © ironmist45
