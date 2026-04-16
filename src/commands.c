@@ -416,7 +416,7 @@ static int cmd_fail2ban(int argc, char *argv[],
             "/fail2ban status\n"
             "/fail2ban status sshd\n"
             "/fail2ban ban <ip>\n"
-            "/fail2ban unban <ip>");
+            "/fail2ban unban <ip>"
             "\n```");
         return 0;
     }
