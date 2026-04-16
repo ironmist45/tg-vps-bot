@@ -191,7 +191,7 @@ int services_get_status(char *buffer, size_t size) {
 
          int written = snprintf(buffer + offset,
                                size - offset,
-                               "%-12s  %s\n",
+                               "%-16s : %s\n",
                                services[i].display,
                                status_fmt);
 
