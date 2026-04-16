@@ -68,7 +68,7 @@ static size_t discard_callback(void *ptr, size_t size, size_t nmemb, void *userd
 // ===== escape MarkdownV2 =====
 
 static void escape_markdown(const char *src, char *dst, size_t size) {
-    const char *special = "_[]()~`>#+-=|{}.!";
+    const char *special = "_[]()~>#+-=|{}.!";
 
     size_t j = 0;
 
