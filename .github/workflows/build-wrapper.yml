@@ -1,0 +1,65 @@
+name: Build f2b-wrapper
+
+on:
+  workflow_dispatch:
+
+env:
+  CI: true
+
+jobs:
+  build-wrapper:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # =========================
+      # BUILD
+      # =========================
+      - name: Build f2b-wrapper
+        run: |
+          set -e
+
+          echo "[INFO] building f2b-wrapper..."
+
+          gcc -O2 -Wall -Wextra \
+            tools/f2b-wrapper.c \
+            -o f2b-wrapper
+
+          chmod +x f2b-wrapper
+
+          echo "[OK] build complete"
+
+      # =========================
+      # DEBUG
+      # =========================
+      - name: Debug binary
+        run: |
+          echo "=== ls ==="
+          ls -l
+
+          echo "=== file ==="
+          file f2b-wrapper || true
+
+          echo "=== ldd ==="
+          ldd f2b-wrapper || true
+
+      # =========================
+      # VALIDATION
+      # =========================
+      - name: Ensure binary exists
+        run: |
+          if [ ! -f f2b-wrapper ]; then
+            echo "ERROR: f2b-wrapper not built"
+            exit 1
+          fi
+
+      # =========================
+      # ARTIFACT
+      # =========================
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: f2b-wrapper
+          path: f2b-wrapper
