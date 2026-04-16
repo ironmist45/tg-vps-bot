@@ -6,6 +6,7 @@
 #include "logs.h"
 #include "security.h"
 #include "version.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -14,6 +15,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <ctype.h>
+#include <arpa/inet.h>
 
 #define MAX_ARGS 8
 #define RESP_MAX 8192
@@ -50,22 +52,26 @@ static int cmd_reboot_confirm(int, char **, long, char *, size_t);
 
 // ===== utils =====
 
-static int split_args(char *input, char *argv[], int max_args) {
-    int argc = 0;
-    char *token = strtok(input, " ");
-    while (token && argc < max_args) {
-        argv[argc++] = token;
-        token = strtok(NULL, " ");
-    }
-    return argc;
+static int is_safe_ip(const char *ip) {
+    struct sockaddr_in sa;
+    return inet_pton(AF_INET, ip, &(sa.sin_addr)) == 1;
 }
 
-static int is_safe_ip(const char *ip) {
-    for (size_t i = 0; ip[i]; i++) {
-        if (!(isdigit((unsigned char)ip[i]) || ip[i] == '.'))
-            return 0;
+static int check_access(long chat_id,
+                        const char *cmd,
+                        char *resp,
+                        size_t size) {
+
+    if (!security_is_allowed_chat(chat_id)) {
+        LOG_STATE(LOG_WARN,
+                "ACCESS DENIED: cmd=%s (chat_id=%ld)",
+                cmd, chat_id);
+
+        snprintf(resp, size, "❌ Access denied");
+        return -1;
     }
-    return 1;
+
+    return 0;
 }
 
 // ===== COMMANDS =====
@@ -95,20 +101,16 @@ static int cmd_status(int argc, char *argv[],
 
     (void)argc; (void)argv;
 
-    if (!security_is_allowed_chat(chat_id)) {
-    LOG_STATE(LOG_WARN,
-            "ACCESS DENIED: cmd=%s (chat_id=%ld)",
-            argv[0], chat_id);
-
-    snprintf(resp, size, "❌ Access denied");
-    return -1;
-}
+    if (check_access(chat_id, argv[0], resp, size) != 0)
+        return -1;
   
     if (system_get_status(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get system status");
         return -1;
-}
+    }
+  
 return 0;
+  
 }
 
 static int cmd_about(int argc, char *argv[],
@@ -170,20 +172,16 @@ static int cmd_services(int argc, char *argv[],
 
     (void)argc; (void)argv;
 
-    if (!security_is_allowed_chat(chat_id)) {
-    LOG_STATE(LOG_WARN,
-            "ACCESS DENIED: cmd=%s (chat_id=%ld)",
-            argv[0], chat_id);
-
-    snprintf(resp, size, "❌ Access denied");
-    return -1;
-}
-
+    if (check_access(chat_id, argv[0], resp, size) != 0)
+        return -1;
+  
     if (services_get_status(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get services");
         return -1;
-}
+    }
+  
 return 0;
+  
 }
 
 // ===== LOGS =====
@@ -192,14 +190,8 @@ static int cmd_logs(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size) {
 
-    if (!security_is_allowed_chat(chat_id)) {
-        LOG_STATE(LOG_WARN,
-                "ACCESS DENIED: cmd=%s (chat_id=%ld)",
-                argv[0], chat_id);
-
-        snprintf(resp, size, "❌ Access denied");
+    if (check_access(chat_id, argv[0], resp, size) != 0)
         return -1;
-    }
 
     if (argc < 2) {
         snprintf(resp, size,
@@ -227,6 +219,12 @@ static int cmd_logs(int argc, char *argv[],
         used += written;
     }
 
+
+        if (used >= sizeof(args) - 1) {
+            snprintf(resp, size, "Too many arguments");
+            return -1;
+        }
+
     // ✅ FIX /logs
     if (logs_get(args, resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get logs");
@@ -244,20 +242,16 @@ static int cmd_users(int argc, char *argv[],
 
     (void)argc; (void)argv;
 
-    if (!security_is_allowed_chat(chat_id)) {
-    LOG_STATE(LOG_WARN,
-            "ACCESS DENIED: cmd=%s (chat_id=%ld)",
-            argv[0], chat_id);
-
-    snprintf(resp, size, "❌ Access denied");
-    return -1;
-}
+    if (check_access(chat_id, argv[0], resp, size) != 0)
+        return -1;
   
     if (users_get(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get users");
         return -1;
-}
+    }
+  
 return 0;
+  
 }
 
 // ===== FAIL2BAN (🔥 FIXED + LOGGING) =====
@@ -266,14 +260,8 @@ static int cmd_fail2ban(int argc, char *argv[],
                        long chat_id,
                        char *resp, size_t size) {
 
-    if (!security_is_allowed_chat(chat_id)) {
-    LOG_STATE(LOG_WARN,
-            "ACCESS DENIED: cmd=%s (chat_id=%ld)",
-            argv[0], chat_id);
-
-    snprintf(resp, size, "❌ Access denied");
-    return -1;
-}
+    if (check_access(chat_id, argv[0], resp, size) != 0)
+        return -1;
 
     if (argc < 2) {
         snprintf(resp, size,
@@ -389,14 +377,8 @@ static int cmd_reboot(int argc, char *argv[],
 
     (void)argc; (void)argv;
 
-    if (!security_is_allowed_chat(chat_id)) {
-    LOG_STATE(LOG_WARN,
-            "ACCESS DENIED:cmd=%s (chat_id=%ld)",
-            argv[0], chat_id);
-
-    snprintf(resp, size, "❌ Access denied");
-    return -1;
-}
+    if (check_access(chat_id, argv[0], resp, size) != 0)
+        return -1;
 
     int token = security_generate_reboot_token(chat_id);
 
@@ -411,18 +393,25 @@ static int cmd_reboot_confirm(int argc, char *argv[],
                              long chat_id,
                              char *resp, size_t size) {
     
-    (void)argv; // 🔥 убираем warning
+    if (argc < 2) {
+        snprintf(resp, size, "Usage: /reboot_confirm <token>");
+        return -1;
+    }
 
-    if (argc < 2) return -1;
+    if (check_access(chat_id, argv[0], resp, size) != 0)
+        return -1;
+  
+    int token;
 
-    if (!security_is_allowed_chat(chat_id)) {
-    LOG_STATE(LOG_WARN,
-            "ACCESS DENIED: cmd=%s (chat_id=%ld)",
-            argv[0], chat_id);
+    if (parse_int(argv[1], &token) != 0) {
+        snprintf(resp, size, "Invalid token format");
+        return -1;
+    }
 
-    snprintf(resp, size, "❌ Access denied");
-    return -1;
-}
+    if (security_validate_reboot_token(chat_id, token) != 0) {
+        snprintf(resp, size, "❌ Invalid or expired token");
+        return -1;
+    }
 
     g_reboot_requested_by = chat_id;   // 👈 КТО запросил ребут
     g_shutdown_requested = 2;
@@ -492,9 +481,12 @@ int commands_handle(const char *text,
     }
 
     char buffer[512];
-    strncpy(buffer, text, sizeof(buffer) - 1);
-    buffer[sizeof(buffer) - 1] = '\0';
-
+  
+    if (safe_copy(buffer, sizeof(buffer), text) != 0) {
+        snprintf(response, resp_size, "Command too long");
+        return -1;
+    }
+  
     char *argv[MAX_ARGS];
     int argc = split_args(buffer, argv, MAX_ARGS);
 
