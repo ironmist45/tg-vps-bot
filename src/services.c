@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 
 // ===== whitelist сервисов =====
 
@@ -20,38 +21,91 @@ static service_t services[] = {
 static const int services_count =
     sizeof(services) / sizeof(services[0]);
 
+static int is_valid_service_name(const char *s) {
+    if (!s || *s == '\0') return 0;
+
+    for (size_t i = 0; s[i]; i++) {
+        char c = s[i];
+
+        if (!(isalnum((unsigned char)c) ||
+              c == '-' || c == '_' )) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 // ===== получение статуса =====
 
 static int get_service_status(const char *service, char *out, size_t size) {
 
+    if (!is_valid_service_name(service)) {
+        LOG_SYS(LOG_ERROR, "Invalid service name: %s", service);
+        if (size > 0) {
+            snprintf(out, size, "invalid");
+        }
+        
+        return -1;
+    }
+
     char cmd[256];
-    snprintf(cmd, sizeof(cmd),
-             "systemctl is-active %s.service 2>/dev/null", service);
+    int written = snprintf(cmd, sizeof(cmd),
+        "systemctl is-active %s.service 2>/dev/null", service);
+
+    if (written < 0 || (size_t)written >= sizeof(cmd)) {
+        LOG_SYS(LOG_ERROR, "Command buffer overflow for service %s", service);
+        if (size > 0) {
+            snprintf(out, size, "error");
+        }
+        
+        return -1;
+    }
     
     LOG_SYS(LOG_DEBUG, "exec cmd: %s", cmd);
 
     FILE *fp = popen(cmd, "r");
     if (!fp) {
         LOG_SYS(LOG_ERROR, "popen() failed for %s", service);
-        snprintf(out, size, "unknown");
+        if (size > 0) {
+            snprintf(out, size, "unknown");
+        }
+        
         return -1;
     }
 
     if (fgets(out, size, fp) == NULL) {
         LOG_SYS(LOG_WARN, "systemctl returned no output for %s", service);
-        snprintf(out, size, "unknown");
-        pclose(fp);
+        if (size > 0) {
+            snprintf(out, size, "unknown");
+        }
+        
+        int rc
+        rc = pclose(fp);
+
+        if (rc == -1) {
+            LOG_SYS(LOG_WARN, "pclose failed for %s", service);
+        }
+        
         return -1;
     }
 
-    pclose(fp);
+        int rc
+        rc = pclose(fp);
+
+        if (rc == -1) {
+            LOG_SYS(LOG_WARN, "pclose failed for %s", service);
+        }
 
     // убрать \n
     out[strcspn(out, "\n")] = 0;
 
     // 🔥 убрать ведущие пробелы (на всякий случай)
-    while (*out == ' ') {
-        memmove(out, out + 1, strlen(out));
+    char *p = out;
+    while (*p == ' ') p++;
+
+    if (p != out) {
+        memmove(out, p, strlen(p) + 1);
     }
 
     LOG_SYS(LOG_DEBUG,
@@ -93,6 +147,7 @@ int services_get_status(char *buffer, size_t size) {
         return -1;
     }
 
+    buffer[0] = '\0';
     size_t offset = 0;
 
     // ===== заголовок =====
@@ -134,13 +189,7 @@ int services_get_status(char *buffer, size_t size) {
                 services[i].display,
                 status_fmt);
 
-        // 🛑 защита: буфер уже почти заполнен
-        if (offset >= size - 1) {
-            LOG_SYS(LOG_WARN, "buffer full before writing");
-            break;
-        }
-
-        int written = snprintf(buffer + offset,
+         int written = snprintf(buffer + offset,
                                size - offset,
                                "%-12s  %s\n",
                                services[i].display,
@@ -151,7 +200,7 @@ int services_get_status(char *buffer, size_t size) {
             break;
         }
 
-        if (offset >= size || (size_t)written >= size - offset) {
+        if ((size_t)written >= size - offset) {
             LOG_SYS(LOG_WARN, "services buffer limit reached");
             break;
         }
