@@ -153,7 +153,7 @@ int services_get_status(char *buffer, size_t size) {
     // ===== заголовок =====
     int written = snprintf(buffer + offset,
                            size - offset,
-                           "*🧩 SERVICES*\n\n```");
+                           "*🧩 SERVICES*\n\n```\n");
 
     if (written < 0) {
         LOG_SYS(LOG_ERROR, "snprintf error (header)");
@@ -210,7 +210,7 @@ int services_get_status(char *buffer, size_t size) {
     // 🔥 ВОТ СЮДА ВСТАВЛЯЕМ FOOTER
     int written_end = snprintf(buffer + offset,
                                size - offset,
-                               "```");
+                               "\n```");
 
     if (written_end < 0) {
         LOG_SYS(LOG_ERROR, "snprintf error (footer)");
