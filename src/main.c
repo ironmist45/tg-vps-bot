@@ -92,6 +92,12 @@ static void graceful_shutdown() {
     sync();
 }
 
+// ===== detect CI =====
+
+static int is_ci(void) {
+    return getenv("CI") != NULL;
+}
+
 // ===== SHUTDOWN HANDLER =====
 
 static void handle_shutdown() {
@@ -224,10 +230,6 @@ static void log_user_info() {
 
     LOG_SYS(LOG_INFO, "Effective UID: %d (%s)",
             euid, epw ? epw->pw_name : "unknown");
-}
-
-static int is_ci(void) {
-    return getenv("CI") != NULL;
 }
 
 static void log_workdir() {
