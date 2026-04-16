@@ -199,6 +199,7 @@ static int cmd_start(int argc, char *argv[],
 static int cmd_status(int argc, char *argv[],
                      long chat_id,
                      char *resp, size_t size) {
+    (void)argc;
 
     if (!argv || !argv[0]) {
         snprintf(resp, size, "Invalid command");
@@ -277,6 +278,7 @@ static int cmd_ping(int argc, char *argv[],
 static int cmd_services(int argc, char *argv[],
                        long chat_id,
                        char *resp, size_t size) {
+    (void)argc;
 
     if (!argv || !argv[0]) {
         snprintf(resp, size, "Invalid command");
@@ -356,6 +358,7 @@ static int cmd_logs(int argc, char *argv[],
 static int cmd_users(int argc, char *argv[],
                     long chat_id,
                     char *resp, size_t size) {
+    (void)argc;
 
     if (!argv || !argv[0]) {
         snprintf(resp, size, "Invalid command");
@@ -506,6 +509,7 @@ static int cmd_fail2ban(int argc, char *argv[],
 static int cmd_reboot(int argc, char *argv[],
                      long chat_id,
                      char *resp, size_t size) {
+    (void)argc;
 
     if (!argv || !argv[0]) {
         snprintf(resp, size, "Invalid command");
