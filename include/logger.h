@@ -40,4 +40,8 @@ const char *logger_level_to_string(log_level_t level);
 #define LOG_CMD(level, fmt, ...) \
     log_msg(level, "[CMD] " fmt, ##__VA_ARGS__)
 
+#define LOG_FALLBACK(level, fmt, ...) \
+    fprintf(stderr, "[%s] [SYS] " fmt "\n", \
+        logger_level_to_string(level), ##__VA_ARGS__)
+
 #endif
