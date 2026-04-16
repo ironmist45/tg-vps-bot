@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <utmp.h>
 #include <sys/statvfs.h>
 
 // ===== CPU load =====
@@ -43,23 +44,30 @@ static void get_memory(int *used_mb, int *total_mb, int *percent) {
     char key[64];
     long value;
     char unit[16];
+    char line[128];
 
-    while (fscanf(fp, "%63s %ld %15s\n", key, &value, unit) == 3) {
+    while (fgets(line, sizeof(line), fp)) {
+
+        int n = sscanf(line, "%63s %ld %15s", key, &value, unit);
+        if (n < 2)
+            continue;
 
         if (strcmp(key, "MemTotal:") == 0) {
             mem_total = value;
         }
+            
         else if (strcmp(key, "MemAvailable:") == 0) {
             mem_available = value;
         }
 
         if (mem_total && mem_available)
             break;
-    }
+}
 
     fclose(fp);
 
-    if (mem_total == 0) {
+    if (mem_total == 0 || mem_available == 0) {
+        LOG_STATE(LOG_WARN, "meminfo incomplete");
         *used_mb = *total_mb = *percent = 0;
         return;
     }
@@ -87,10 +95,13 @@ static void get_disk(int *used_gb, int *total_gb, int *percent) {
         return;
     }
 
-    unsigned long total = (fs.f_blocks * fs.f_frsize);
-    unsigned long free  = (fs.f_bfree  * fs.f_frsize);
+    unsigned long long total =
+        (unsigned long long)fs.f_blocks * fs.f_frsize;
 
-    unsigned long used = total - free;
+    unsigned long long free =
+        (unsigned long long)fs.f_bavail * fs.f_frsize;
+
+    unsigned long long used = total - free;
 
     *total_gb = (int)(total / (1024 * 1024 * 1024));
     *used_gb  = (int)(used  / (1024 * 1024 * 1024));
@@ -110,22 +121,25 @@ static void get_disk(int *used_gb, int *total_gb, int *percent) {
 
 static void get_uptime(int *days, int *hours, int *mins) {
     FILE *fp = fopen("/proc/uptime", "r");
+    
     if (!fp) {
+        LOG_STATE(LOG_WARN, "Failed to open /proc/uptime");
         *days = *hours = *mins = 0;
         return;
     }
-
+    
     double uptime_sec = 0;
 
     if (fscanf(fp, "%lf", &uptime_sec) != 1) {
+        LOG_STATE(LOG_WARN, "Failed to parse /proc/uptime");
         fclose(fp);
         *days = *hours = *mins = 0;
         return;
     }
-
+    
     fclose(fp);
 
-    int total = (int)uptime_sec;
+    long total = (long)uptime_sec;
 
     *days  = total / 86400;
     *hours = (total % 86400) / 3600;
@@ -139,29 +153,23 @@ static void get_uptime(int *days, int *hours, int *mins) {
 // ===== users =====
 
 static int get_user_count() {
-    
-    const char *cmd = "who | wc -l";
-    LOG_STATE(LOG_DEBUG, "exec cmd: %s", cmd);
-    
-    FILE *fp = popen(cmd, "r");
-    if (!fp) {
-        LOG_STATE(LOG_WARN, "popen(who) failed");
-        return 0;
+
+    struct utmp *entry;
+    int count = 0;
+
+    setutent();
+
+    while ((entry = getutent()) != NULL) {
+        if (entry->ut_type == USER_PROCESS) {
+            count++;
+        }
     }
 
-    int users = 0;
+    endutent();
 
-    if (fscanf(fp, "%d", &users) != 1) {
-        users = 0;
-    }
+    LOG_STATE(LOG_DEBUG, "users (utmp): count=%d", count);
 
-    int rc = pclose(fp);
-
-    LOG_STATE(LOG_INFO,
-            "users: rc=%d count=%d",
-            rc, users);
-
-    return users;
+    return count;
 }
 
 // ===== main API =====
@@ -173,6 +181,8 @@ int system_get_status(char *buffer, size_t size) {
     if (!buffer || size == 0) {
         return -1;
     }
+
+    buffer[0] = '\0';
 
     double l1, l5, l15;
     get_load(&l1, &l5, &l15);
@@ -215,5 +225,6 @@ int system_get_status(char *buffer, size_t size) {
     LOG_STATE(LOG_INFO, "system status built successfully (len=%d)",
                         written);
     
-    return 0;
+    if (written < 0)
+        return -1;
 }
