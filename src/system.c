@@ -227,4 +227,6 @@ int system_get_status(char *buffer, size_t size) {
     
     if (written < 0)
         return -1;
+
+    return 0;
 }
