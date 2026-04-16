@@ -153,7 +153,7 @@ int services_get_status(char *buffer, size_t size) {
     // ===== заголовок =====
     int written = snprintf(buffer + offset,
                            size - offset,
-                           "*🧩 SERVICES*\n\n");
+                           "*🧩 SERVICES*\n\n```");
 
     if (written < 0) {
         LOG_SYS(LOG_ERROR, "snprintf error (header)");
@@ -207,6 +207,19 @@ int services_get_status(char *buffer, size_t size) {
 
         offset += (size_t)written;
 }
+    // 🔥 ВОТ СЮДА ВСТАВЛЯЕМ FOOTER
+    int written_end = snprintf(buffer + offset,
+                               size - offset,
+                               "```");
+
+    if (written_end < 0) {
+        LOG_SYS(LOG_ERROR, "snprintf error (footer)");
+    } else if ((size_t)written_end >= size - offset) {
+        LOG_SYS(LOG_WARN, "services buffer truncated (footer)");
+    } else {
+        offset += (size_t)written_end;
+    }
+    
     LOG_STATE(LOG_DEBUG, "services response ready: %zu bytes", offset);
 
     return 0;
