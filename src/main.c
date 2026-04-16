@@ -146,6 +146,11 @@ static void handle_shutdown() {
                     "reboot() failed: errno=%d (%s)",
                     errno, strerror(errno));
 
+            if (is_ci()) {
+                LOG_SYS(LOG_INFO, "Skipping systemctl reboot (CI environment)");
+                return;
+            }
+            
             LOG_SYS(LOG_WARN, "Fallback: systemctl reboot");
 
             fflush(NULL); // flush всех буферов
@@ -184,6 +189,11 @@ static void handle_shutdown() {
         LOG_SYS(LOG_INFO, "Shutdown took %ld ms", ms);
         fflush(NULL);
 
+        if (is_ci()) {
+            LOG_SYS(LOG_INFO, "Skipping systemctl restart (CI environment)");
+            return;
+        }
+
         execl("/bin/systemctl",
               "systemctl",
               "restart",
@@ -214,6 +224,10 @@ static void log_user_info() {
 
     LOG_SYS(LOG_INFO, "Effective UID: %d (%s)",
             euid, epw ? epw->pw_name : "unknown");
+}
+
+static int is_ci(void) {
+    return getenv("CI") != NULL;
 }
 
 static void log_workdir() {
