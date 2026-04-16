@@ -20,6 +20,11 @@ jobs:
         run: |
           docker run --rm -v $PWD:/app -w /app ubuntu:18.04 bash -c "
             set -e
+            export DEBIAN_FRONTEND=noninteractive
+
+            # 🔥 FIX for Ubuntu 18.04 EOL
+            sed -i 's|archive.ubuntu.com|old-releases.ubuntu.com|g' /etc/apt/sources.list
+            sed -i 's|security.ubuntu.com|old-releases.ubuntu.com|g' /etc/apt/sources.list
 
             apt update
             apt install -y \
