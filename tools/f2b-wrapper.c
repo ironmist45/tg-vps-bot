@@ -10,12 +10,35 @@ static int is_safe_ip(const char *ip) {
     if (!ip || !*ip)
         return 0;
 
+    int dots = 0;
+    int num = 0;
+    int has_digit = 0;
+
     for (size_t i = 0; ip[i]; i++) {
-        if (!(isdigit((unsigned char)ip[i]) || ip[i] == '.'))
+
+        if (isdigit((unsigned char)ip[i])) {
+            num = num * 10 + (ip[i] - '0');
+
+            if (num > 255)
+                return 0;
+
+            has_digit = 1;
+        }
+        else if (ip[i] == '.') {
+
+            if (!has_digit)
+                return 0;
+
+            dots++;
+            num = 0;
+            has_digit = 0;
+        }
+        else {
             return 0;
+        }
     }
 
-    return 1;
+    return (dots == 3 && has_digit);
 }
 
 // ===== main =====
@@ -35,6 +58,8 @@ int main(int argc, char *argv[]) {
                    "fail2ban-client",
                    "status",
                    NULL);
+            perror("execlp: fail2ban-client exec failed");
+            return 1;
         }
 
         if (argc == 3 && strcmp(argv[2], "sshd") == 0) {
@@ -43,6 +68,8 @@ int main(int argc, char *argv[]) {
                    "status",
                    "sshd",
                    NULL);
+            perror("execlp: fail2ban-client exec failed");
+            return 1;
         }
 
         fprintf(stderr, "Invalid status command\n");
@@ -65,6 +92,8 @@ int main(int argc, char *argv[]) {
                    argv[3],
                    argv[4],
                    NULL);
+            perror("execlp: fail2ban-client exec failed");
+            return 1;
         }
 
         fprintf(stderr, "Invalid set command\n");
