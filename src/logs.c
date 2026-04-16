@@ -9,9 +9,13 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/select.h>
+#include <signal.h>
+#include <errno.h>
 
 #define MAX_LINE 256
 #define DEBUG_LINES 5
+#define EXEC_TIMEOUT_SEC 5
 
 // ===== service mapping (alias → systemd) =====
 
@@ -180,7 +184,44 @@ static int exec_command(char *const argv[],
         return -1;
     }
 
-    while (fgets(resp + used, size - used, fp)) {
+    int fd = pipefd[0];
+
+    while (1) {
+        fd_set set;
+        struct timeval timeout;
+
+        FD_ZERO(&set);
+        FD_SET(fd, &set);
+
+        timeout.tv_sec = EXEC_TIMEOUT_SEC;
+        timeout.tv_usec = 0;
+
+        int rv = select(fd + 1, &set, NULL, NULL, &timeout);
+
+        if (rv == 0) {
+            // ⏰ timeout
+            log_msg(LOG_ERROR, "exec timeout, killing pid=%d", pid);
+            kill(pid, SIGKILL);
+            fclose(fp);
+            waitpid(pid, NULL, 0);
+            return -1;
+        }
+
+        if (rv < 0) {
+            if (errno == EINTR)
+                continue;
+
+            log_msg(LOG_ERROR, "select() failed");
+            fclose(fp);
+            waitpid(pid, NULL, 0);
+            return -1;
+        }
+
+        // есть данные → читаем
+        if (fgets(resp + used, size - used, fp) == NULL) {
+            break; // EOF
+        }
+
         size_t len = strlen(resp + used);
         used += len;
 
