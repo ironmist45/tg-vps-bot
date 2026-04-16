@@ -15,6 +15,9 @@
 #include <unistd.h>
 #include <signal.h>
 #include <ctype.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <fcntl.h>
 #include <arpa/inet.h>
 
 #define MAX_ARGS 8
@@ -49,6 +52,102 @@ static int cmd_users(int, char **, long, char *, size_t);
 static int cmd_fail2ban(int, char **, long, char *, size_t);
 static int cmd_reboot(int, char **, long, char *, size_t);
 static int cmd_reboot_confirm(int, char **, long, char *, size_t);
+
+// ==== exec ====
+
+static int exec_command(char *const argv[],
+                        char *resp,
+                        size_t size) {
+
+    int pipefd[2];
+
+    if (pipe(pipefd) < 0) {
+        return -1;
+    }
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return -1;
+    }
+
+    if (pid == 0) {
+        // ===== CHILD =====
+
+        // stdout -> pipe
+        if (dup2(pipefd[1], STDOUT_FILENO) < 0 ||
+            dup2(pipefd[1], STDERR_FILENO) < 0) {
+            _exit(127);
+        }
+
+        close(pipefd[0]);
+        close(pipefd[1]);
+
+        // ===== DEBUG: print command =====
+        for (int i = 0; argv[i]; i++) {
+            dprintf(STDERR_FILENO, "[exec] argv[%d]=%s\n", i, argv[i]);
+        }
+
+        execv("/usr/bin/sudo", argv);
+
+        // если exec не сработал
+        _exit(127);
+    }
+
+    // ===== PARENT =====
+
+    close(pipefd[1]);
+
+    resp[0] = '\0';
+    size_t used = 0;
+    int lines = 0;
+
+    FILE *fp = fdopen(pipefd[0], "r");
+    if (!fp) {
+        close(pipefd[0]);
+        return -1;
+    }
+
+    while (fgets(resp + used, size - used, fp)) {
+        size_t len = strlen(resp + used);
+        used += len;
+        lines++;
+
+        if (used >= size - 1) {
+            strncat(resp, "\n...truncated...", size - strlen(resp) - 1);
+            break;
+        }
+    }
+
+    fclose(fp);
+
+    int status;
+    if (waitpid(pid, &status, 0) < 0) {
+        log_msg(LOG_ERROR, "waitpid failed");
+        return -1;
+    }
+
+    if (WIFEXITED(status)) {
+        int code = WEXITSTATUS(status);
+        log_msg(LOG_INFO, "exit code=%d", code);
+} else {
+    log_msg(LOG_WARN, "process terminated abnormally");
+}
+
+    log_msg(LOG_INFO,
+        "exec done: status=%d, lines=%d, bytes=%zu",
+        status, lines, used);
+
+    if (used == 0) {
+        snprintf(resp, size,
+            "⚠️ No output (exit=%d)",
+            WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+    }
+
+    return 0;
+}
 
 // ===== utils =====
 
@@ -88,9 +187,11 @@ static int cmd_start(int argc, char *argv[],
         snprintf(status, sizeof(status), "⚠️ Failed to get system info");
     }
 
-    snprintf(resp, size,
+    int written = snprintf(resp, size,
         "*🚀 %s v%s (%s)*\n\n%s\n\n👉 /help",
         APP_NAME, APP_VERSION, APP_CODENAME, status);
+    if (written < 0 || (size_t)written >= size)
+        return -1;
 
     return 0;
 }
@@ -99,7 +200,10 @@ static int cmd_status(int argc, char *argv[],
                      long chat_id,
                      char *resp, size_t size) {
 
-    (void)argc; (void)argv;
+    if (!argv || !argv[0]) {
+        snprintf(resp, size, "Invalid command");
+        return -1;
+    }
 
     if (check_access(chat_id, argv[0], resp, size) != 0)
         return -1;
@@ -126,13 +230,15 @@ static int cmd_about(int argc, char *argv[],
     int hours = (uptime % 86400) / 3600;
     int mins = (uptime % 3600) / 60;
 
-    snprintf(resp, size,
+    int written = snprintf(resp, size,
         "*ℹ️ ABOUT*\n\n"
         "%s v%s (%s)\n"
         "PID: %d\n"
         "Uptime: %dd %dh %dm",
         APP_NAME, APP_VERSION, APP_CODENAME,
         getpid(), days, hours, mins);
+    if (written < 0 || (size_t)written >= size)
+        return -1;
 
     return 0;
 }
@@ -155,11 +261,13 @@ static int cmd_ping(int argc, char *argv[],
         (end.tv_sec - start.tv_sec) * 1000 +
         (end.tv_nsec - start.tv_nsec) / 1000000;
 
-    snprintf(resp, size,
+    int written = snprintf(resp, size,
         "*🏓 PING*\n\n"
         "Response: `pong`\n"
         "Latency: `%ld ms`",
         ms);
+    if (written < 0 || (size_t)written >= size)
+        return -1;
 
     return 0;
 }
@@ -170,7 +278,10 @@ static int cmd_services(int argc, char *argv[],
                        long chat_id,
                        char *resp, size_t size) {
 
-    (void)argc; (void)argv;
+    if (!argv || !argv[0]) {
+        snprintf(resp, size, "Invalid command");
+        return -1;
+    }
 
     if (check_access(chat_id, argv[0], resp, size) != 0)
         return -1;
@@ -189,6 +300,11 @@ return 0;
 static int cmd_logs(int argc, char *argv[],
                    long chat_id,
                    char *resp, size_t size) {
+
+    if (!argv || !argv[0]) {
+        snprintf(resp, size, "Invalid command");
+        return -1;
+    } 
 
     if (check_access(chat_id, argv[0], resp, size) != 0)
         return -1;
@@ -213,12 +329,13 @@ static int cmd_logs(int argc, char *argv[],
                                "%s%s",
                                argv[i],
                                (i < argc - 1) ? " " : "");
-        if (written < 0 || (size_t)written >= sizeof(args) - used)
-            break;
-
+        if (written < 0 || (size_t)written >= sizeof(args) - used) {
+            snprintf(resp, size, "Too many arguments");
+            return -1;
+        }
+      
         used += written;
     }
-
 
         if (used >= sizeof(args) - 1) {
             snprintf(resp, size, "Too many arguments");
@@ -240,7 +357,10 @@ static int cmd_users(int argc, char *argv[],
                     long chat_id,
                     char *resp, size_t size) {
 
-    (void)argc; (void)argv;
+    if (!argv || !argv[0]) {
+        snprintf(resp, size, "Invalid command");
+        return -1;
+    }
 
     if (check_access(chat_id, argv[0], resp, size) != 0)
         return -1;
@@ -260,6 +380,11 @@ static int cmd_fail2ban(int argc, char *argv[],
                        long chat_id,
                        char *resp, size_t size) {
 
+    if (!argv || !argv[0]) {
+        snprintf(resp, size, "Invalid command");
+        return -1;
+    }
+
     if (check_access(chat_id, argv[0], resp, size) != 0)
         return -1;
 
@@ -274,29 +399,51 @@ static int cmd_fail2ban(int argc, char *argv[],
         return 0;
     }
 
-    char cmd[256] = {0};
-
     if (strcmp(argv[1], "status") == 0) {
 
         if (argc == 2) {
-            snprintf(cmd, sizeof(cmd),
-                     "sudo -n /usr/local/bin/f2b-wrapper status 2>&1");
-        } else if (argc >= 3 && strcmp(argv[2], "sshd") == 0) {
-            snprintf(cmd, sizeof(cmd),
-                     "sudo -n /usr/local/bin/f2b-wrapper status sshd 2>&1");
-        } else {
-            snprintf(resp, size, "Invalid status usage");
-            return -1;
-        }
+            char *const args[] = {
+                "sudo",
+                "-n",
+                "/usr/local/bin/f2b-wrapper",
+                "status",
+                NULL
+        };
+
+        return exec_command(args, resp, size);
     }
+    else if (argc >= 3 && strcmp(argv[2], "sshd") == 0) {
+        char *const args[] = {
+            "sudo",
+            "-n",
+            "/usr/local/bin/f2b-wrapper",
+            "status",
+            "sshd",
+            NULL
+        };
+
+        return exec_command(args, resp, size);
+    }
+    else {
+        snprintf(resp, size, "Invalid status usage");
+        return -1;
+    }
+}
 
     else if (strcmp(argv[1], "jail") == 0 &&
              argc >= 3 &&
              strcmp(argv[2], "list") == 0) {
 
-        snprintf(cmd, sizeof(cmd),
-                 "sudo -n /usr/local/bin/f2b-wrapper status 2>&1");
-    }
+        char *const args[] = {
+            "sudo",
+            "-n",
+            "/usr/local/bin/f2b-wrapper",
+            "status",
+            NULL
+    };
+
+    return exec_command(args, resp, size);
+}
 
     else if (strcmp(argv[1], "ban") == 0 && argc >= 3) {
 
@@ -306,13 +453,22 @@ static int cmd_fail2ban(int argc, char *argv[],
         }
 
         LOG_STATE(LOG_WARN,
-                "FAIL2BAN BAN: cmd=%s (chat_id=%ld)",
-                argv[2], chat_id);
+            "FAIL2BAN BAN: ip=%s (chat_id=%ld)",
+            argv[2], chat_id);
 
-        snprintf(cmd, sizeof(cmd),
-                 "sudo -n /usr/local/bin/f2b-wrapper set sshd banip %s 2>&1",
-                 argv[2]);
-    }
+        char *const args[] = {
+            "sudo",
+            "-n",
+            "/usr/local/bin/f2b-wrapper",
+            "set",
+            "sshd",
+            "banip",
+            argv[2],
+            NULL
+        };
+
+        return exec_command(args, resp, size);
+}
 
     else if (strcmp(argv[1], "unban") == 0 && argc >= 3) {
 
@@ -322,69 +478,50 @@ static int cmd_fail2ban(int argc, char *argv[],
         }
 
         LOG_STATE(LOG_WARN,
-                "FAIL2BAN UNBAN: cmd=%s (chat_id=%ld)",
-                argv[2], chat_id);
+            "FAIL2BAN UNBAN: ip=%s (chat_id=%ld)",
+            argv[2], chat_id);
 
-        snprintf(cmd, sizeof(cmd),
-                 "sudo -n /usr/local/bin/f2b-wrapper set sshd unbanip %s 2>&1",
-                 argv[2]);
-    }
+        char *const args[] = {
+            "sudo",
+            "-n",
+            "/usr/local/bin/f2b-wrapper",
+            "set",
+            "sshd",
+            "unbanip",
+            argv[2],
+            NULL
+        };
+
+        return exec_command(args, resp, size);
+}
 
     else {
         snprintf(resp, size, "Invalid fail2ban command");
         return -1;
     }
-
-    log_msg(LOG_INFO, "fail2ban exec: cmd=%s", cmd);
-    log_msg(LOG_DEBUG, "exec cmd: cmd=%s", cmd);
-
-    FILE *fp = popen(cmd, "r");
-    if (!fp) {
-        snprintf(resp, size, "Execution failed");
-        return -1;
-    }
-
-    resp[0] = '\0';
-    size_t used = 0;
-    int lines = 0;
-
-    while (fgets(resp + used, size - used, fp)) {
-        used = strlen(resp);
-        lines++;
-      
-        if (used >= size - 1)
-            break;
-    }
-
-    int rc = pclose(fp);
-
-    log_msg(LOG_INFO,
-            "exec done: rc=%d, lines=%d, bytes=%zu",
-            rc, lines, used);
-
-    if (used == 0) {
-        snprintf(resp, size, "No output (check sudo / wrapper)");
-    }
-
-    return 0;
+  
 }
-
 // ===== REBOOT =====
 
 static int cmd_reboot(int argc, char *argv[],
                      long chat_id,
                      char *resp, size_t size) {
 
-    (void)argc; (void)argv;
+    if (!argv || !argv[0]) {
+        snprintf(resp, size, "Invalid command");
+        return -1;
+    }
 
     if (check_access(chat_id, argv[0], resp, size) != 0)
         return -1;
 
     int token = security_generate_reboot_token(chat_id);
 
-    snprintf(resp, size,
+    int written = snprintf(resp, size,
         "⚠️ Confirm reboot:\n`/reboot_confirm %d`",
         token);
+    if (written < 0 || (size_t)written >= size)
+        return -1;
 
     return 0;
 }
@@ -392,6 +529,11 @@ static int cmd_reboot(int argc, char *argv[],
 static int cmd_reboot_confirm(int argc, char *argv[],
                              long chat_id,
                              char *resp, size_t size) {
+  
+    if (!argv || !argv[0]) {
+        snprintf(resp, size, "Invalid command");
+        return -1;
+    }
     
     if (argc < 2) {
         snprintf(resp, size, "Usage: /reboot_confirm <token>");
