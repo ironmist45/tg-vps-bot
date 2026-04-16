@@ -241,7 +241,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
     char *const args[] = {
         "journalctl",
         "-u",
-        real_service,
+        (char *)real_service,
         "-n",
         lines_str,
         "--no-pager",
@@ -319,6 +319,8 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
             "exec done: lines=%d, bytes=%zu",
             line_count, strlen(buffer));
 
+    char cmd[512];
+    FILE *fp;
     // ===== fallback если пусто =====
 
     if (line_count == 0) {
@@ -343,7 +345,7 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
         buffer[0] = '\0';
 
         snprintf(buffer, size,
-            "📜 LOGS: %s (fallback)\n\n",
+            "📜 LOGS: %s (fallback)%s\n\n",
             svc,
             filter ? " [filtered]" : ""
         );
