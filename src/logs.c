@@ -319,8 +319,6 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
             "exec done: lines=%d, bytes=%zu",
             line_count, strlen(buffer));
 
-    char cmd[512];
-    FILE *fp;
     // ===== fallback если пусто =====
 
     if (line_count == 0) {
@@ -328,17 +326,24 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
         log_msg(LOG_WARN,
                 "No logs for %s, trying global journal", svc);
 
-        snprintf(cmd, sizeof(cmd),
-            "journalctl -n %d --no-pager 2>&1",
-            lines);
+        char lines_str2[16];
+        snprintf(lines_str2, sizeof(lines_str2), "%d", lines);
 
-        log_msg(LOG_INFO, "Fallback command: %s", cmd);
-        log_msg(LOG_DEBUG, "exec cmd: %s", cmd);
+        char *const fallback_args[] = {
+            "journalctl",
+            "-n",
+            lines_str2,
+            "--no-pager",
+            NULL
+        };
 
-        fp = popen(cmd, "r");
-        if (!fp) {
-            snprintf(buffer, size,
-                "❌ No logs available");
+        log_msg(LOG_INFO,
+                "fallback exec journalctl: lines=%d",
+                lines);
+
+        if (exec_command(fallback_args, tmp, sizeof(tmp)) != 0) {
+            log_msg(LOG_ERROR, "fallback exec_command failed");
+            snprintf(buffer, size, "❌ No logs available");
             return -1;
         }
 
@@ -352,7 +357,7 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
 
         line_count = 0;
 
-        while (fgets(line, sizeof(line), fp)) {
+        while (line) {
 
             if (strlen(buffer) > 3500) {
                 safe_append(buffer, size, "\n...\n[truncated]");
@@ -362,10 +367,10 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
 
             sanitize_line(line);
 
-            // 🔥 убрать ANSI / мусор
             line[strcspn(line, "\x1b")] = '\0';
-            
+
             if (filter && !strcasestr(line, filter)) {
+                line = strtok_r(NULL, "\n", &saveptr);
                 continue;
             }
 
@@ -376,14 +381,13 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
 
             safe_append(buffer, size, line);
             safe_append(buffer, size, "\n");
+
+            line = strtok_r(NULL, "\n", &saveptr);
         }
 
-        int rc2 = pclose(fp);
-
         log_msg(LOG_INFO,
-                "fallback exec done: rc=%d, lines=%d, bytes=%zu",
-                rc2, line_count, strlen(buffer));
-    }
+                "fallback exec done: lines=%d, bytes=%zu",
+                line_count, strlen(buffer));
 
     // ===== если всё ещё пусто =====
 
