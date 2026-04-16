@@ -62,6 +62,76 @@ static void sanitize_line(char *line) {
     line[strcspn(line, "\r")] = '\0';
 }
 
+static int process_logs_output(char *tmp,
+                               char *buffer,
+                               size_t size,
+                               const char *svc,
+                               int lines,
+                               const char *filter,
+                               int is_fallback)
+{
+    buffer[0] = '\0';
+
+    snprintf(buffer, size,
+        "📜 LOGS: %s (%s%d lines)%s\n\n",
+        svc,
+        is_fallback ? "fallback, " : "",
+        lines,
+        filter ? " [filtered]" : ""
+    );
+
+    int line_count = 0;
+
+    char *saveptr;
+    char *line = strtok_r(tmp, "\n", &saveptr);
+
+    while (line) {
+
+        if (strlen(buffer) > 3500) {
+            safe_append(buffer, size, "\n...\n[truncated]");
+            log_msg(LOG_WARN,
+                "%s logs truncated early",
+                is_fallback ? "fallback" : "logs");
+            break;
+        }
+
+        sanitize_line(line);
+
+        line[strcspn(line, "\x1b")] = '\0';
+
+        if (filter && !strcasestr(line, filter)) {
+            line = strtok_r(NULL, "\n", &saveptr);
+            continue;
+        }
+
+        if (line_count < DEBUG_LINES) {
+            log_msg(LOG_DEBUG,
+                "%s LOG LINE[%d]: %s",
+                is_fallback ? "FALLBACK" : "LOG",
+                line_count, line);
+        }
+
+        line_count++;
+
+        if (strlen(buffer) + strlen(line) >= size - 5) {
+            log_msg(LOG_WARN, "Buffer limit reached");
+            break;
+        }
+
+        safe_append(buffer, size, line);
+        safe_append(buffer, size, "\n");
+
+        line = strtok_r(NULL, "\n", &saveptr);
+    }
+
+    log_msg(LOG_INFO,
+        "%s exec done: lines=%d, bytes=%zu",
+        is_fallback ? "fallback" : "exec",
+        line_count, strlen(buffer));
+
+    return line_count;
+}
+
 // ===== exec helper (копия из commands.c) =====
 
 static int exec_command(char *const argv[],
@@ -263,63 +333,17 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
     return -1;
 }
 
-    buffer[0] = '\0';
-
-    // ===== header =====
-
-    snprintf(buffer, size,
-        "📜 LOGS: %s (%d lines)%s\n\n",
+    int line_count = process_logs_output(
+        tmp,
+        buffer,
+        size,
         svc,
         lines,
-        filter ? " [filtered]" : ""
+        filter,
+        0
     );
-
-    int line_count = 0;
-
-    char *saveptr;
-    char *line = strtok_r(tmp, "\n", &saveptr);
-    while (line) {
-
-        // 🔥 early truncation (Telegram-safe)
-        if (strlen(buffer) > 3500) {
-            safe_append(buffer, size, "\n...\n[truncated]");
-            log_msg(LOG_WARN, "logs truncated early (size limit)");
-            break;
-        }
-
-        sanitize_line(line);
-
-        // 🔥 убрать ANSI / мусор
-        line[strcspn(line, "\x1b")] = '\0';
-
-        // 🔍 фильтрация в C (вместо grep)
-        if (filter && !strcasestr(line, filter)) {
-            line = strtok_r(NULL, "\n", &saveptr);
-            continue;
-        }
-
-        if (line_count < DEBUG_LINES) {
-            log_msg(LOG_DEBUG, "LOG LINE[%d]: %s", line_count, line);
-        }
-
-        line_count++;
-
-        if (strlen(buffer) + strlen(line) >= size - 5) {
-            log_msg(LOG_WARN, "Buffer limit reached");
-            break;
-        }
-
-        safe_append(buffer, size, line);
-        safe_append(buffer, size, "\n");
-
-        line = strtok_r(NULL, "\n", &saveptr);
-    }
-
-    log_msg(LOG_INFO,
-            "exec done: lines=%d, bytes=%zu",
-            line_count, strlen(buffer));
-
-    // ===== fallback если пусто =====
+            
+    // ===== дальше сразу fallback если пусто =====
 
     if (line_count == 0) {
 
@@ -347,48 +371,21 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
             return -1;
         }
 
-        buffer[0] = '\0';
-
-        snprintf(buffer, size,
-            "📜 LOGS: %s (fallback)%s\n\n",
+        line_count = process_logs_output(
+            tmp,
+            buffer,
+            size,
             svc,
-            filter ? " [filtered]" : ""
+            lines,
+            filter,
+            1
         );
-
-        line_count = 0;
-
-        while (line) {
-
-            if (strlen(buffer) > 3500) {
-                safe_append(buffer, size, "\n...\n[truncated]");
-                log_msg(LOG_WARN, "fallback logs truncated early");
-                break;
-            }
-
-            sanitize_line(line);
-
-            line[strcspn(line, "\x1b")] = '\0';
-
-            if (filter && !strcasestr(line, filter)) {
-                line = strtok_r(NULL, "\n", &saveptr);
-                continue;
-            }
-
-            line_count++;
-
-            if (strlen(buffer) + strlen(line) >= size - 5)
-                break;
-
-            safe_append(buffer, size, line);
-            safe_append(buffer, size, "\n");
-
-            line = strtok_r(NULL, "\n", &saveptr);
-        }
-
+    
         log_msg(LOG_INFO,
                 "fallback exec done: lines=%d, bytes=%zu",
                 line_count, strlen(buffer));
-
+    }
+    
     // ===== если всё ещё пусто =====
 
     if (line_count == 0) {
@@ -396,8 +393,8 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
             "📜 LOGS: %s\n\nNo logs found",
             svc);
     }
-
+    
     log_msg(LOG_DEBUG, "final buffer size: %zu", strlen(buffer));
-
+    
     return 0;
 }
