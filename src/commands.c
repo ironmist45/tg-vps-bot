@@ -85,11 +85,29 @@ static int exec_command(char *const argv[],
         close(pipefd[0]);
         close(pipefd[1]);
 
-        // ===== DEBUG: print command =====
-        for (int i = 0; argv[i]; i++) {
-            dprintf(STDERR_FILENO, "[exec] argv[%d]=%s\n", i, argv[i]);
-        }
+        // ===== DEBUG: build full command line =====
+        char cmdline[256] = {0};
+        size_t used = 0;
 
+        for (int i = 0; argv[i]; i++) {
+
+            int written = snprintf(cmdline + used,
+                                   sizeof(cmdline) - used,
+                                   "%s%s",
+                                   argv[i],
+                                   argv[i + 1] ? " " : "");
+
+            if (written < 0 || (size_t)written >= sizeof(cmdline) - used) {
+                LOG_CMD(LOG_WARN, "exec cmdline truncated");
+                break;
+            }
+
+            used += (size_t)written;
+      }
+
+LOG_CMD(LOG_DEBUG, "exec: %s", cmdline);
+
+        // ===== EXEC =====
         execv("/usr/bin/sudo", argv);
 
         // если exec не сработал
