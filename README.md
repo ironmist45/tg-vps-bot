@@ -1,10 +1,6 @@
-# 🚀 Telegram Server Bot (pure C)
+# 🚀 Telegram Server Bot (pure C) ![Build](https://github.com/ironmist45/tg-vps-bot/actions/workflows/build.yml/badge.svg)
 
 Production-ready Telegram bot for server monitoring and management, written in pure C.
-
-# tg-vps-bot
-
-![Build](https://github.com/ironmist45/tg-vps-bot/actions/workflows/build.yml/badge.svg)
 
 ---
 
