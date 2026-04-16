@@ -242,7 +242,7 @@ Linking model:
 - cJSON: static
 - libcurl / OpenSSL: dynamic
 
-Do NOT modify linker flags unless you know what you are doing!
+⚠️ Do **NOT modify** linker flags unless you know what you are doing!
 
 ## Optional Dependencies
 
