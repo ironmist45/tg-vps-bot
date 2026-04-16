@@ -23,7 +23,9 @@ Production-ready Telegram bot for server monitoring and management, written in p
 
   * SSH
   * Shadowsocks
-  * MTG MTPROTO proxy for Telegram by Sergei Arkhipov aka 9seconds (https://github.com/9seconds/mtg)
+  * MTG MTPROTO proxy for Telegram
+    by Sergei Arkhipov aka 9seconds
+    https://github.com/9seconds/mtg
     
 * Clean formatted output with the following status indicators:
 
