@@ -40,6 +40,8 @@ static int is_valid_service_name(const char *s) {
 
 static int get_service_status(const char *service, char *out, size_t size) {
 
+    int rc;
+
     if (!is_valid_service_name(service)) {
         LOG_SYS(LOG_ERROR, "Invalid service name: %s", service);
         if (size > 0) {
@@ -80,7 +82,6 @@ static int get_service_status(const char *service, char *out, size_t size) {
             snprintf(out, size, "unknown");
         }
         
-        int rc
         rc = pclose(fp);
 
         if (rc == -1) {
@@ -90,7 +91,6 @@ static int get_service_status(const char *service, char *out, size_t size) {
         return -1;
     }
 
-        int rc
         rc = pclose(fp);
 
         if (rc == -1) {
