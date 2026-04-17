@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
     if (strcmp(argv[1], "status") == 0) {
 
         if (argc == 2) {
-            execlp("fail2ban-client",
+            execl("fail2ban-client",
                    "fail2ban-client",
                    "status",
                    NULL);
@@ -41,12 +41,12 @@ int main(int argc, char *argv[]) {
         }
 
         if (argc == 3 && strcmp(argv[2], "sshd") == 0) {
-            execlp("fail2ban-client",
+            execl("fail2ban-client",
                    "fail2ban-client",
                    "status",
                    "sshd",
                    NULL);
-            perror("execlp: fail2ban-client exec failed");
+            fprintf(stderr, "Execution failed\n");
             return 1;
         }
 
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
              strcmp(argv[3], "unbanip") == 0) &&
             is_safe_ip(argv[4])) {
 
-            execlp("fail2ban-client",
+            execl("fail2ban-client",
                    "fail2ban-client",
                    "set",
                    "sshd",
