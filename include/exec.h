@@ -5,6 +5,7 @@
 
 // ===== defaults =====
 
+#define EXEC_DEFAULT_TIMEOUT_MS 6000
 #define EXEC_TIMEOUT_SEC (EXEC_DEFAULT_TIMEOUT_MS / 1000)
 
 // ===== options =====
