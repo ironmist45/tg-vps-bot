@@ -15,6 +15,7 @@ void security_set_token_ttl(int ttl);
 // ===== ACCESS CONTROL =====
 
 int security_is_allowed_chat(long chat_id);
+int security_check_access(long chat_id, const char *cmd);
 int security_validate_text(const char *text);
 
 // ===== REBOOT TOKENS =====
