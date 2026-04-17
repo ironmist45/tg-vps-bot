@@ -23,12 +23,15 @@ static int g_last_token = -1;
 static time_t g_last_token_time = 0;
 static int g_failed_attempts = 0;
 static time_t g_block_until = 0;
+// 🆕 rate limit
+static time_t g_last_cmd_time = 0;
+static int g_cmd_burst = 0;
 
 // ===== INIT =====
 
 void security_init(void) {
    unsigned int seed = (unsigned int)(
-        time(NULL) ^ getpid()
+        time(NULL) ^ getpid() ^ clock()
 );
 
     srand(seed);
@@ -52,6 +55,13 @@ void security_set_token_ttl(int ttl) {
 // ===== ACCESS =====
 
 int security_is_allowed_chat(long chat_id) {
+
+    // 🆕 защита от неинициализированного состояния!
+    if (g_allowed_chat_id == 0) {
+        LOG_SEC(LOG_ERROR, "allowed_chat_id not initialized");
+        return 0;
+    }
+
     return chat_id == g_allowed_chat_id;
 }
 
@@ -114,6 +124,27 @@ static void register_failed_attempt(time_t now) {
     }
 }
 
+// ===== RATE LIMIT =====
+
+int security_rate_limit(void) {
+
+    time_t now = time(NULL);
+
+    if (now == g_last_cmd_time) {
+        g_cmd_burst++;
+
+        if (g_cmd_burst > 5) {
+            LOG_SEC(LOG_WARN, "Rate limit triggered");
+            return -1;
+        }
+    } else {
+        g_last_cmd_time = now;
+        g_cmd_burst = 1;
+    }
+
+    return 0;
+}
+
 // ===== TOKEN CORE =====
 
 // 🔥 улучшенный hash (без отрицательных значений)
@@ -133,7 +164,7 @@ static int make_token(long chat_id, time_t ts) {
 
 int security_generate_reboot_token(long chat_id) {
 
-    time_t ts = (int)time(NULL);
+    time_t ts = time(NULL);
 
     int token = make_token(chat_id, ts);
 
@@ -174,7 +205,7 @@ int security_validate_reboot_token(long chat_id, int input_token) {
 
     for (int i = 0; i <= g_token_ttl; i++) {
 
-        time_t ts = (int)(now - i);
+        time_t ts = (now - i);
 
         int expected = (ts % 1000000) ^ make_token(chat_id, ts);
 
