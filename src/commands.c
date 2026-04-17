@@ -27,19 +27,6 @@ extern time_t g_start_time;
 extern volatile sig_atomic_t g_shutdown_requested;
 extern long g_reboot_requested_by;
 
-// ===== types =====
-
-typedef int (*command_handler_t)(int argc, char *argv[],
-                                long chat_id,
-                                char *response, size_t resp_size,
-                                response_type_t *resp_type);
-
-typedef struct {
-    const char *name;
-    command_handler_t handler;
-    const char *description;
-} command_t;
-
 // ===== forward declarations =====
 
 static int cmd_help(int, char **, long, char *, size_t, response_type_t *);
@@ -617,24 +604,26 @@ static int cmd_reboot_confirm(int argc, char *argv[],
 // ===== COMMAND TABLE =====
 
 static command_t commands[] = {
-    {"/start", cmd_start, "Start bot"},
-    {"/help", cmd_help, "Help"},
-    {"/status", cmd_status, "System status"},
-    {"/about", cmd_about, "About"},
-    {"/ping", cmd_ping, "Ping"},
-    {"/services", cmd_services, "Services"},
-    {"/users", cmd_users, "Users"},
-    {"/logs", cmd_logs, "Logs"},
-    {"/fail2ban", cmd_fail2ban, "Fail2Ban"},
-    {"/reboot", cmd_reboot, "Reboot"},
-    {"/reboot_confirm", cmd_reboot_confirm, NULL},
+    {"/start", cmd_start, "Start bot", "General"},
+    {"/help", cmd_help, "Help", "General"},
+    {"/status", cmd_status, "System status", "System"},
+    {"/about", cmd_about, "About", "System"},
+    {"/ping", cmd_ping, "Ping", "System"},
+
+    {"/services", cmd_services, "Services", "Services"},
+    {"/users", cmd_users, "Users", "Services"},
+    {"/logs", cmd_logs, "Logs", "Services"},
+
+    {"/fail2ban", cmd_fail2ban, "Fail2Ban", "Security"},
+
+    {"/reboot", cmd_reboot, "Reboot", "System"},
+    {"/reboot_confirm", cmd_reboot_confirm, NULL, NULL},
 };
 
 static const int commands_count =
     sizeof(commands) / sizeof(commands[0]);
 
 // ===== HELP =====
-
 static int cmd_help(int argc, char *argv[],
                     long chat_id,
                     char *resp, size_t size,
@@ -644,20 +633,39 @@ static int cmd_help(int argc, char *argv[],
 
     if (resp_type) *resp_type = RESP_MARKDOWN;
 
-    size_t used = snprintf(resp, size, "📚 COMMANDS\n\n");
+    size_t used = snprintf(resp, size, "*📚 COMMANDS*\n\n");
+
+    const char *current_category = NULL;
 
     for (int i = 0; i < commands_count; i++) {
 
         if (!commands[i].description)
             continue;
 
-        int written = snprintf(resp + used, size - used,
-                               "• %s — %s\n",
-                               commands[i].name,
-                               commands[i].description);
+        // ===== CATEGORY HEADER =====
+        if (commands[i].category &&
+            (!current_category ||
+             strcmp(current_category, commands[i].category) != 0)) {
 
-        if (written < 0 ||
-            (size_t)written >= size - used)
+            current_category = commands[i].category;
+
+            int written = snprintf(resp + used, size - used,
+                "*%s*\n",
+                current_category);
+
+            if (written < 0 || (size_t)written >= size - used)
+                break;
+
+            used += written;
+        }
+
+        // ===== COMMAND LINE =====
+        int written = snprintf(resp + used, size - used,
+            "• %s — %s\n",
+            commands[i].name,
+            commands[i].description);
+
+        if (written < 0 || (size_t)written >= size - used)
             break;
 
         used += written;
@@ -665,8 +673,8 @@ static int cmd_help(int argc, char *argv[],
 
     return 0;
 }
-// ===== DISPATCHER =====
 
+// ===== DISPATCHER =====
 int commands_handle(const char *text,
                     long chat_id,
                     char *response,
