@@ -44,9 +44,10 @@ int match_filter_multi(const char *line, filter_t *f) {
         return 1;
 
     for (int i = 0; i < f->count; i++) {
-        if (!strcasestr(line, f->words[i])) {
+        if (!match_semantic(line, f->words[i])) {
             return 0;
         }
+        
     }
 
     return 1;
