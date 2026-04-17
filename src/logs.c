@@ -168,6 +168,12 @@ static int process_logs_output(char *tmp,
     log_msg(LOG_DEBUG,
         "process_logs_output done: raw_lines=%d, matched_lines=%d",
         raw_lines, line_count);
+
+    if (line_count == 0) {
+        log_msg(LOG_DEBUG,
+            "No matching lines (filter=%s)",
+            filter ? filter : "NULL");
+    }
     
     return line_count;
 }
@@ -369,10 +375,19 @@ if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
     // ===== если всё ещё пусто =====
 
     if (line_count == 0) {
-        snprintf(buffer, size,
-            "📜 LOGS: %s\n\nNo logs found",
-            svc);
+
+        if (filter) {
+            snprintf(buffer, size,
+                 "📜 LOGS: %s\n\nNo matches for filter: %s",
+                svc,
+                filter);
+            
+        } else {
+            snprintf(buffer, size,
+                "📜 LOGS: %s\n\nNo logs found",
+                svc);
     }
+}
     
     log_msg(LOG_DEBUG, "final buffer size: %zu", strlen(buffer));
     
