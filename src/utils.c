@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <arpa/inet.h>
 
 // ===== trim =====
 
@@ -207,4 +208,13 @@ int url_encode(const char *src, char *dst, size_t dst_size) {
 
     dst[j] = '\0';
     return 0;
+}
+
+// ===== network utils =====
+
+int is_safe_ip(const char *ip) {
+    if (!ip) return 0;
+
+    struct sockaddr_in sa;
+    return inet_pton(AF_INET, ip, &(sa.sin_addr)) == 1;
 }
