@@ -137,7 +137,7 @@ static int process_logs_output(char *tmp,
     }
 
     log_msg(LOG_INFO,
-        "%s exec done: lines=%d, bytes=%zu",
+        "%s result: lines=%d, bytes=%zu",
         is_fallback ? "fallback" : "exec",
         line_count, strlen(buffer));
 
