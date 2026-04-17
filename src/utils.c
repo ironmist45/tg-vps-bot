@@ -1,5 +1,6 @@
 #include "utils.h"
 
+#include <limits.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -31,13 +32,14 @@ char *trim(char *s) {
 int safe_copy(char *dst, size_t dst_size, const char *src) {
     if (!dst || !src || dst_size == 0) return -1;
 
-    size_t len = strlen(src);
+    size_t len = strnlen(src, dst_size);
 
     if (len >= dst_size) {
         return -1;
     }
 
-    memcpy(dst, src, len + 1);
+    memcpy(dst, src, len);
+    dst[len] = '\0';
     return 0;
 }
 
@@ -100,6 +102,8 @@ void safe_code_block(const char *src,
 
         // 🔥 защита от ``` внутри текста
         if (src[i] == '`' &&
+            src[i + 1] &&
+            src[i + 2] &&
             src[i + 1] == '`' &&
             src[i + 2] == '`') {
 
@@ -152,19 +156,26 @@ int parse_int(const char *str, int *out) {
     char *end;
     long val = strtol(str, &end, 10);
 
-    if (*end != '\0' || val <= 0) return -1;
+    if (*end != '\0' || val <= 0 || val > INT_MAX)
+        return -1;
 
     *out = (int)val;
     return 0;
 }
 
-// ===== split args =====
+// ===== Split args (Modify: Если аргументов больше чем max_args, то лишние просто молча игнорируются =====
 
 int split_args(char *input, char *argv[], int max_args) {
     int argc = 0;
 
     char *token = strtok(input, " ");
-    while (token && argc < max_args) {
+    while (token) {
+
+        if (argc >= max_args) {
+            // ❌ слишком много аргументов
+            return -1;
+        }
+
         argv[argc++] = token;
         token = strtok(NULL, " ");
     }
