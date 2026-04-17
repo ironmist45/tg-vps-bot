@@ -94,8 +94,11 @@ jobs:
             echo '=== ldd ==='
             ldd ./tg-bot
 
-            ldd ./tg-bot | grep -q "not found" && \
-              (echo "ERROR: missing shared libraries" && exit 1)
+            ldd ./tg-bot | grep -q 'not found'
+            if [ $? -eq 0 ]; then
+              echo 'ERROR: missing shared libraries'
+              exit 1
+            fi
 
             echo '=== runtime test ==='
             ./tg-bot --version
