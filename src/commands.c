@@ -563,6 +563,20 @@ int commands_handle(const char *text,
         return -1;
     }
 
+    // 🆕 SECURITY: validate raw input
+    if (security_validate_text(text) != 0) {
+        LOG_SEC(LOG_WARN, "Rejected invalid input");
+        snprintf(response, resp_size, "Invalid input");
+        return -1;
+    }
+
+    // 🆕 SECURITY: rate limit
+    if (security_rate_limit() != 0) {
+        LOG_SEC(LOG_WARN, "Rate limit exceeded (chat_id=%ld)", chat_id);
+        snprintf(response, resp_size, "Too many requests");
+        return -1;
+    }
+
     char buffer[512];
   
     if (safe_copy(buffer, sizeof(buffer), text) != 0) {
@@ -573,8 +587,20 @@ int commands_handle(const char *text,
     char *argv[MAX_ARGS];
     int argc = split_args(buffer, argv, MAX_ARGS);
 
+    if (argc > MAX_ARGS) {
+        LOG_SEC(LOG_WARN, "Too many arguments");
+        snprintf(response, resp_size, "Too many arguments");
+        return -1;
+    }
+
     if (argc == 0) {
         snprintf(response, resp_size, "Empty command");
+        return -1;
+    }
+
+    // 🔒 STRICT ACCESS CONTROL (single-user bot)
+    if (security_check_access(chat_id, argv[0]) != 0) {
+        snprintf(response, resp_size, "Access denied");
         return -1;
     }
 
@@ -583,7 +609,7 @@ int commands_handle(const char *text,
         if (strcmp(argv[0], commands[i].name) == 0) {
 
             LOG_NET(LOG_INFO,
-                    "cmd: %s (chat_id=%ld)",
+                    "cmd: %.32s (chat_id=%ld)",
                     argv[0], chat_id);
 
             if (!commands[i].handler) {
@@ -694,7 +720,7 @@ int commands_handle(const char *text,
     }
 
     log_msg(LOG_WARN,
-        "UNKNOWN CMD %s (chat_id=%ld)",
+        "UNKNOWN CMD %.32s (chat_id=%ld)",
         argv[0], chat_id);
 
 snprintf(response, resp_size, "Unknown command");
