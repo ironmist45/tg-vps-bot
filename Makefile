@@ -18,11 +18,10 @@ OBJS := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 CFLAGS := -Wall -Wextra -std=c11 -O2 -I$(INC_DIR) -D_DEFAULT_SOURCE
 
-# 🔥 статическая линковка
-LDFLAGS := -static
+LDFLAGS ?=
 
 # 🔥 статические библиотеки (ВАЖНО: порядок!)
-LDLIBS := -lcurl -lcjson -lssl -lcrypto -lz -lpthread
+LDLIBS := -lcurl -lssl -lcrypto -lz -lpthread
 
 # ===== Default =====
 
@@ -31,7 +30,7 @@ all: $(TARGET)
 # ===== Build =====
 
 $(TARGET): $(OBJS)
-	@echo "[LD] $@ (static)"
+	@echo "[LD] $@ (custom LDFLAGS)"
 	$(CC) $(OBJS) -o $@ $(LDFLAGS) $(LDLIBS)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
