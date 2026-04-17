@@ -75,6 +75,7 @@ static int exec_command(char *const argv[],
     }
 
     if (pid == 0) {
+      
         // ===== CHILD =====
 
         // stdout -> pipe
@@ -85,32 +86,32 @@ static int exec_command(char *const argv[],
 
         close(pipefd[0]);
         close(pipefd[1]);
-
+      
         // ===== DEBUG: build full command line =====
         char cmdline[256] = {0};
-        size_t used = 0;
+        size_t cmd_used = 0;
 
         for (int i = 0; argv[i]; i++) {
 
-            int written = snprintf(cmdline + used,
-                                   sizeof(cmdline) - used,
+            int written = snprintf(cmdline + cmd_used,
+                                   sizeof(cmdline) - cmd_used,
                                    "%s%s",
                                    argv[i],
                                    argv[i + 1] ? " " : "");
 
-            if (written < 0 || (size_t)written >= sizeof(cmdline) - used) {
+            if (written < 0 || (size_t)written >= sizeof(cmdline) - cmd_used) {
                 LOG_CMD(LOG_WARN, "exec cmdline truncated");
                 break;
             }
 
-            used += (size_t)written;
+            cmd_used += (size_t)written;
       }
 
 LOG_CMD(LOG_DEBUG, "exec: %s", cmdline);
 
         // ===== EXEC =====
         execv("/usr/bin/sudo", argv);
-
+        dprintf(STDERR_FILENO, "exec failed\n");
         // если exec не сработал
         _exit(127);
     }
@@ -119,7 +120,8 @@ LOG_CMD(LOG_DEBUG, "exec: %s", cmdline);
 
     close(pipefd[1]);
 
-    resp[0] = '\0';
+    char tmp[RESP_MAX];
+    tmp[0] = '\0';
     size_t used = 0;
     int lines = 0;
 
@@ -129,13 +131,13 @@ LOG_CMD(LOG_DEBUG, "exec: %s", cmdline);
         return -1;
     }
 
-    while (fgets(resp + used, size - used, fp)) {
-        size_t len = strlen(resp + used);
+    while (fgets(tmp + used, sizeof(tmp) - used, fp)) {
+        size_t len = strlen(tmp + used);
         used += len;
         lines++;
 
-        if (used >= size - 1) {
-            strncat(resp, "\n...truncated...", size - strlen(resp) - 1);
+        if (used >= sizeof(tmp) - 1) {
+            strncat(tmp, "\n...truncated...", sizeof(tmp) - strlen(tmp) - 1);
             break;
         }
     }
@@ -155,16 +157,26 @@ LOG_CMD(LOG_DEBUG, "exec: %s", cmdline);
     log_msg(LOG_WARN, "process terminated abnormally");
 }
 
+    int code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+  
     log_msg(LOG_INFO,
         "exec done: status=%d, lines=%d, bytes=%zu",
-        status, lines, used);
+        code, lines, used);
+
+    int code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 
     if (used == 0) {
-        snprintf(resp, size,
-            "⚠️ No output (exit=%d)",
-            WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+        if (code == 0) {
+            snprintf(tmp, sizeof(tmp),
+                "ℹ️ No output");
+        } else {
+            snprintf(tmp, sizeof(tmp),
+                "❌ Command failed (exit=%d)", code);
+        }
     }
 
+    format_code_block(tmp, resp, size);
+  
     return 0;
 }
 
@@ -455,16 +467,11 @@ static int cmd_fail2ban(int argc, char *argv[],
                 NULL
         };
 
-        char tmp[RESP_MAX];
-
-        int rc = exec_command(args, tmp, sizeof(tmp));
-        format_code_block(tmp, resp, size);
-
-        return rc;
-          
+        return exec_command(args, resp, size);
+                  
     }
           
-    else if (argc >= 3 && strcmp(argv[2], "sshd") == 0) {
+    else if (argc == 3 && strcmp(argv[2], "sshd") == 0) {
         char *const args[] = {
             "sudo",
             "-n",
@@ -474,12 +481,7 @@ static int cmd_fail2ban(int argc, char *argv[],
             NULL
         };
 
-         char tmp[RESP_MAX];
-
-         int rc = exec_command(args, tmp, sizeof(tmp));
-         format_code_block(tmp, resp, size);
-
-        return rc;
+        return exec_command(args, resp, size);
       
     }
       
@@ -511,12 +513,7 @@ static int cmd_fail2ban(int argc, char *argv[],
             NULL
         };
 
-        char tmp[RESP_MAX];
-
-        int rc = exec_command(args, tmp, sizeof(tmp));
-        format_code_block(tmp, resp, size);
-
-        return rc;
+        return exec_command(args, resp, size);
       
 }
 
@@ -542,12 +539,7 @@ static int cmd_fail2ban(int argc, char *argv[],
             NULL
         };
 
-        char tmp[RESP_MAX];
-
-        int rc = exec_command(args, tmp, sizeof(tmp));
-        format_code_block(tmp, resp, size);
-
-        return rc;
+        return exec_command(args, resp, size);
       
 }
 
