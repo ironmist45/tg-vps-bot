@@ -92,10 +92,10 @@ jobs:
             apt-get install -y libcurl4 libssl1.1 zlib1g
 
             echo '=== ldd ==='
-            if ldd ./tg-bot | grep -q "not found" && {
-                 echo "ERROR: missing shared libraries"
-                 exit 1
-               }
+            ldd ./tg-bot
+
+            ldd ./tg-bot | grep -q "not found" && \
+              (echo "ERROR: missing shared libraries" && exit 1)
 
             echo '=== runtime test ==='
             ./tg-bot --version
