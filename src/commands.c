@@ -163,25 +163,6 @@ LOG_CMD(LOG_DEBUG, "exec: %s", cmdline);
     return 0;
 }
 
-// ===== utils =====
-
-static int check_access(long chat_id,
-                        const char *cmd,
-                        char *resp,
-                        size_t size) {
-
-    if (!security_is_allowed_chat(chat_id)) {
-        LOG_STATE(LOG_WARN,
-                "ACCESS DENIED: cmd=%s (chat_id=%ld)",
-                cmd, chat_id);
-
-        snprintf(resp, size, "❌ Access denied");
-        return -1;
-    }
-
-    return 0;
-}
-
 // ===== COMMANDS =====
 
 static int cmd_start(int argc, char *argv[],
@@ -221,8 +202,10 @@ static int cmd_status(int argc, char *argv[],
         return -1;
     }
 
-    if (check_access(chat_id, argv[0], resp, size) != 0)
+    if (security_check_access(chat_id, argv[0]) != 0) {
+        snprintf(resp, size, "❌ Access denied");
         return -1;
+    }
   
     if (system_get_status(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get system status");
@@ -309,8 +292,10 @@ static int cmd_services(int argc, char *argv[],
         return -1;
     }
 
-    if (check_access(chat_id, argv[0], resp, size) != 0)
+    if (security_check_access(chat_id, argv[0]) != 0) {
+        snprintf(resp, size, "❌ Access denied");
         return -1;
+    }
   
     if (services_get_status(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get services");
@@ -335,8 +320,10 @@ static int cmd_logs(int argc, char *argv[],
         return -1;
     } 
 
-    if (check_access(chat_id, argv[0], resp, size) != 0)
+    if (security_check_access(chat_id, argv[0]) != 0) {
+        snprintf(resp, size, "❌ Access denied");
         return -1;
+    }
 
     if (argc < 2) {
         snprintf(resp, size,
@@ -395,8 +382,10 @@ static int cmd_users(int argc, char *argv[],
         return -1;
     }
 
-    if (check_access(chat_id, argv[0], resp, size) != 0)
+    if (security_check_access(chat_id, argv[0]) != 0) {
+        snprintf(resp, size, "❌ Access denied");
         return -1;
+    }
   
     if (users_get(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get users");
@@ -420,8 +409,10 @@ static int cmd_fail2ban(int argc, char *argv[],
         return -1;
     }
 
-    if (check_access(chat_id, argv[0], resp, size) != 0)
+    if (security_check_access(chat_id, argv[0]) != 0) {
+        snprintf(resp, size, "❌ Access denied");
         return -1;
+    }
 
     if (argc < 2) {
         snprintf(resp, size,
@@ -573,8 +564,10 @@ static int cmd_reboot(int argc, char *argv[],
         return -1;
     }
 
-    if (check_access(chat_id, argv[0], resp, size) != 0)
+    if (security_check_access(chat_id, argv[0]) != 0) {
+        snprintf(resp, size, "❌ Access denied");
         return -1;
+    }
 
     int token = security_generate_reboot_token(chat_id);
 
@@ -604,8 +597,10 @@ static int cmd_reboot_confirm(int argc, char *argv[],
         return -1;
     }
 
-    if (check_access(chat_id, argv[0], resp, size) != 0)
+    if (security_check_access(chat_id, argv[0]) != 0) {
+        snprintf(resp, size, "❌ Access denied");
         return -1;
+    }
   
     int token;
 
