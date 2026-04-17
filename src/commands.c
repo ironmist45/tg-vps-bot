@@ -18,7 +18,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <fcntl.h>
-#include <arpa/inet.h>
 
 #define MAX_ARGS 8
 #define RESP_MAX 8192
@@ -165,11 +164,6 @@ LOG_CMD(LOG_DEBUG, "exec: %s", cmdline);
 }
 
 // ===== utils =====
-
-static int is_safe_ip(const char *ip) {
-    struct sockaddr_in sa;
-    return inet_pton(AF_INET, ip, &(sa.sin_addr)) == 1;
-}
 
 static int check_access(long chat_id,
                         const char *cmd,
