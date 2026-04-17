@@ -414,7 +414,6 @@ return 0;
 }
 
 // ===== FAIL2BAN (🔥 FIXED + LOGGING) =====
-
 static int cmd_fail2ban(int argc, char *argv[],
                         long chat_id,
                         char *resp, size_t size,
@@ -451,7 +450,15 @@ static int cmd_fail2ban(int argc, char *argv[],
                 NULL
         };
 
-        return exec_command(args, resp, size);
+        char tmp[RESP_MAX];
+
+        if (exec_command(args, tmp, sizeof(tmp)) != 0) {
+            snprintf(resp, size, "❌ Fail2Ban failed");
+            return -1;
+        }
+
+        safe_code_block(tmp, resp, size);
+        return 0;
                   
     }
           
@@ -465,7 +472,15 @@ static int cmd_fail2ban(int argc, char *argv[],
             NULL
         };
 
-        return exec_command(args, resp, size);
+        char tmp[RESP_MAX];
+
+        if (exec_command(args, tmp, sizeof(tmp)) != 0) {
+            snprintf(resp, size, "❌ Fail2Ban failed");
+            return -1;
+        }
+
+        safe_code_block(tmp, resp, size);
+        return 0;
       
     }
       
@@ -497,7 +512,15 @@ static int cmd_fail2ban(int argc, char *argv[],
             NULL
         };
 
-        return exec_command(args, resp, size);
+        char tmp[RESP_MAX];
+
+        if (exec_command(args, tmp, sizeof(tmp)) != 0) {
+            snprintf(resp, size, "❌ Fail2Ban failed");
+            return -1;
+        }
+
+        safe_code_block(tmp, resp, size);
+        return 0;
       
 }
 
@@ -523,7 +546,15 @@ static int cmd_fail2ban(int argc, char *argv[],
             NULL
         };
 
-        return exec_command(args, resp, size);
+        char tmp[RESP_MAX];
+
+        if (exec_command(args, tmp, sizeof(tmp)) != 0) {
+            snprintf(resp, size, "❌ Fail2Ban failed");
+            return -1;
+        }
+
+        safe_code_block(tmp, resp, size);
+        return 0;
       
 }
 
