@@ -97,6 +97,7 @@ static logs_result_t process_logs_output(char *tmp,
         filter ? " [filtered]" : ""
     );
 
+    int line_count = 0;
     int dropped = 0;
 
     char *saveptr;
@@ -108,7 +109,7 @@ static logs_result_t process_logs_output(char *tmp,
 
     char filter_copy[128];
     if (filter) {
-        strncpy(filter_copy, filter, sizeof(filter_copy));
+        snprintf(filter_copy, sizeof(filter_copy), "%s", filter);
         filter_copy[sizeof(filter_copy) - 1] = '\0';
         parse_filter(filter_copy, &f);
     }
@@ -125,8 +126,10 @@ static logs_result_t process_logs_output(char *tmp,
             safe_append(buffer, size,
                 "\n...\n⚠ logs truncated (limit reached)");
             log_msg(LOG_WARN,
-                "%s logs truncated early",
-                is_fallback ? "fallback" : "logs");
+                "%s logs truncated early: raw=%d matched=%d",
+                is_fallback ? "fallback" : "logs",
+                raw_lines,
+                line_count);
             break;
         }
 
@@ -156,7 +159,7 @@ static logs_result_t process_logs_output(char *tmp,
         }
         
         // 🔥 новый фильтр (multi-keyword, case-insensitive)
-        if (filter && !match_filter_multi(line, &f)) {
+        if (!match_filter_multi(line, &f)) {
             dropped++;
             line = strtok_r(NULL, "\n", &saveptr);
             continue;
@@ -344,7 +347,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
 // ===== execute =====
 
-char tmp[8192];
+char tmp[8192] = {0};
 
 if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
     log_msg(LOG_DEBUG, "RAW OUTPUT (%s): first 200 chars:\n%.200s", svc, tmp);
@@ -419,13 +422,15 @@ if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
         if (filter) {
             snprintf(buffer, size,
                 "📜 LOGS: %s\n\n"
-                "No matches for filter: \"%s\"\n\n"
+                "No matches for filter: \"%s\"\n"
+                "(scanned %d lines)\n\n"
                 "Try:\n"
                 "- /logs %s\n"
                 "- /logs %s fail\n"
                 "- /logs %s Accepted\n",
                 svc,
                 filter,
+                res.raw,
                 svc, svc, svc);
         } else {
             snprintf(buffer, size,
