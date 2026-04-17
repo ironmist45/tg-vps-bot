@@ -71,6 +71,13 @@ static int process_logs_output(char *tmp,
                                const char *filter,
                                int is_fallback)
 {
+
+    log_msg(LOG_DEBUG,
+        "process_logs_output start: svc=%s filter=%s is_fallback=%d",
+        svc,
+        filter ? filter : "NULL",
+        is_fallback);
+    
     buffer[0] = '\0';
 
     snprintf(buffer, size,
@@ -85,8 +92,15 @@ static int process_logs_output(char *tmp,
 
     char *saveptr;
     char *line = strtok_r(tmp, "\n", &saveptr);
+    int raw_lines = 0;
 
     while (line) {
+
+        raw_lines++;
+
+        if (raw_lines <= 5) {
+            log_msg(LOG_DEBUG, "RAW LINE[%d]: %s", raw_lines, line);
+        }
 
         if (strlen(buffer) > 3500) {
             safe_append(buffer, size, "\n...\n[truncated]");
@@ -100,16 +114,31 @@ static int process_logs_output(char *tmp,
         
         // 🔥 СКРЫТЬ "Logs begin at"
         if (strstr(line, "Logs begin at")) {
+
+            log_msg(LOG_DEBUG,
+            "Skipping journal header line: %s",
+            line);
+
             line = strtok_r(NULL, "\n", &saveptr);
             continue;
         }
 
-        line[strcspn(line, "\x1b")] = '\0';
-
+        char *esc = strchr(line, '\x1b');
+        if (esc) {
+            *esc = '\0';
+        }
+        
         if (filter && !strcasestr(line, filter)) {
-            line = strtok_r(NULL, "\n", &saveptr);
-            continue;
+
+            if (line_count < 5) {
+                log_msg(LOG_DEBUG,
+                "FILTER DROP: [%s] does not match [%s]",
+                line, filter);
         }
+
+    line = strtok_r(NULL, "\n", &saveptr);
+    continue;
+}
 
         if (line_count < DEBUG_LINES) {
             log_msg(LOG_DEBUG,
@@ -136,6 +165,10 @@ static int process_logs_output(char *tmp,
         is_fallback ? "fallback" : "logs",
         line_count, strlen(buffer));
 
+    log_msg(LOG_DEBUG,
+        "process_logs_output done: raw_lines=%d, matched_lines=%d",
+        raw_lines, line_count);
+    
     return line_count;
 }
 
@@ -276,6 +309,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
 char tmp[8192];
 
 if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
+    log_msg(LOG_DEBUG, "RAW OUTPUT (%s): first 200 chars:\n%.200s", svc, tmp);
     log_msg(LOG_ERROR, "exec_command_simple failed");
     snprintf(buffer, size, "❌ Failed to read logs");
     return -1;
