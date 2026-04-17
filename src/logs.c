@@ -126,7 +126,7 @@ static logs_result_t process_logs_output(char *tmp,
             safe_append(buffer, size,
                 "\n...\n⚠ logs truncated (limit reached)");
             log_msg(LOG_WARN,
-                "%s logs truncated early: raw=%d matched=%d",
+                "%s truncated early: raw=%d matched=%d",
                 is_fallback ? "fallback" : "logs",
                 raw_lines,
                 line_count);
