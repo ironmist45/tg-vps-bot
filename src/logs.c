@@ -3,6 +3,7 @@
 #include "logs.h"
 #include "logger.h"
 #include "exec.h"
+#include "utils.h"
 #include "logs_filter.h"
 #include <strings.h> // для strcasestr
 #include <stdio.h>
@@ -10,10 +11,17 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <unistd.h>
-#include "utils.h"
+
 
 #define MAX_LINE 256
 #define DEBUG_LINES 5
+
+// ===== result struct =====
+
+typedef struct {
+    int matched;
+    int raw;
+} logs_result_t;
 
 // ===== service mapping (alias → systemd) =====
 
@@ -64,13 +72,13 @@ static void sanitize_line(char *line) {
     line[strcspn(line, "\r")] = '\0';
 }
 
-static int process_logs_output(char *tmp,
-                               char *buffer,
-                               size_t size,
-                               const char *svc,
-                               int lines,
-                               const char *filter,
-                               int is_fallback)
+static logs_result_t process_logs_output(char *tmp,
+                                        char *buffer,
+                                        size_t size,
+                                        const char *svc,
+                                        int lines,
+                                        const char *filter,
+                                        int is_fallback)
 {
 
     log_msg(LOG_DEBUG,
@@ -89,11 +97,21 @@ static int process_logs_output(char *tmp,
         filter ? " [filtered]" : ""
     );
 
-    int line_count = 0;
+    int dropped = 0;
 
     char *saveptr;
     char *line = strtok_r(tmp, "\n", &saveptr);
     int raw_lines = 0;
+
+    // 🔥 multi-keyword filter prepare
+    filter_t f = {0};
+
+    char filter_copy[128];
+    if (filter) {
+        strncpy(filter_copy, filter, sizeof(filter_copy));
+        filter_copy[sizeof(filter_copy) - 1] = '\0';
+        parse_filter(filter_copy, &f);
+    }
 
     while (line) {
 
@@ -104,7 +122,8 @@ static int process_logs_output(char *tmp,
         }
 
         if (strlen(buffer) > 3500) {
-            safe_append(buffer, size, "\n...\n[truncated]");
+            safe_append(buffer, size,
+                "\n...\n⚠ logs truncated (limit reached)");
             log_msg(LOG_WARN,
                 "%s logs truncated early",
                 is_fallback ? "fallback" : "logs");
@@ -112,6 +131,13 @@ static int process_logs_output(char *tmp,
         }
 
         sanitize_line(line);
+
+        // 🔥 выделение reboot
+        if (strstr(line, "-- Reboot --")) {
+            safe_append(buffer, size, "\n=== REBOOT ===\n");
+            line = strtok_r(NULL, "\n", &saveptr);
+            continue;
+        }
         
         // 🔥 СКРЫТЬ "Logs begin at"
         if (strstr(line, "Logs begin at")) {
@@ -129,17 +155,12 @@ static int process_logs_output(char *tmp,
             *esc = '\0';
         }
         
-        if (filter && !strcasestr(line, filter)) {
-
-            if (line_count < 5) {
-                log_msg(LOG_DEBUG,
-                "FILTER DROP: [%s] does not match [%s]",
-                line, filter);
+        // 🔥 новый фильтр (multi-keyword, case-insensitive)
+        if (filter && !match_filter_multi(line, &f)) {
+            dropped++;
+            line = strtok_r(NULL, "\n", &saveptr);
+            continue;
         }
-
-    line = strtok_r(NULL, "\n", &saveptr);
-    continue;
-}
 
         if (line_count < DEBUG_LINES) {
             log_msg(LOG_DEBUG,
@@ -170,13 +191,23 @@ static int process_logs_output(char *tmp,
         "process_logs_output done: raw_lines=%d, matched_lines=%d",
         raw_lines, line_count);
 
+    log_msg(LOG_DEBUG,
+        "filter stats: dropped=%d matched=%d",
+        dropped, line_count);
+
     if (line_count == 0) {
         log_msg(LOG_DEBUG,
             "No matching lines (filter=%s)",
             filter ? filter : "NULL");
     }
     
-    return line_count;
+    logs_result_t res = {
+        .matched = line_count,
+        .raw = raw_lines
+    
+    };
+
+    return res;
 }
 
 // ===== основной API =====
@@ -321,8 +352,8 @@ if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
     snprintf(buffer, size, "❌ Failed to read logs");
     return -1;
 }
-
-    int line_count = process_logs_output(
+ 
+    logs_result_t res = process_logs_output(
         tmp,
         buffer,
         size,
@@ -334,7 +365,7 @@ if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
             
     // ===== дальше сразу fallback если пусто =====
 
-    if (line_count == 0) {
+    if (res.raw == 0) {
 
         log_msg(LOG_WARN,
                 "No logs for %s, trying global journal", svc);
@@ -358,7 +389,7 @@ if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
             return -1;
         }
 
-        line_count = process_logs_output(
+        res = process_logs_output(
             tmp,
             buffer,
             size,
@@ -367,28 +398,41 @@ if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
             filter,
             1
         );
-    
+
         log_msg(LOG_INFO,
-                "fallback exec done: lines=%d, bytes=%zu",
-                line_count, strlen(buffer));
+                "fallback exec done: matched=%d raw=%d bytes=%zu",
+                res.matched, res.raw, strlen(buffer));
+    }
+
+    // ==== Добавляем лог "нет совпадений" ====
+    if (res.raw > 0 && res.matched == 0) {
+        log_msg(LOG_INFO,
+            "No matches for filter='%s' in %s logs",
+            filter ? filter : "NULL",
+            svc);
     }
     
     // ===== если всё ещё пусто =====
 
-    if (line_count == 0) {
+    if (res.matched == 0) {
 
         if (filter) {
             snprintf(buffer, size,
-                 "📜 LOGS: %s\n\nNo matches for filter: %s",
+                "📜 LOGS: %s\n\n"
+                "No matches for filter: \"%s\"\n\n"
+                "Try:\n"
+                "- /logs %s\n"
+                "- /logs %s fail\n"
+                "- /logs %s Accepted\n",
                 svc,
-                filter);
-            
+                filter,
+                svc, svc, svc);
         } else {
             snprintf(buffer, size,
                 "📜 LOGS: %s\n\nNo logs found",
                 svc);
+        }
     }
-}
     
     log_msg(LOG_DEBUG, "final buffer size: %zu", strlen(buffer));
     
