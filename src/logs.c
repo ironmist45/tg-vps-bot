@@ -170,7 +170,7 @@ static int exec_command(char *const argv[],
         close(pipefd[0]);
         close(pipefd[1]);
 
-        execv("/usr/bin/journalctl", argv);
+        execv("/usr/bin/sudo", argv);
 
         _exit(127);
     }
@@ -273,21 +273,21 @@ static int exec_command(char *const argv[],
         return -1;
     }
 
-    return 0;
-
-    if (!WIFEXITED(status)) {
-        return -1;
-    }
+   // ✅ проверка завершения
+   if (!WIFEXITED(status)) {
+       log_msg(LOG_WARN, "process terminated abnormally");
+       return -1;
+   }
 
     int exit_code = WEXITSTATUS(status);
 
     if (exit_code != 0) {
+        log_msg(LOG_WARN, "command exited with code=%d", exit_code);
         return -1;
     }
 
-
+    // ✅ только здесь успех
     return 0;
-}
 
 // ===== основной API =====
 
@@ -400,6 +400,8 @@ int logs_get(const char *service, char *buffer, size_t size) {
     snprintf(lines_str, sizeof(lines_str), "%d", lines);
 
     char *const args[] = {
+        "sudo",
+        "-n",
         "journalctl",
         "-u",
         (char *)real_service,
@@ -445,6 +447,8 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
         snprintf(lines_str2, sizeof(lines_str2), "%d", lines);
 
         char *const fallback_args[] = {
+            "sudo",
+            "-n",
             "journalctl",
             "-n",
             lines_str2,
