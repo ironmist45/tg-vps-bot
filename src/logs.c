@@ -10,7 +10,6 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/select.h>
-#include <signal.h>
 #include <errno.h>
 #include <signal.h>
 #include <time.h>
@@ -103,6 +102,12 @@ static int process_logs_output(char *tmp,
         }
 
         sanitize_line(line);
+        
+        // 🔥 СКРЫТЬ "Logs begin at"
+        if (strstr(line, "Logs begin at")) {
+            line = strtok_r(NULL, "\n", &saveptr);
+            continue;
+        }
 
         line[strcspn(line, "\x1b")] = '\0';
 
@@ -220,6 +225,8 @@ static int exec_command(char *const argv[],
             return -1;
         }
 
+        if (used >= size - 1)
+            break;
         // есть данные → читаем
         if (fgets(resp + used, size - used, fp) == NULL) {
             break; // EOF
@@ -283,7 +290,6 @@ static int exec_command(char *const argv[],
 
     if (exit_code != 0) {
         log_msg(LOG_WARN, "command exited with code=%d", exit_code);
-        return -1;
     }
 
     // ✅ только здесь успех
@@ -403,7 +409,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
     char *const args[] = {
         "sudo",
         "-n",
-        "journalctl",
+        "/bin/journalctl",
         "-u",
         (char *)real_service,
         "-n",
