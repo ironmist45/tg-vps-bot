@@ -264,8 +264,8 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
 char tmp[4096];
 
-if (exec_command(args, tmp, sizeof(tmp)) != 0) {
-    log_msg(LOG_ERROR, "exec_command failed");
+if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
+    log_msg(LOG_ERROR, "exec_command_simple failed");
     snprintf(buffer, size, "❌ Failed to read logs");
     return -1;
 }
@@ -300,8 +300,8 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
             NULL
         };
 
-        if (exec_command(fallback_args, tmp, sizeof(tmp)) != 0) {
-            log_msg(LOG_ERROR, "fallback exec_command failed");
+        if (exec_command_simple(fallback_args, tmp, sizeof(tmp)) != 0) {
+            log_msg(LOG_ERROR, "fallback exec_command_simple failed");
             snprintf(buffer, size, "❌ No logs available");
             return -1;
         }
