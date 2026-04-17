@@ -31,7 +31,8 @@ extern long g_reboot_requested_by;
 
 typedef int (*command_handler_t)(int argc, char *argv[],
                                 long chat_id,
-                                char *response, size_t resp_size);
+                                char *response, size_t resp_size,
+                                response_type_t *resp_type);
 
 typedef struct {
     const char *name;
@@ -194,10 +195,13 @@ static int check_access(long chat_id,
 // ===== COMMANDS =====
 
 static int cmd_start(int argc, char *argv[],
-                    long chat_id,
-                    char *resp, size_t size) {
+                     long chat_id,
+                     char *resp, size_t size,
+                     response_type_t *resp_type) {
 
     (void)argc; (void)argv; (void)chat_id;
+
+    if (resp_type) *resp_type = RESP_MARKDOWN;
 
     char status[1024];
 
@@ -215,9 +219,12 @@ static int cmd_start(int argc, char *argv[],
 }
 
 static int cmd_status(int argc, char *argv[],
-                     long chat_id,
-                     char *resp, size_t size) {
+                      long chat_id,
+                      char *resp, size_t size,
+                      response_type_t *resp_type) {
     (void)argc;
+
+    if (resp_type) *resp_type = RESP_MARKDOWN;
 
     if (!argv || !argv[0]) {
         snprintf(resp, size, "Invalid command");
@@ -237,10 +244,13 @@ return 0;
 }
 
 static int cmd_about(int argc, char *argv[],
-                    long chat_id,
-                    char *resp, size_t size) {
+                     long chat_id,
+                     char *resp, size_t size,
+                     response_type_t *resp_type) {
 
     (void)argc; (void)argv; (void)chat_id;
+
+    if (resp_type) *resp_type = RESP_MARKDOWN;
 
     time_t now = time(NULL);
     long uptime = now - g_start_time;
@@ -265,10 +275,13 @@ static int cmd_about(int argc, char *argv[],
 // ===== PING =====
 
 static int cmd_ping(int argc, char *argv[],
-                   long chat_id,
-                   char *resp, size_t size) {
+                    long chat_id,
+                    char *resp, size_t size,
+                    response_type_t *resp_type) {
 
     (void)argc; (void)argv; (void)chat_id;
+
+    if (resp_type) *resp_type = RESP_MARKDOWN;
 
     struct timespec start, end;
 
@@ -294,9 +307,12 @@ static int cmd_ping(int argc, char *argv[],
 // ===== SERVICES =====
 
 static int cmd_services(int argc, char *argv[],
-                       long chat_id,
-                       char *resp, size_t size) {
+                        long chat_id,
+                        char *resp, size_t size,
+                        response_type_t *resp_type) {
     (void)argc;
+
+    if (resp_type) *resp_type = RESP_MARKDOWN;
 
     if (!argv || !argv[0]) {
         snprintf(resp, size, "Invalid command");
@@ -318,8 +334,11 @@ return 0;
 // ===== LOGS =====
 
 static int cmd_logs(int argc, char *argv[],
-                   long chat_id,
-                   char *resp, size_t size) {
+                    long chat_id,
+                    char *resp, size_t size,
+                    response_type_t *resp_type) {
+
+    if (resp_type) *resp_type = RESP_PLAIN;
 
     if (!argv || !argv[0]) {
         snprintf(resp, size, "Invalid command");
@@ -374,9 +393,12 @@ static int cmd_logs(int argc, char *argv[],
 // ===== USERS =====
 
 static int cmd_users(int argc, char *argv[],
-                    long chat_id,
-                    char *resp, size_t size) {
+                     long chat_id,
+                     char *resp, size_t size,
+                     response_type_t *resp_type) {
     (void)argc;
+
+    if (resp_type) *resp_type = RESP_MARKDOWN;
 
     if (!argv || !argv[0]) {
         snprintf(resp, size, "Invalid command");
@@ -398,8 +420,11 @@ return 0;
 // ===== FAIL2BAN (🔥 FIXED + LOGGING) =====
 
 static int cmd_fail2ban(int argc, char *argv[],
-                       long chat_id,
-                       char *resp, size_t size) {
+                        long chat_id,
+                        char *resp, size_t size,
+                        response_type_t *resp_type) {
+
+    if (resp_type) *resp_type = RESP_PLAIN;
 
     if (!argv || !argv[0]) {
         snprintf(resp, size, "Invalid command");
@@ -412,12 +437,10 @@ static int cmd_fail2ban(int argc, char *argv[],
     if (argc < 2) {
         snprintf(resp, size,
             "*🛡 Fail2Ban*\n\n"
-            "```\n"
             "/fail2ban status\n"
             "/fail2ban status sshd\n"
             "/fail2ban ban <ip>\n"
             "/fail2ban unban <ip>"
-            "\n```");
         return 0;
     }
 
@@ -511,10 +534,13 @@ static int cmd_fail2ban(int argc, char *argv[],
 // ===== REBOOT =====
 
 static int cmd_reboot(int argc, char *argv[],
-                     long chat_id,
-                     char *resp, size_t size) {
+                      long chat_id,
+                      char *resp, size_t size,
+                      response_type_t *resp_type) {
     (void)argc;
 
+    if (resp_type) *resp_type = RESP_MARKDOWN;
+    
     if (!argv || !argv[0]) {
         snprintf(resp, size, "Invalid command");
         return -1;
@@ -535,8 +561,11 @@ static int cmd_reboot(int argc, char *argv[],
 }
 
 static int cmd_reboot_confirm(int argc, char *argv[],
-                             long chat_id,
-                             char *resp, size_t size) {
+                              long chat_id,
+                              char *resp, size_t size,
+                              response_type_t *resp_type) {
+    
+    if (resp_type) *resp_type = RESP_MARKDOWN;
   
     if (!argv || !argv[0]) {
         snprintf(resp, size, "Invalid command");
@@ -592,10 +621,13 @@ static const int commands_count =
 // ===== HELP =====
 
 static int cmd_help(int argc, char *argv[],
-                   long chat_id,
-                   char *resp, size_t size) {
+                    long chat_id,
+                    char *resp, size_t size,
+                    response_type_t *resp_type) {
 
     (void)argc; (void)argv; (void)chat_id;
+
+    if (resp_type) *resp_type = RESP_MARKDOWN;
 
     size_t used = snprintf(resp, size, "*📚 COMMANDS*\n\n");
 
@@ -623,7 +655,10 @@ static int cmd_help(int argc, char *argv[],
 int commands_handle(const char *text,
                     long chat_id,
                     char *response,
-                    size_t resp_size) {
+                    size_t resp_size,
+                    response_type_t *resp_type) {
+
+    response_type_t local_resp_type = RESP_MARKDOWN;
 
     if (!text || text[0] != '/') {
         snprintf(response, resp_size, "Invalid command");
@@ -660,7 +695,7 @@ int commands_handle(const char *text,
             }
 
             int rc = commands[i].handler(
-                argc, argv, chat_id, response, resp_size
+                argc, argv, chat_id, response, resp_size, &local_resp_type
             );
 
             // ===== fallback если пустой ответ =====
@@ -750,6 +785,10 @@ int commands_handle(const char *text,
                 log_msg(LOG_DEBUG,
                         "RES %s (%zu chars) → <skipped>",
                         argv[0], full_len);
+            }
+
+            if (resp_type) {
+                *resp_type = local_resp_type;
             }
 
             return rc;
