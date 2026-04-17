@@ -40,19 +40,19 @@ typedef struct {
     const char *description;
 } command_t;
 
-// ===== forward =====
+// ===== forward declarations =====
 
-static int cmd_help(int, char **, long, char *, size_t);
-static int cmd_start(int, char **, long, char *, size_t);
-static int cmd_status(int, char **, long, char *, size_t);
-static int cmd_about(int, char **, long, char *, size_t);
-static int cmd_ping(int, char **, long, char *, size_t);
-static int cmd_services(int, char **, long, char *, size_t);
-static int cmd_logs(int, char **, long, char *, size_t);
-static int cmd_users(int, char **, long, char *, size_t);
-static int cmd_fail2ban(int, char **, long, char *, size_t);
-static int cmd_reboot(int, char **, long, char *, size_t);
-static int cmd_reboot_confirm(int, char **, long, char *, size_t);
+static int cmd_help(int, char **, long, char *, size_t, response_type_t *);
+static int cmd_start(int, char **, long, char *, size_t, response_type_t *);
+static int cmd_status(int, char **, long, char *, size_t, response_type_t *);
+static int cmd_about(int, char **, long, char *, size_t, response_type_t *);
+static int cmd_ping(int, char **, long, char *, size_t, response_type_t *);
+static int cmd_services(int, char **, long, char *, size_t, response_type_t *);
+static int cmd_logs(int, char **, long, char *, size_t, response_type_t *);
+static int cmd_users(int, char **, long, char *, size_t, response_type_t *);
+static int cmd_fail2ban(int, char **, long, char *, size_t, response_type_t *);
+static int cmd_reboot(int, char **, long, char *, size_t, response_type_t *);
+static int cmd_reboot_confirm(int, char **, long, char *, size_t, response_type_t *);
 
 // ==== exec ====
 
@@ -150,15 +150,14 @@ LOG_CMD(LOG_DEBUG, "exec: %s", cmdline);
         return -1;
     }
 
+    int code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+
     if (WIFEXITED(status)) {
-        int code = WEXITSTATUS(status);
         log_msg(LOG_INFO, "exit code=%d", code);
 } else {
     log_msg(LOG_WARN, "process terminated abnormally");
 }
 
-    int code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-  
     log_msg(LOG_INFO,
         "exec done: status=%d, lines=%d, bytes=%zu",
         code, lines, used);
