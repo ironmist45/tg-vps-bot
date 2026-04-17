@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <unistd.h>
+#include "utils.h"
 
 #define MAX_LINE 256
 #define DEBUG_LINES 5
@@ -208,17 +209,17 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
         size_t flen = strlen(filter);
 
-        // 🆕 МИНИМАЛЬНАЯ ДЛИНА (защита от CPU abuse)
-        if (flen < 3) {
-            log_msg(LOG_WARN, "filter too short: %s", filter);
-            snprintf(buffer, size, "❌ Filter too short (min 3 chars)");
-            return -1;
-        }
-
         // 📏 ограничение длины
         if (flen > 32) {
             log_msg(LOG_WARN, "filter too long: %s", filter);
             snprintf(buffer, size, "❌ Filter too long");
+            return -1;
+        }
+
+        // ❗ минимальная длина (твоя новая защита)
+        if (flen < 3) {
+            log_msg(LOG_WARN, "filter too short: %s", filter);
+            snprintf(buffer, size, "❌ Filter too short");
             return -1;
         }
 
@@ -240,12 +241,9 @@ int logs_get(const char *service, char *buffer, size_t size) {
             }
         }
 
-    log_msg(LOG_DEBUG, "filter accepted: %s", filter);
-}
-    
-    // ✅ лог успешного фильтра
-    log_msg(LOG_DEBUG, "filter accepted: %s", filter);
-}
+        // ✅ лог успешного фильтра
+        log_msg(LOG_DEBUG, "filter accepted: %s", filter);
+    }
 
     // ограничение journalctl 200 строк!
     if (lines <= 0)
