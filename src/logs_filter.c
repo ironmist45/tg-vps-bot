@@ -1,6 +1,9 @@
-#include <string.h>
-#include <strings.h>
+#define _GNU_SOURCE
+
 #include "logs_filter.h"
+
+#include <string.h>
+#include <strings.h>   // 🔥 ВАЖНО: тут лежит strcasestr
 
 int match_semantic(const char *line, const char *filter) {
     if (!filter || !*filter)
