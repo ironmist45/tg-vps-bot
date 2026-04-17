@@ -48,10 +48,32 @@ static int exec_command(char *const argv[],
 
     int pipefd[2];
 
+    // ===== BUILD CMDLINE (PARENT SIDE) =====
+    char cmdline[256] = {0};
+    size_t cmd_used = 0;
+    struct timespec t_start, t_end;
+
+    for (int i = 0; argv[i]; i++) {
+
+        int written = snprintf(cmdline + cmd_used,
+                               sizeof(cmdline) - cmd_used,
+                               "%s%s",
+                               argv[i],
+                               argv[i + 1] ? " " : "");
+
+        if (written < 0 || (size_t)written >= sizeof(cmdline) - cmd_used) {
+            LOG_CMD(LOG_WARN, "exec cmdline truncated");
+            break;
+        }
+
+        cmd_used += (size_t)written;
+    }
+
     if (pipe(pipefd) < 0) {
         return -1;
     }
 
+    clock_gettime(CLOCK_MONOTONIC, &t_start);
     pid_t pid = fork();
 
     if (pid < 0) {
@@ -73,28 +95,6 @@ static int exec_command(char *const argv[],
         close(pipefd[0]);
         close(pipefd[1]);
       
-        // ===== DEBUG: build full command line =====
-        char cmdline[256] = {0};
-        size_t cmd_used = 0;
-
-        for (int i = 0; argv[i]; i++) {
-
-            int written = snprintf(cmdline + cmd_used,
-                                   sizeof(cmdline) - cmd_used,
-                                   "%s%s",
-                                   argv[i],
-                                   argv[i + 1] ? " " : "");
-
-            if (written < 0 || (size_t)written >= sizeof(cmdline) - cmd_used) {
-                LOG_CMD(LOG_WARN, "exec cmdline truncated");
-                break;
-            }
-
-            cmd_used += (size_t)written;
-      }
-
-LOG_CMD(LOG_DEBUG, "exec: %s", cmdline);
-
         // ===== EXEC =====
         execv("/usr/bin/sudo", argv);
         dprintf(STDERR_FILENO, "exec failed\n");
@@ -132,21 +132,31 @@ LOG_CMD(LOG_DEBUG, "exec: %s", cmdline);
 
     int status;
     if (waitpid(pid, &status, 0) < 0) {
-        log_msg(LOG_ERROR, "waitpid failed");
+        LOG_CMD(LOG_ERROR, "waitpid failed");
         return -1;
     }
 
+    clock_gettime(CLOCK_MONOTONIC, &t_end);
     int code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    long elapsed_ms =
+        (t_end.tv_sec - t_start.tv_sec) * 1000 +
+        (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
 
     if (WIFEXITED(status)) {
-        log_msg(LOG_INFO, "exit code=%d", code);
-} else {
-    log_msg(LOG_WARN, "process terminated abnormally");
-}
+        LOG_CMD(LOG_INFO,
+            "exec: %s -> exit=%d, lines=%d, bytes=%zu, time=%ldms",
+            cmdline, code, lines, used, elapsed_ms);
+    } else {
+        LOG_CMD(LOG_WARN,
+            "exec: %s -> terminated abnormally, time=%ldms",
+            cmdline, elapsed_ms);
+      }
 
-    log_msg(LOG_INFO,
-        "exec done: status=%d, lines=%d, bytes=%zu",
-        code, lines, used);
+    if (WIFEXITED(status) && code != 0) {
+        LOG_CMD(LOG_WARN,
+                "exec failed: %s (exit=%d)",
+                cmdline, code);
+    }
 
     if (used == 0) {
         if (code == 0) {
