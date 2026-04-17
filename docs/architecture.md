@@ -40,13 +40,13 @@ tg-bot/
 │   ├── logs.c
 │   └── exec.c          # 🔹 centralized command execution (NEW)
 │
+├── tools/              # 🔹 internal utilities (NEW)
+│   └── f2b-wrapper.c   # 🔹 Fail2Ban wrapper
+│
 ├── external/
 │   ├── cJSON/
 │   │   ├── cJSON.c
 │   │   └── cJSON.h
-│   │
-│   └── f2b-wrapper/
-│       └── (external dependency - Fail2Ban integration!)
 │
 └── build/
     └── (compiled binaries and object files)
@@ -85,8 +85,8 @@ This module replaces duplicated execution logic previously located in:
 - logs.c
 
 ## Execution API
-
-## Core function
+### 1. Core function
+```
 int exec_command(
     char *const argv[],
     char *output,
@@ -94,13 +94,16 @@ int exec_command(
     const exec_opts_t *opts,
     exec_result_t *result
 );
+```
 
-## Backward-compatible wrapper
+### 2. Backward-compatible wrapper
+```
 int exec_command_simple(
     char *const argv[],
     char *output,
     size_t size
 );
+```
 
 ## Options (exec_opts_t)
 - timeout_ms — execution timeout
