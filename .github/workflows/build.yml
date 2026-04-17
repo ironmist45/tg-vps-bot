@@ -73,13 +73,13 @@ jobs:
       # ==================================================================================
       - name: Debug build output
         run: |
-          echo "=== ls ==="
+          echo '=== ls ==='
           ls -l
 
-          echo "=== file ==="
+          echo '=== file ==='
           file tg-bot || true
 
-          echo "=== size ==="
+          echo '=== size ==='
           du -h tg-bot
 
       - name: Runtime check in Ubuntu 18.04
@@ -94,8 +94,7 @@ jobs:
             echo '=== ldd ==='
             ldd ./tg-bot
 
-            ldd ./tg-bot | grep -q 'not found'
-            if [ $? -eq 0 ]; then
+            if ldd ./tg-bot | grep -q 'not found'; then
               echo 'ERROR: missing shared libraries'
               exit 1
             fi
