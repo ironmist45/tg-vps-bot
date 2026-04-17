@@ -644,7 +644,7 @@ static int cmd_help(int argc, char *argv[],
 
     if (resp_type) *resp_type = RESP_MARKDOWN;
 
-    size_t used = snprintf(resp, size, "*📚 COMMANDS*\n\n");
+    size_t used = snprintf(resp, size, "📚 COMMANDS\n\n");
 
     for (int i = 0; i < commands_count; i++) {
 
@@ -652,7 +652,7 @@ static int cmd_help(int argc, char *argv[],
             continue;
 
         int written = snprintf(resp + used, size - used,
-                               "`%s` — %s\n",
+                               "• %s — %s\n",
                                commands[i].name,
                                commands[i].description);
 
