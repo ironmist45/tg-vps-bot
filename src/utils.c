@@ -40,6 +40,45 @@ int safe_copy(char *dst, size_t dst_size, const char *src) {
     return 0;
 }
 
+// ===== реализация форматирования =====
+
+void format_code_block(const char *input,
+                       char *output,
+                       size_t size) {
+
+    if (!input || !output || size < 16) { // запас под обертку
+        if (output && size > 0) output[0] = '\0';
+        return;
+    }
+
+    int truncated = 0;
+
+    // резервируем место под:
+    // ```\n  (4)
+    // \n```  (4)
+    // \n[truncated] (12)
+    size_t max_content = size - 24;
+
+    size_t input_len = strlen(input);
+
+    if (input_len > max_content) {
+        truncated = 1;
+    }
+
+    char tmp[max_content + 1];
+
+    strncpy(tmp, input, max_content);
+    tmp[max_content] = '\0';
+
+    if (truncated) {
+        strncat(tmp, "\n[truncated]", max_content - strlen(tmp));
+    }
+
+    snprintf(output, size,
+             "```\n%s\n```",
+             tmp);
+}
+
 // ===== parse numbers =====
 
 int parse_long(const char *str, long *out) {
