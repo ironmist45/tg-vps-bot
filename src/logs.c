@@ -136,9 +136,9 @@ static int process_logs_output(char *tmp,
         line = strtok_r(NULL, "\n", &saveptr);
     }
 
-    log_msg(LOG_INFO,
-        "%s result: lines=%d, bytes=%zu",
-        is_fallback ? "fallback" : "exec",
+    log_msg(LOG_DEBUG,
+        "%s processed: lines=%d, bytes=%zu",
+        is_fallback ? "fallback" : "logs",
         line_count, strlen(buffer));
 
     return line_count;
@@ -151,11 +151,33 @@ static int exec_command(char *const argv[],
                         size_t size) {
 
     int pipefd[2];
+    char cmdline[256] = {0};
+    size_t cmd_used = 0;
+
+    struct timespec t_start, t_end;
+
+    // ===== BUILD CMDLINE =====
+    for (int i = 0; argv[i]; i++) {
+
+        int written = snprintf(cmdline + cmd_used,
+                               sizeof(cmdline) - cmd_used,
+                               "%s%s",
+                               argv[i],
+                               argv[i + 1] ? " " : "");
+
+        if (written < 0 || (size_t)written >= sizeof(cmdline) - cmd_used) {
+            LOG_CMD(LOG_WARN, "exec cmdline truncated");
+            break;
+        }
+
+        cmd_used += (size_t)written;
+    }
 
     if (pipe(pipefd) < 0) {
         return -1;
     }
 
+    clock_gettime(CLOCK_MONOTONIC, &t_start);
     pid_t pid = fork();
 
     if (pid < 0) {
@@ -286,10 +308,27 @@ static int exec_command(char *const argv[],
        return -1;
    }
 
+    clock_gettime(CLOCK_MONOTONIC, &t_end);
+
     int exit_code = WEXITSTATUS(status);
 
+    long elapsed_ms =
+        (t_end.tv_sec - t_start.tv_sec) * 1000 +
+        (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+    if (WIFEXITED(status)) {
+        LOG_CMD(LOG_INFO,
+                "exec: %s -> exit=%d, bytes=%zu, time=%ldms",
+                cmdline, exit_code, used, elapsed_ms);
+    } else {
+        LOG_CMD(LOG_WARN,
+                "exec: %s -> terminated abnormally, time=%ldms",
+                cmdline, elapsed_ms);
+    }
+
     if (exit_code != 0) {
-        log_msg(LOG_WARN, "command exited with code=%d", exit_code);
+        LOG_CMD(LOG_WARN,
+                "exec failed: %s (exit=%d)",
+                cmdline, exit_code);
     }
 
     // ✅ только здесь успех
@@ -418,11 +457,6 @@ int logs_get(const char *service, char *buffer, size_t size) {
         NULL
     };
 
-// лог команды (безопасно)
-log_msg(LOG_INFO,
-        "exec journalctl: service=%s lines=%d",
-        real_service, lines);
-
 // ===== execute =====
 
 char tmp[4096];
@@ -462,10 +496,6 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
             "--no-pager",
             NULL
         };
-
-        log_msg(LOG_INFO,
-                "fallback exec journalctl: lines=%d",
-                lines);
 
         if (exec_command(fallback_args, tmp, sizeof(tmp)) != 0) {
             log_msg(LOG_ERROR, "fallback exec_command failed");
