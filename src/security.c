@@ -82,6 +82,18 @@ int security_validate_text(const char *text) {
 
 }
 
+int security_check_access(long chat_id, const char *cmd) {
+    if (!security_is_allowed_chat(chat_id)) {
+        LOG_STATE(LOG_WARN,
+            "ACCESS DENIED: cmd=%s (chat_id=%ld)",
+            cmd ? cmd : "NULL", chat_id);
+
+        return -1;
+    }
+
+    return 0;
+}
+
 // ===== Bruteforce helper =====
 
 static void register_failed_attempt(time_t now) {
