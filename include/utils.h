@@ -11,6 +11,11 @@ char *trim(char *s);
 // безопасные строки
 int safe_copy(char *dst, size_t dst_size, const char *src);
 
+// форматирование вывода
+void format_code_block(const char *input,
+                       char *output,
+                       size_t size);
+
 // парсинг
 int parse_long(const char *str, long *out);
 int parse_int(const char *str, int *out);
