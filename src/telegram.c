@@ -411,7 +411,9 @@ int telegram_poll() {
 
             char response[RESP_MAX];
 
-            if (commands_handle(msg_text, cid, response, sizeof(response)) == 0) {
+            response_type_t resp_type;
+
+            if (commands_handle(msg_text, cid, response, sizeof(response), &resp_type) == 0) {
                 LOG_NET(LOG_DEBUG,
                         "response ready: %zu bytes",
                         strlen(response));
