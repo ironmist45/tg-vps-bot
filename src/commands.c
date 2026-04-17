@@ -738,8 +738,8 @@ int commands_handle(const char *text,
 
         if (strcmp(argv[0], commands[i].name) == 0) {
 
-            log_msg(LOG_INFO,
-                    "CMD %s (chat_id=%ld)",
+            LOG_NET(LOG_INFO,
+                    "cmd: %s (chat_id=%ld)",
                     argv[0], chat_id);
 
             if (!commands[i].handler) {
