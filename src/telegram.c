@@ -416,7 +416,8 @@ int telegram_poll() {
                         "response ready: %zu bytes",
                         strlen(response));
 
-                if (strncmp(msg_text, "/logs", 5) == 0) {
+                if (strncmp(msg_text, "/logs", 5) == 0 ||
+                    strncmp(msg_text, "/fail2ban", 9) == 0) {
                     telegram_send_plain(cid, response);
                 } else {
                     telegram_send_message(cid, response);
