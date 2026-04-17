@@ -14,6 +14,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h>
+#include <signal.h>
+#include <unistd.h>
 #include <sys/types.h>
 
 #define MAX_ARGS 8
@@ -296,7 +298,7 @@ static int cmd_fail2ban(int argc, char *argv[],
 
         char tmp[RESP_MAX];
 
-        if (exec_command(args, tmp, sizeof(tmp)) != 0) {
+        if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
             snprintf(resp, size, "❌ Fail2Ban failed");
             return -1;
         }
@@ -318,7 +320,7 @@ static int cmd_fail2ban(int argc, char *argv[],
 
         char tmp[RESP_MAX];
 
-        if (exec_command(args, tmp, sizeof(tmp)) != 0) {
+        if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
             snprintf(resp, size, "❌ Fail2Ban failed");
             return -1;
         }
@@ -358,7 +360,7 @@ static int cmd_fail2ban(int argc, char *argv[],
 
         char tmp[RESP_MAX];
 
-        if (exec_command(args, tmp, sizeof(tmp)) != 0) {
+        if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
             snprintf(resp, size, "❌ Fail2Ban failed");
             return -1;
         }
@@ -392,7 +394,7 @@ static int cmd_fail2ban(int argc, char *argv[],
 
         char tmp[RESP_MAX];
 
-        if (exec_command(args, tmp, sizeof(tmp)) != 0) {
+        if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
             snprintf(resp, size, "❌ Fail2Ban failed");
             return -1;
         }
