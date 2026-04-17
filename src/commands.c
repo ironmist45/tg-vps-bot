@@ -162,8 +162,6 @@ LOG_CMD(LOG_DEBUG, "exec: %s", cmdline);
         "exec done: status=%d, lines=%d, bytes=%zu",
         code, lines, used);
 
-    int code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-
     if (used == 0) {
         if (code == 0) {
             snprintf(tmp, sizeof(tmp),
