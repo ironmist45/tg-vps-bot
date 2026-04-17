@@ -30,4 +30,7 @@ int split_args(char *input, char *argv[], int max_args);
 // URL encoding (для Telegram)
 int url_encode(const char *src, char *dst, size_t dst_size);
 
+// ===== network utils =====
+int is_safe_ip(const char *ip);
+
 #endif
