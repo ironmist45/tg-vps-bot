@@ -190,7 +190,10 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
     if (parsed >= 2) {
         if (is_number(arg1)) {
-            lines = atoi(arg1);
+            if (parse_int(arg1, &lines) != 0) {
+                snprintf(buffer, size, "❌ Invalid number");
+                return -1;
+            }
         } else {
             filter = arg1;
         }
@@ -204,6 +207,13 @@ int logs_get(const char *service, char *buffer, size_t size) {
     if (filter) {
 
         size_t flen = strlen(filter);
+
+        // 🆕 МИНИМАЛЬНАЯ ДЛИНА (защита от CPU abuse)
+        if (flen < 3) {
+            log_msg(LOG_WARN, "filter too short: %s", filter);
+            snprintf(buffer, size, "❌ Filter too short (min 3 chars)");
+            return -1;
+        }
 
         // 📏 ограничение длины
         if (flen > 32) {
@@ -230,6 +240,9 @@ int logs_get(const char *service, char *buffer, size_t size) {
             }
         }
 
+    log_msg(LOG_DEBUG, "filter accepted: %s", filter);
+}
+    
     // ✅ лог успешного фильтра
     log_msg(LOG_DEBUG, "filter accepted: %s", filter);
 }
@@ -262,7 +275,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
 // ===== execute =====
 
-char tmp[4096];
+char tmp[8192];
 
 if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
     log_msg(LOG_ERROR, "exec_command_simple failed");
