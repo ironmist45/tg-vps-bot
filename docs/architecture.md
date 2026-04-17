@@ -142,6 +142,6 @@ int exec_command_simple(
 
 * Uses long polling (no webhooks)
 * Designed for Linux (systemd)
-* Optimized for low resource usage (for low-end VPS)
+* Optimized for low resource usage on **low-end VPS** environments
 * Execution is now fully centralized and consistent across modules
 * Backward compatibility preserved via exec_command_simple()
