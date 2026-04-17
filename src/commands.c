@@ -54,7 +54,7 @@ static int cmd_fail2ban(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_reboot(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_reboot_confirm(int, char **, long, char *, size_t, response_type_t *);
 
-// ==== exec ====
+// ==== exec section (exec_command → ВСЕГДА raw!) ====
 
 static int exec_command(char *const argv[],
                         char *resp,
@@ -172,7 +172,7 @@ LOG_CMD(LOG_DEBUG, "exec: %s", cmdline);
         }
     }
 
-    format_code_block(tmp, resp, size);
+    snprintf(resp, size, "%s", tmp);
   
     return 0;
 }
