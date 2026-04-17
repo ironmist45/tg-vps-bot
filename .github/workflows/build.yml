@@ -82,11 +82,22 @@ jobs:
           echo "=== size ==="
           du -h tg-bot
 
-      - name: Check ldd in Ubuntu 18.04
+      - name: Runtime check in Ubuntu 18.04
         run: |
           docker run --rm -v $PWD:/app -w /app ubuntu:18.04 bash -c "
-            echo '=== ldd (Ubuntu 18.04) ==='
-            ldd ./tg-bot | grep "not found" && exit 1 || true
+            set -e
+
+            apt-get update -qq
+            apt-get install -y libcurl4 libssl1.1 zlib1g
+
+            echo '=== ldd ==='
+            if ldd ./tg-bot | grep -q "not found"; then
+              echo "ERROR: missing shared libraries"
+              exit 1
+            fi
+
+            echo '=== runtime test ==='
+            ./tg-bot --version
           "
       # =========================
       # VALIDATION
@@ -126,7 +137,7 @@ jobs:
           echo "POLL_TIMEOUT=1" >> test.conf
           echo "TOKEN_TTL=10" >> test.conf
 
-          timeout 3s ./tg-bot -c test.conf || true
+          timeout 3s ./tg-bot -c test.conf || echo "bot exited (expected or timeout)"
 
       - name: Check log file created
         run: |
