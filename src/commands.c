@@ -7,17 +7,14 @@
 #include "security.h"
 #include "version.h"
 #include "utils.h"
+#include "exec.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
-#include <unistd.h>
-#include <signal.h>
 #include <ctype.h>
 #include <sys/types.h>
-#include <sys/wait.h>
-#include <fcntl.h>
 
 #define MAX_ARGS 8
 #define RESP_MAX 8192
@@ -39,139 +36,6 @@ static int cmd_users(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_fail2ban(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_reboot(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_reboot_confirm(int, char **, long, char *, size_t, response_type_t *);
-
-// ==== exec section (exec_command → ВСЕГДА raw!) ====
-
-static int exec_command(char *const argv[],
-                        char *resp,
-                        size_t size) {
-
-    int pipefd[2];
-
-    // ===== BUILD CMDLINE (PARENT SIDE) =====
-    char cmdline[256] = {0};
-    size_t cmd_used = 0;
-    struct timespec t_start, t_end;
-
-    for (int i = 0; argv[i]; i++) {
-
-        int written = snprintf(cmdline + cmd_used,
-                               sizeof(cmdline) - cmd_used,
-                               "%s%s",
-                               argv[i],
-                               argv[i + 1] ? " " : "");
-
-        if (written < 0 || (size_t)written >= sizeof(cmdline) - cmd_used) {
-            LOG_CMD(LOG_WARN, "exec cmdline truncated");
-            break;
-        }
-
-        cmd_used += (size_t)written;
-    }
-
-    if (pipe(pipefd) < 0) {
-        return -1;
-    }
-
-    clock_gettime(CLOCK_MONOTONIC, &t_start);
-    pid_t pid = fork();
-
-    if (pid < 0) {
-        close(pipefd[0]);
-        close(pipefd[1]);
-        return -1;
-    }
-
-    if (pid == 0) {
-      
-        // ===== CHILD =====
-
-        // stdout -> pipe
-        if (dup2(pipefd[1], STDOUT_FILENO) < 0 ||
-            dup2(pipefd[1], STDERR_FILENO) < 0) {
-            _exit(127);
-        }
-
-        close(pipefd[0]);
-        close(pipefd[1]);
-      
-        // ===== EXEC =====
-        execv("/usr/bin/sudo", argv);
-        dprintf(STDERR_FILENO, "exec failed\n");
-        // если exec не сработал
-        _exit(127);
-    }
-
-    // ===== PARENT =====
-
-    close(pipefd[1]);
-
-    char tmp[RESP_MAX];
-    tmp[0] = '\0';
-    size_t used = 0;
-    int lines = 0;
-
-    FILE *fp = fdopen(pipefd[0], "r");
-    if (!fp) {
-        close(pipefd[0]);
-        return -1;
-    }
-
-    while (fgets(tmp + used, sizeof(tmp) - used, fp)) {
-        size_t len = strlen(tmp + used);
-        used += len;
-        lines++;
-
-        if (used >= sizeof(tmp) - 1) {
-            strncat(tmp, "\n...truncated...", sizeof(tmp) - strlen(tmp) - 1);
-            break;
-        }
-    }
-
-    fclose(fp);
-
-    int status;
-    if (waitpid(pid, &status, 0) < 0) {
-        LOG_CMD(LOG_ERROR, "waitpid failed");
-        return -1;
-    }
-
-    clock_gettime(CLOCK_MONOTONIC, &t_end);
-    int code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-    long elapsed_ms =
-        (t_end.tv_sec - t_start.tv_sec) * 1000 +
-        (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
-
-    if (WIFEXITED(status)) {
-        LOG_CMD(LOG_INFO,
-            "exec: %s -> exit=%d, lines=%d, bytes=%zu, time=%ldms",
-            cmdline, code, lines, used, elapsed_ms);
-    } else {
-        LOG_CMD(LOG_WARN,
-            "exec: %s -> terminated abnormally, time=%ldms",
-            cmdline, elapsed_ms);
-      }
-
-    if (WIFEXITED(status) && code != 0) {
-        LOG_CMD(LOG_WARN,
-                "exec failed: %s (exit=%d)",
-                cmdline, code);
-    }
-
-    if (used == 0) {
-        if (code == 0) {
-            snprintf(tmp, sizeof(tmp),
-                "ℹ️ No output");
-        } else {
-            snprintf(tmp, sizeof(tmp),
-                "❌ Command failed (exit=%d)", code);
-        }
-    }
-
-    snprintf(resp, size, "%s", tmp);
-  
-    return 0;
-}
 
 // ===== COMMANDS =====
 
