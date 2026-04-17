@@ -1,6 +1,8 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include "security.h"
+#include <stdio.h>
 #include <stddef.h>
 
 // trim
@@ -32,5 +34,14 @@ int url_encode(const char *src, char *dst, size_t dst_size);
 
 // ===== network utils =====
 int is_safe_ip(const char *ip);
+
+// ===== access helpers =====
+#define REQUIRE_ACCESS(chat_id, cmd, resp, size)            \
+    do {                                                    \
+        if (security_check_access(chat_id, cmd) != 0) {     \
+            snprintf(resp, size, "❌ Access denied");        \
+            return -1;                                      \
+        }                                                   \
+    } while (0)
 
 #endif
