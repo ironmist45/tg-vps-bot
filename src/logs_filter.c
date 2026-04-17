@@ -19,11 +19,11 @@ int match_semantic(const char *line, const char *filter) {
     }
 
     if (strcasecmp(filter, "session") == 0) {
-        return strcasestr(line, "session");
+        return strcasestr(line, "session") != NULL;
     }
 
     if (strcasecmp(filter, "pam") == 0) {
-        return strcasestr(line, "pam_");
+        return strcasestr(line, "pam_") != NULL;
     }
 
     return strcasestr(line, filter) != NULL;
