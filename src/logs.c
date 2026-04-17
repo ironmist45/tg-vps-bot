@@ -173,7 +173,10 @@ static int exec_command(char *const argv[],
         cmd_used += (size_t)written;
     }
 
+    LOG_CMD(LOG_DEBUG, "exec start: %s", cmdline);
+
     if (pipe(pipefd) < 0) {
+        LOG_CMD(LOG_ERROR, "pipe failed: %s", cmdline);
         return -1;
     }
 
@@ -181,6 +184,7 @@ static int exec_command(char *const argv[],
     pid_t pid = fork();
 
     if (pid < 0) {
+        LOG_CMD(LOG_ERROR, "fork failed: %s", cmdline);
         close(pipefd[0]);
         close(pipefd[1]);
         return -1;
@@ -230,7 +234,7 @@ static int exec_command(char *const argv[],
 
         if (rv == 0) {
             // ⏰ timeout
-            log_msg(LOG_ERROR, "exec timeout, killing pid=%d", pid);
+            LOG_CMD(LOG_ERROR, "exec timeout: %s (pid=%d)", cmdline, pid);
             kill(pid, SIGKILL);
             fclose(fp);
             waitpid(pid, NULL, 0);
@@ -241,7 +245,7 @@ static int exec_command(char *const argv[],
             if (errno == EINTR)
                 continue;
 
-            log_msg(LOG_ERROR, "select() failed");
+            LOG_CMD(LOG_ERROR, "select() failed for: %s", cmdline);
             fclose(fp);
             waitpid(pid, NULL, 0);
             return -1;
@@ -279,7 +283,7 @@ static int exec_command(char *const argv[],
         }
 
         if (rc == -1) {
-            log_msg(LOG_ERROR, "waitpid failed: pid=%d", pid);
+            LOG_CMD(LOG_ERROR, "waitpid failed: %s (pid=%d)", cmdline, pid);
             break;
         }
 
@@ -290,9 +294,9 @@ static int exec_command(char *const argv[],
     // 🔥 если не завершился — убиваем
     if (!finished) {
 
-        log_msg(LOG_WARN,
-            "exec timeout (%d ms), killing pid=%d",
-            EXEC_TIMEOUT_MS, pid);
+        LOG_CMD(LOG_WARN,
+            "exec timeout (%d ms): %s (pid=%d)",
+            EXEC_TIMEOUT_MS, cmdline, pid);
 
         kill(pid, SIGKILL);
 
@@ -304,7 +308,7 @@ static int exec_command(char *const argv[],
 
    // ✅ проверка завершения
    if (!WIFEXITED(status)) {
-       log_msg(LOG_WARN, "process terminated abnormally");
+       LOG_CMD(LOG_WARN, "exec: %s -> terminated abnormally", cmdline);
        return -1;
    }
 
@@ -315,15 +319,10 @@ static int exec_command(char *const argv[],
     long elapsed_ms =
         (t_end.tv_sec - t_start.tv_sec) * 1000 +
         (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
-    if (WIFEXITED(status)) {
-        LOG_CMD(LOG_INFO,
-                "exec: %s -> exit=%d, bytes=%zu, time=%ldms",
-                cmdline, exit_code, used, elapsed_ms);
-    } else {
-        LOG_CMD(LOG_WARN,
-                "exec: %s -> terminated abnormally, time=%ldms",
-                cmdline, elapsed_ms);
-    }
+    
+    LOG_CMD(LOG_INFO,
+            "exec: %s -> exit=%d, bytes=%zu, time=%ldms",
+            cmdline, exit_code, used, elapsed_ms);
 
     if (exit_code != 0) {
         LOG_CMD(LOG_WARN,
@@ -490,7 +489,7 @@ if (exec_command(args, tmp, sizeof(tmp)) != 0) {
         char *const fallback_args[] = {
             "sudo",
             "-n",
-            "journalctl",
+            "/bin/journalctl",
             "-n",
             lines_str2,
             "--no-pager",
