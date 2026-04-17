@@ -288,6 +288,7 @@ static int exec_command(char *const argv[],
 
     // ✅ только здесь успех
     return 0;
+}
 
 // ===== основной API =====
 
