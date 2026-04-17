@@ -3,7 +3,8 @@
 #include "logs.h"
 #include "logger.h"
 #include "exec.h"
-
+#include "logs_filter.h"
+#include <strings.h> // для strcasestr
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
