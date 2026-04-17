@@ -79,6 +79,58 @@ void format_code_block(const char *input,
              tmp);
 }
 
+void safe_code_block(const char *src,
+                     char *dst,
+                     size_t size)
+{
+    if (!src || !dst || size == 0)
+        return;
+
+    size_t used = 0;
+
+    // открываем блок
+    int written = snprintf(dst, size, "```\n");
+    if (written < 0 || (size_t)written >= size)
+        return;
+
+    used += written;
+
+    for (size_t i = 0; src[i] && used < size - 5; i++) {
+
+        // 🔥 защита от ``` внутри текста
+        if (src[i] == '`' &&
+            src[i + 1] == '`' &&
+            src[i + 2] == '`') {
+
+            // заменяем на ''' (или можно просто пропустить)
+            if (used < size - 4) {
+                dst[used++] = '\'';
+                dst[used++] = '\'';
+                dst[used++] = '\'';
+            }
+
+            i += 2;
+            continue;
+        }
+
+        dst[used++] = src[i];
+    }
+
+    // гарантируем перенос перед закрытием
+    if (used > 0 && dst[used - 1] != '\n') {
+        dst[used++] = '\n';
+    }
+
+    // закрываем блок
+    if (used < size - 4) {
+        dst[used++] = '`';
+        dst[used++] = '`';
+        dst[used++] = '`';
+    }
+
+    dst[used] = '\0';
+}
+
 // ===== parse numbers =====
 
 int parse_long(const char *str, long *out) {
