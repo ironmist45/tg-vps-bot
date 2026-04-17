@@ -436,11 +436,11 @@ static int cmd_fail2ban(int argc, char *argv[],
 
     if (argc < 2) {
         snprintf(resp, size,
-            "*🛡 Fail2Ban*\n\n"
+            "🛡 Fail2Ban\n\n"
             "/fail2ban status\n"
             "/fail2ban status sshd\n"
             "/fail2ban ban <ip>\n"
-            "/fail2ban unban <ip>"
+            "/fail2ban unban <ip>");
         return 0;
     }
 
@@ -455,8 +455,15 @@ static int cmd_fail2ban(int argc, char *argv[],
                 NULL
         };
 
-        return exec_command(args, resp, size);
+        char tmp[RESP_MAX];
+
+        int rc = exec_command(args, tmp, sizeof(tmp));
+        format_code_block(tmp, resp, size);
+
+        return rc;
+          
     }
+          
     else if (argc >= 3 && strcmp(argv[2], "sshd") == 0) {
         char *const args[] = {
             "sudo",
@@ -467,8 +474,15 @@ static int cmd_fail2ban(int argc, char *argv[],
             NULL
         };
 
-        return exec_command(args, resp, size);
+         char tmp[RESP_MAX];
+
+         int rc = exec_command(args, tmp, sizeof(tmp));
+         format_code_block(tmp, resp, size);
+
+        return rc;
+      
     }
+      
     else {
         snprintf(resp, size, "Invalid status usage");
         return -1;
@@ -497,7 +511,13 @@ static int cmd_fail2ban(int argc, char *argv[],
             NULL
         };
 
-        return exec_command(args, resp, size);
+        char tmp[RESP_MAX];
+
+        int rc = exec_command(args, tmp, sizeof(tmp));
+        format_code_block(tmp, resp, size);
+
+        return rc;
+      
 }
 
     else if (strcmp(argv[1], "unban") == 0 && argc >= 3) {
@@ -522,7 +542,13 @@ static int cmd_fail2ban(int argc, char *argv[],
             NULL
         };
 
-        return exec_command(args, resp, size);
+        char tmp[RESP_MAX];
+
+        int rc = exec_command(args, tmp, sizeof(tmp));
+        format_code_block(tmp, resp, size);
+
+        return rc;
+      
 }
 
     else {
