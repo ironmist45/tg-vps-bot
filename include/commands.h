@@ -19,6 +19,7 @@ typedef struct {
     const char *name;
     command_handler_t handler;
     const char *description;
+    const char *category;
 } command_t;
 
 // 👇 API
