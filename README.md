@@ -223,8 +223,8 @@ Modular C design:
 * **OS:** Ubuntu 18.04.6
 * **Compiler:** GCC 7.5.0
 * **Libraries:**
-    - **libcurl** — HTTP client library (License: curl license (MIT-like), Website: https://curl.se/libcurl/)
-    - **cJSON** — lightweight JSON parser (License: MIT, Author: Dave Gamble, repo: https://github.com/DaveGamble/cJSON, version: v1.7.15)
+    - **🌐 libcurl** — HTTP client library (License: curl license (MIT-like), Website: https://curl.se/libcurl/)
+    - **📄 cJSON** — lightweight JSON parser (License: MIT, Author: Dave Gamble, repo: https://github.com/DaveGamble/cJSON, version: v1.7.15)
 
 > ⚡ Other environments may work, but are not guaranteed.
 
