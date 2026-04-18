@@ -271,12 +271,6 @@ static void get_host(char *buf, size_t size) {
 
 // ===== Main API =====
 
-char os[128];
-char host[128];
-
-get_os(os, sizeof(os));
-get_host(host, sizeof(host));
-
 int system_get_status(char *buffer, size_t size) {
 
     LOG_STATE(LOG_DEBUG, "system_get_status() called");
@@ -286,6 +280,13 @@ int system_get_status(char *buffer, size_t size) {
     }
 
     buffer[0] = '\0';
+
+    // ✅ Контекст
+    char os[128];
+    char host[128];
+
+    get_os(os, sizeof(os));
+    get_host(host, sizeof(host));
 
     double l1, l5, l15;
     get_load(&l1, &l5, &l15);
@@ -304,20 +305,22 @@ int system_get_status(char *buffer, size_t size) {
     int written = snprintf(buffer, size,
         "🖥 *System info*\n\n"
 
-        "🐧 OS: %s\n"
-        "🖥 Host: %s\n\n"
+        "🐧 OS   : %s\n"
+        "🖥 Host  : %s\n\n"
 
-        "⏱ Uptime: %dd %dh %dm\n"
-        "👥 Users: %d\n\n"
+        "⏱ Uptime  : %dd %dh %dm\n"
+        "👥 Users  : %d online\n"
 
         "⚡ *CPU Load*\n"
-        "%.2f / %.2f / %.2f\n\n"
+        "1m  : %.2f\n"
+        "5m  : %.2f\n"
+        "15m : %.2f\n\n"
 
         "🧠 *Memory*\n"
-        "%d / %d MB (%d%%)\n\n"
+        "Used : %d / %d MB (%d%%)\n\n"
 
         "💾 *Disk*\n"
-        "%d / %d GB (%d%%)",
+        "Used : %d / %d GB (%d%%)",
         os, host,
         days, hours, mins,
         users,
