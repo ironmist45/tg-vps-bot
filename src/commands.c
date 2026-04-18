@@ -299,33 +299,37 @@ static int cmd_fail2ban(int argc, char *argv[],
         char tmp[RESP_MAX];
         exec_result_t res;
 
-        if (exec_command(args, tmp, sizeof(tmp), NULL, &res) != 0) {
+        int rc = exec_command(args, tmp, sizeof(tmp), NULL, &res);
+
+        // 🔴 1. Ошибка выполнения (fork/pipe/timeout и т.д.)
+        if (rc != 0) {
 
             if (res.status == EXEC_TIMEOUT) {
                 snprintf(resp, size, "❌ Fail2Ban timeout");
             }
             else if (res.status == EXEC_EXEC_FAILED) {
-                snprintf(resp, size,
-                "❌ Fail2Ban binary error\n"
-                "Possible GLIBC mismatch");
+                    snprintf(resp, size,
+                    "❌ Fail2Ban binary error\n"
+                    "Possible GLIBC mismatch");
             }
             else {
                 snprintf(resp, size,
-                "❌ Fail2Ban failed (%s)",
-                exec_status_str(res.status));
+                    "❌ Fail2Ban failed (%s)",
+                    exec_status_str(res.status));
             }
 
-            return -1;
-      }
+            return 0;
+        }
 
-      // exit != 0 — тоже ошибка, но с выводом
-      if (res.status == EXEC_EXIT_NONZERO) {
-          safe_code_block(tmp, resp, size);
-          return -1;
-      }
+        // 🟡 2. Команда выполнилась, но exit != 0
+        if (res.status == EXEC_EXIT_NONZERO) {
+            safe_code_block(tmp, resp, size);
+            return 0;
+        }
 
-      safe_code_block(tmp, resp, size);
-      return 0;
+        // 🟢 3. Успех
+        safe_code_block(tmp, resp, size);
+        return 0;
                   
     }
           
@@ -342,33 +346,37 @@ static int cmd_fail2ban(int argc, char *argv[],
         char tmp[RESP_MAX];
         exec_result_t res;
 
-        if (exec_command(args, tmp, sizeof(tmp), NULL, &res) != 0) {
+        int rc = exec_command(args, tmp, sizeof(tmp), NULL, &res);
+
+        // 🔴 1. Ошибка выполнения (fork/pipe/timeout и т.д.)
+        if (rc != 0) {
 
             if (res.status == EXEC_TIMEOUT) {
                 snprintf(resp, size, "❌ Fail2Ban timeout");
             }
             else if (res.status == EXEC_EXEC_FAILED) {
-                snprintf(resp, size,
-                "❌ Fail2Ban binary error\n"
-                "Possible GLIBC mismatch");
+                    snprintf(resp, size,
+                    "❌ Fail2Ban binary error\n"
+                    "Possible GLIBC mismatch");
             }
             else {
                 snprintf(resp, size,
-                "❌ Fail2Ban failed (%s)",
-                exec_status_str(res.status));
+                    "❌ Fail2Ban failed (%s)",
+                    exec_status_str(res.status));
             }
 
-            return -1;
-      }
+            return 0;
+        }
 
-      // exit != 0 — тоже ошибка, но с выводом
-      if (res.status == EXEC_EXIT_NONZERO) {
-          safe_code_block(tmp, resp, size);
-          return -1;
-      }
+        // 🟡 2. Команда выполнилась, но exit != 0
+        if (res.status == EXEC_EXIT_NONZERO) {
+            safe_code_block(tmp, resp, size);
+            return 0;
+        }
 
-      safe_code_block(tmp, resp, size);
-      return 0;
+        // 🟢 3. Успех
+        safe_code_block(tmp, resp, size);
+        return 0;
       
     }
       
