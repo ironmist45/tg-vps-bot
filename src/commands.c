@@ -141,16 +141,17 @@ static int cmd_ping(int argc, char *argv[],
         (end.tv_sec - start.tv_sec) * 1000 +
         (end.tv_nsec - start.tv_nsec) / 1000000;
 
-    LOG_STATE(LOG_INFO,
-        "ping: latency=%ld ms uptime=%dm%ds",
-        latency_ms, mins, secs);
-
     // ===== uptime =====
     time_t now = time(NULL);
     long uptime = now - g_start_time;
 
     int mins = (uptime % 3600) / 60;
     int secs = uptime % 60;
+
+    // ✅ логируем /ping в лог бота
+    LOG_STATE(LOG_INFO,
+        "ping: latency=%ld ms uptime=%dm%ds",
+        latency_ms, mins, secs);
 
     int written = snprintf(resp, size,
         "*🏓 PING*\n\n"
