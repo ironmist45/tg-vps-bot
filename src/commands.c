@@ -611,7 +611,6 @@ static command_t commands[] = {
     {"/help", cmd_help, NULL, "General"},
 
     {"/status", cmd_status, "System status", "System info"},
-    {"/status_mini", cmd_status_mini, NULL, "System info"},
     {"/about", cmd_about, "About bot", "System info"},
     {"/ping", cmd_ping, NULL, "System info"},
 
@@ -666,14 +665,22 @@ static int cmd_help(int argc, char *argv[],
 
         // ===== COMMAND LINE =====
 
-        int written = snprintf(resp + used, size - used,
-            "%s\n",
-            commands[i].name);
-      
-        if (written < 0 || (size_t)written >= size - used)
-            break;
+        const char *name = commands[i].name;
 
-        used += written;
+        // 👉 рисуем подкоманду сразу после /status
+        if (strcmp(name, "/status") == 0) {
+
+            int written = snprintf(resp + used, size - used,
+                "/status\n"
+                "  ↳ /status mini\n");
+
+            if (written < 0 || (size_t)written >= size - used)
+                break;
+
+            used += written;
+            continue;
+        }
+      
     }
 
     LOG_STATE(LOG_DEBUG, "help: building command list");
@@ -737,7 +744,79 @@ int commands_handle(const char *text,
         return -1;
     }
 
+    // ===== SUBCOMMAND: /status mini =====
+    if (strcmp(argv[0], "/status") == 0) {
+
+        if (argc >= 2 && strcmp(argv[1], "mini") == 0) {
+
+            LOG_NET(LOG_INFO,
+                    "cmd: /status mini (chat_id=%ld)",
+                    chat_id);
+
+            int rc = cmd_status_mini(
+                argc, argv, chat_id,
+                response, resp_size,
+                &local_resp_type
+            );
+
+            if (response[0] == '\0') {
+                snprintf(response, resp_size,
+                         (rc == 0) ? "OK" : "Error");
+            }
+
+            if (resp_type) {
+                *resp_type = local_resp_type;
+            }
+
+            return rc;
+        }
+
+        LOG_NET(LOG_INFO,
+                "cmd: /status (chat_id=%ld)",
+                chat_id);
+
+        int rc = cmd_status(
+            argc, argv, chat_id,
+            response, resp_size,
+            &local_resp_type
+        );
+
+        if (response[0] == '\0') {
+            snprintf(response, resp_size,
+                     (rc == 0) ? "OK" : "Error");
+        }
+
+        if (resp_type) {
+            *resp_type = local_resp_type;
+        }
+
+        return rc;
+    }
+
     for (int i = 0; i < commands_count; i++) {
+      
+    // 👉 обычный /status
+    LOG_NET(LOG_INFO,
+            "cmd: /status (chat_id=%ld)",
+            chat_id);
+
+    int rc = cmd_status(
+        argc, argv, chat_id,
+        response, resp_size,
+        &local_resp_type
+    );
+
+    if (response[0] == '\0') {
+        snprintf(response, resp_size,
+                 (rc == 0) ? "OK" : "Error");
+    }
+
+    if (resp_type) {
+        *resp_type = local_resp_type;
+    }
+
+    return rc;
+}
 
         if (strcmp(argv[0], commands[i].name) == 0) {
 
