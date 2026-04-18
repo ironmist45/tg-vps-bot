@@ -112,6 +112,7 @@ static int exec_command_internal(char *const argv[],
     // ===== init output =====
 
     if (resp && size > 0)
+        resp[0] = '\0';
 
     // ===== build cmdline =====
 
@@ -185,9 +186,6 @@ static int exec_command_internal(char *const argv[],
             (capture_stderr && dup2(pipefd[1], STDERR_FILENO) < 0)) {
             _exit(127);
 
-                if (exit_code == 127 && result) {
-                    result->status = EXEC_EXEC_FAILED;
-                }
         }
 
         close(pipefd[0]);
@@ -386,6 +384,10 @@ static int exec_command_internal(char *const argv[],
     }
     
     int exit_code = WEXITSTATUS(status);
+
+    if (exit_code == 127 && result) {
+        result->status = EXEC_EXEC_FAILED;
+    }
     
     if (result) {
         result->exit_code = exit_code;
