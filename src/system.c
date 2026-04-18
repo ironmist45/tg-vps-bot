@@ -304,6 +304,7 @@ int system_get_status(char *buffer, size_t size) {
 
     int written = snprintf(buffer, size,
         "🖥 *System info*\n\n"
+        "```\n"
 
         "%-7s : %s\n"
         "%-7s : %s\n\n"
@@ -311,16 +312,18 @@ int system_get_status(char *buffer, size_t size) {
         "%-7s : %dd %dh %dm\n"
         "%-7s : %d online\n\n"
 
-        "⚡ *CPU Load*\n"
+        "CPU Load\n"
         "%-7s : %.2f\n"
         "%-7s : %.2f\n"
         "%-7s : %.2f\n\n"
 
-        "🧠 *Memory*\n"
+        "Memory\n"
         "%-7s : %d / %d MB (%d%%)\n\n"
 
-        "💾 *Disk*\n"
-        "%-7s : %d / %d GB (%d%%)",
+        "Disk\n"
+        "%-7s : %d / %d GB (%d%%)\n"
+
+        "```",
 
         "OS",   os,
         "Host", host,
