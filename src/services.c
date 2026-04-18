@@ -51,6 +51,8 @@ static int get_service_status(const char *service, char *out, size_t size) {
     }
 
     char *const args[] = {
+        "sudo",
+        "-n",
         "systemctl",
         "is-active",
         (char *)service,
