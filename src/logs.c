@@ -10,8 +10,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <unistd.h>
-
 
 #define MAX_LINE 256
 #define DEBUG_LINES 5
