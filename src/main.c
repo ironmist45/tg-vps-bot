@@ -354,7 +354,6 @@ static void check_fail2ban() {
         // 👉 Fallback: иногда sudo может вернуть ошибку без текста, тогда out будет пустой
         if (out[0] == '\0') {
 
-            // 🔥 fallback: повторить без quiet для диагностики
             exec_opts_t debug_opts = {
                 .timeout_ms = 2000,
                 .quiet = 0
@@ -365,29 +364,26 @@ static void check_fail2ban() {
 
             exec_command(args, dbg_out, sizeof(dbg_out), &debug_opts, &dbg_res);
 
+            // 🔴 проверяем GLIBC тут
+            if (strstr(dbg_out, "GLIBC")) {
+                LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (glibc)");
+                return;
+            }
+
             if (dbg_out[0]) {
                 LOG_SYS(LOG_ERROR,
                     "fail2ban-wrapper: FAIL (%s) -> %.100s",
-                    exec_status_str(res.status),
                     exec_status_str(dbg_res.status),
                     dbg_out);
             } else {
                 LOG_SYS(LOG_ERROR,
-                    "fail2ban-wrapper: FAIL (no output, %s -> %s)",
-                    exec_status_str(res.status),
-                    exec_status_str(dbg_res.status));
+                    "fail2ban-wrapper: FAIL (no output, %s)",
+                    exec_status_str(res.status));
             }
 
             return;
         }
-
-        // 🟡 всё остальное
-        LOG_SYS(LOG_ERROR,
-            "fail2ban-wrapper: FAIL (%s)",
-            exec_status_str(res.status));
-        return;
-    }
-
+        
 LOG_SYS(LOG_INFO, "fail2ban-wrapper: OK");
 
 }
