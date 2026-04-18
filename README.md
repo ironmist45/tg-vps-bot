@@ -18,7 +18,7 @@ Production-ready Telegram bot for server monitoring and management, written in p
 
 ### ⚙️ Service Management
 
-* Check status via `systemctl`
+* Check system services status via `systemctl`
 
 Supports the following services:
 
@@ -177,14 +177,21 @@ Modular C design:
 ## 📦 Example Commands
 
 ```
-/start
-/status
-/services
-/users
-/logs ssh 50
-/fail2ban status
-/fail2ban ban 1.2.3.4
-/reboot
+**General**
+/start - Start bot
+/help  - Help
+**System info**
+/status - System status
+/about  - About bot
+/ping   - Ping
+**Services**
+/services - Services status (ssh, mtg, shadowsocks)
+/users    - Users
+/logs     - Logs (example commands: /logs ssh, /logs mtg, logs shadowsocks, /logs <service> <N>, /logs <service> error)
+**Security**
+/fail2ban status - Fail2Ban (example commands: /fail2ban status, /fail2ban status sshd, /fail2ban ban <ip>, /fail2ban unban <ip>)
+**System**
+/reboot - System reboot
 ```
 
 ---
@@ -210,12 +217,14 @@ Modular C design:
 
 ## ⚠️ Requirements
 
-> This project is tested on a specific environment!
-> Built and optimized specifically for the following environment:
+> This project is tested on a **specific environment!**
+> Primarily tested on the following environment:
 
 * **OS:** Ubuntu 18.04.6
 * **Compiler:** GCC 7.5.0
-* **Libraries:** `libcurl`, `cJSON`
+* **Libraries:**
+    - **libcurl** — HTTP client library (License: curl license (MIT-like), Website: https://curl.se/libcurl/)
+    - **cJSON** — lightweight JSON parser (License: MIT, Author: Dave Gamble, repo: https://github.com/DaveGamble/cJSON, version: v1.7.15)
 
 > ⚡ Other environments may work, but are not guaranteed.
 
