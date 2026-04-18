@@ -12,16 +12,39 @@
 #include <signal.h>
 #include <time.h>
 
+// ==== exec status ====
+
+const char* exec_status_str(exec_status_t s) {
+    switch (s) {
+        case EXEC_OK: return "OK";
+        case EXEC_FORK_FAILED: return "FORK_FAILED";
+        case EXEC_EXEC_FAILED: return "EXEC_FAILED";
+        case EXEC_EXIT_NONZERO: return "EXIT_NONZERO";
+        case EXEC_SIGNAL_KILLED: return "SIGNALED";
+        case EXEC_TIMEOUT: return "TIMEOUT";
+        case EXEC_PIPE_FAILED: return "PIPE_FAILED";
+        case EXEC_READ_FAILED: return "READ_FAILED";
+        default: return "UNKNOWN";
+    }
+}
+
 // ===== helpers =====
 
-static void exec_result_fail(exec_result_t *r, int timed_out)
+static void exec_result_fail(exec_result_t *r,
+                            exec_status_t status)
 {
     if (!r) return;
 
+    r->status = status;
     r->exit_code = -1;
-    r->timed_out = timed_out;
+    r->term_signal = 0;
+
+    r->timed_out = (status == EXEC_TIMEOUT);
     r->signaled = 0;
-    r->bytes = 0;
+
+    r->stdout_len = 0;
+    r->stderr_len = 0;
+
     r->duration_ms = 0;
 }
 
@@ -43,6 +66,7 @@ int exec_command(char *const argv[],
 {
     if (result) {
         memset(result, 0, sizeof(*result));
+        result->status = EXEC_OK;
     }
 
     return exec_command_internal(argv, output, size, opts, result);
@@ -78,17 +102,16 @@ static int exec_command_internal(char *const argv[],
 
     if (!argv || !argv[0]) {
         if (log_enabled) {
-            LOG_CMD(LOG_ERROR, "exec: invalid argv");
+            LOG_EXEC(LOG_ERROR, "invalid argv (empty command)");
         }
 
-        exec_result_fail(result, 0);
+        exec_result_fail(result, EXEC_EXEC_FAILED);
         return -1;
     }
 
     // ===== init output =====
 
-    if (size > 0)
-        resp[0] = '\0';
+    if (resp && size > 0)
 
     // ===== build cmdline =====
 
@@ -104,7 +127,7 @@ static int exec_command_internal(char *const argv[],
 
         if (written < 0 || (size_t)written >= sizeof(cmdline) - cmd_used) {
             if (log_enabled) {
-                LOG_CMD(LOG_WARN, "exec cmdline truncated");
+                LOG_EXEC(LOG_WARN, "cmdline truncated: %.200s", cmdline);
             }
             break;
         }
@@ -113,7 +136,7 @@ static int exec_command_internal(char *const argv[],
     }
 
     if (log_enabled) {
-        LOG_CMD(LOG_DEBUG, "exec start: %s", cmdline);
+        LOG_EXEC(LOG_DEBUG, "start cmd='%s'", cmdline);
     }
 
     // ===== pipe =====
@@ -121,10 +144,10 @@ static int exec_command_internal(char *const argv[],
     int pipefd[2];
     if (pipe(pipefd) < 0) {
         if (log_enabled) {
-            LOG_CMD(LOG_ERROR, "pipe failed: %s", cmdline);
+            LOG_EXEC(LOG_ERROR, "pipe failed cmd='%s'", cmdline);
         }
 
-        exec_result_fail(result, 0);
+        exec_result_fail(result, EXEC_PIPE_FAILED);
         return -1;
     }
 
@@ -137,13 +160,21 @@ static int exec_command_internal(char *const argv[],
 
     if (pid < 0) {
         if (log_enabled) {
-            LOG_CMD(LOG_ERROR, "fork failed: %s", cmdline);
+            LOG_EXEC(LOG_ERROR, "fork failed cmd='%s'", cmdline);
         }
 
         close(pipefd[0]);
         close(pipefd[1]);
 
-        exec_result_fail(result, 0);
+        clock_gettime(CLOCK_MONOTONIC, &t_end);
+
+        long elapsed_ms =
+        (t_end.tv_sec - t_start.tv_sec) * 1000 +
+        (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+
+        if (result) result->duration_ms = elapsed_ms;
+
+        exec_result_fail(result, EXEC_FORK_FAILED);
         return -1;
     }
 
@@ -153,6 +184,10 @@ static int exec_command_internal(char *const argv[],
         if (dup2(pipefd[1], STDOUT_FILENO) < 0 ||
             (capture_stderr && dup2(pipefd[1], STDERR_FILENO) < 0)) {
             _exit(127);
+
+                if (exit_code == 127 && result) {
+                    result->status = EXEC_EXEC_FAILED;
+                }
         }
 
         close(pipefd[0]);
@@ -170,7 +205,15 @@ static int exec_command_internal(char *const argv[],
     if (!fp) {
         close(pipefd[0]);
 
-        exec_result_fail(result, 0);
+        clock_gettime(CLOCK_MONOTONIC, &t_end);
+
+        long elapsed_ms =
+        (t_end.tv_sec - t_start.tv_sec) * 1000 +
+        (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+
+        if (result) result->duration_ms = elapsed_ms;
+
+        exec_result_fail(result, EXEC_READ_FAILED);
         return -1;
     }
 
@@ -197,8 +240,8 @@ static int exec_command_internal(char *const argv[],
 
         if (rv == 0) {
             if (log_enabled) {
-                LOG_CMD(LOG_ERROR,
-                        "exec timeout: %s (pid=%d)",
+                LOG_EXEC(LOG_ERROR,
+                        "timeout cmd='%s' pid=%d",
                         cmdline, pid);
             }
 
@@ -209,7 +252,15 @@ static int exec_command_internal(char *const argv[],
             fclose(fp);
             waitpid(pid, NULL, 0);
 
-            exec_result_fail(result, 1);
+            clock_gettime(CLOCK_MONOTONIC, &t_end);
+
+            long elapsed_ms =
+            (t_end.tv_sec - t_start.tv_sec) * 1000 +
+            (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+
+            if (result) result->duration_ms = elapsed_ms;
+
+            exec_result_fail(result, EXEC_TIMEOUT);
             return -1;
         }
 
@@ -218,13 +269,21 @@ static int exec_command_internal(char *const argv[],
                 continue;
 
             if (log_enabled) {
-                LOG_CMD(LOG_ERROR, "select failed: %s", cmdline);
+                LOG_EXEC(LOG_ERROR, "select failed cmd='%s'", cmdline);
             }
 
             fclose(fp);
             waitpid(pid, NULL, 0);
 
-            exec_result_fail(result, 0);
+            clock_gettime(CLOCK_MONOTONIC, &t_end);
+
+            long elapsed_ms =
+            (t_end.tv_sec - t_start.tv_sec) * 1000 +
+            (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+
+            if (result) result->duration_ms = elapsed_ms;
+
+            exec_result_fail(result, EXEC_READ_FAILED);
             return -1;
         }
 
@@ -261,12 +320,20 @@ static int exec_command_internal(char *const argv[],
 
         if (rc == -1) {
             if (log_enabled) {
-                LOG_CMD(LOG_ERROR,
-                        "waitpid failed: %s (pid=%d)",
+                LOG_EXEC(LOG_ERROR,
+                        "waitpid failed cmd='%s' pid=%d",
                         cmdline, pid);
             }
 
-            exec_result_fail(result, 0);
+            clock_gettime(CLOCK_MONOTONIC, &t_end);
+
+            long elapsed_ms =
+            (t_end.tv_sec - t_start.tv_sec) * 1000 +
+            (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+
+            if (result) result->duration_ms = elapsed_ms;
+            
+            exec_result_fail(result, EXEC_READ_FAILED);
             return -1;
         }
 
@@ -276,7 +343,7 @@ static int exec_command_internal(char *const argv[],
 
     if (!finished) {
         if (log_enabled) {
-            LOG_CMD(LOG_WARN,
+            LOG_EXEC(LOG_WARN,
                     "exec timeout (%d ms): %s (pid=%d)",
                     timeout_ms, cmdline, pid);
         }
@@ -284,7 +351,15 @@ static int exec_command_internal(char *const argv[],
         kill(pid, SIGKILL);
         waitpid(pid, &status, 0);
 
-        exec_result_fail(result, 1);
+        clock_gettime(CLOCK_MONOTONIC, &t_end);
+
+        long elapsed_ms =
+        (t_end.tv_sec - t_start.tv_sec) * 1000 +
+        (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+
+        if (result) result->duration_ms = elapsed_ms;
+
+        exec_result_fail(result, EXEC_TIMEOUT);
         return -1;
     }
 
@@ -297,36 +372,64 @@ static int exec_command_internal(char *const argv[],
         (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
 
     if (!WIFEXITED(status)) {
-        if (log_enabled) {
-            LOG_CMD(LOG_WARN,
-                    "exec: %s -> terminated abnormally",
-                    cmdline);
+        if (result) {
+            result->status = EXEC_SIGNAL_KILLED;
+            result->term_signal = WTERMSIG(status);
         }
 
-        exec_result_fail(result, 0);
+        LOG_EXEC(LOG_WARN,
+            "cmd='%s' killed by signal=%d",
+            cmdline,
+            WTERMSIG(status));
+
         return -1;
     }
-
+    
     int exit_code = WEXITSTATUS(status);
-
+    
     if (result) {
         result->exit_code = exit_code;
+        result->term_signal = 0;
+
         result->timed_out = 0;
-        result->signaled = WIFSIGNALED(status);
-        result->bytes = (int)used;
+        result->signaled = 0;
+
+        result->stdout_len = used;
+        result->stderr_len = 0;
+
         result->duration_ms = elapsed_ms;
+
+        if (exit_code == 0)
+            result->status = EXEC_OK;
+        else
+            result->status = EXEC_EXIT_NONZERO;
     }
 
     if (log_enabled) {
-        LOG_CMD(LOG_INFO,
-                "exec: %s -> exit=%d, bytes=%zu, time=%ldms",
-                cmdline, exit_code, used, elapsed_ms);
+        LOG_EXEC(LOG_INFO,
+            "cmd='%s' status=%s exit=%d time=%ldms out=%zuB",
+            cmdline,
+            result ? exec_status_str(result->status) : "N/A",
+            exit_code,
+            elapsed_ms,
+            used
+        );
     }
 
     if (exit_code != 0 && log_enabled) {
-        LOG_CMD(LOG_WARN,
-                "exec failed: %s (exit=%d)",
-                cmdline, exit_code);
+        LOG_EXEC(LOG_WARN,
+            "cmd='%s' failed status=%s exit=%d",
+            cmdline,
+            result ? exec_status_str(result->status) : "N/A",
+            exit_code
+        );
+
+        if (resp && resp[0]) {
+            LOG_EXEC(LOG_WARN,
+                "output: %.200s",
+                resp
+            );
+        }
     }
 
     return 0;
