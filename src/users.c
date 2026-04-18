@@ -92,17 +92,22 @@ int users_get_logged(char *buffer, size_t size) {
             timebuf
         );
 
-        log_msg(LOG_DEBUG,
-                "user session: user=%s tty=%s host=%s",
-                user, tty, host);
+        LOG_CMD(LOG_DEBUG,
+            "users_get_logged: session user=%s tty=%s host=%s",
+            user, tty, host);
 
         if (written < 0 || (size_t)written >= sizeof(line)) {
-            log_msg(LOG_WARN, "users: line truncated");
+            LOG_CMD(LOG_WARN,
+                "users_get_logged: line truncated (written=%d size=%zu)",
+                written, sizeof(line));
         }
 
         // проверка переполнения
         if (strlen(buffer) + strlen(line) >= size - 1) {
-            log_msg(LOG_WARN, "users buffer limit reached");
+            LOG_CMD(LOG_WARN,
+                "users_get_logged: buffer limit reached (buf=%zu line=%zu size=%zu)",
+                strlen(buffer), strlen(line), size);
+
             safe_append(buffer, size, "...\n");
             break;
         }
