@@ -60,6 +60,12 @@ const char* exec_status_str(exec_status_t s);
 
 int exec_success(const exec_result_t *r);
 
+int exec_check_cmd(char *const argv[],
+                   char *output,
+                   size_t size,
+                   const exec_opts_t *opts,
+                   exec_result_t *res);
+
 // ===== API =====
 
 int exec_command(char *const argv[],
