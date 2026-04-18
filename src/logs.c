@@ -14,13 +14,6 @@
 #define MAX_LINE 256
 #define DEBUG_LINES 5
 
-// ===== result struct =====
-
-typedef struct {
-    int matched;
-    int raw;
-} logs_result_t;
-
 // ===== service mapping (alias → systemd) =====
 
 typedef struct {
