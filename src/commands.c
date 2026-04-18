@@ -624,17 +624,10 @@ static int cmd_help(int argc, char *argv[],
         // ===== COMMAND LINE =====
         int written;
 
-        if (commands[i].description) {
-            written = snprintf(resp + used, size - used,
-                "%s %s\n",
-                commands[i].name,
-                commands[i].description);
-        } else {
-            written = snprintf(resp + used, size - used,
-                "%s\n",
-                commands[i].name);
-        }
-
+        int written = snprintf(resp + used, size - used,
+            "%s\n",
+            commands[i].name);
+      
         if (written < 0 || (size_t)written >= size - used)
             break;
 
