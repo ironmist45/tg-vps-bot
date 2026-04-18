@@ -44,4 +44,7 @@ const char *logger_level_to_string(log_level_t level);
     fprintf(stderr, "[%s] [SYS] " fmt "\n", \
         logger_level_to_string(level), ##__VA_ARGS__)
 
+#define LOG_EXEC(level, fmt, ...) \
+    log_msg(level, "[EXEC] " fmt, ##__VA_ARGS__)
+
 #endif
