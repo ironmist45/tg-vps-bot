@@ -45,7 +45,7 @@ static void safe_append(char *dst, size_t size, const char *src) {
 
 int users_get_logged(char *buffer, size_t size) {
 
-    log_msg(LOG_INFO, "users_get_logged() called");
+    LOG_CMD(LOG_DEBUG, "users_get_logged()");
 
     struct utmp *entry;
 
@@ -114,12 +114,12 @@ int users_get_logged(char *buffer, size_t size) {
     endutent();
 
     if (count == 0) {
-        log_msg(LOG_INFO, "no active user sessions");
+        LOG_CMD(LOG_INFO, "no active user sessions");
         safe_append(buffer, size,
             "_No active sessions_\n");
     }
 
-    log_msg(LOG_INFO, "users_get_logged(): count=%d", count);
+    LOG_CMD(LOG_DEBUG, "users_get_logged(): count=%d", count);
     
     return count;
 }
@@ -128,14 +128,17 @@ int users_get_logged(char *buffer, size_t size) {
 
 int users_get(char *buffer, size_t size) {
 
-    log_msg(LOG_INFO, "users_get() called");
+    LOG_CMD(LOG_DEBUG, "users_get()");
     
     char tmp[4096] = {0};
 
     int count = users_get_logged(tmp, sizeof(tmp));
 
     if (count < 0) {
-        log_msg(LOG_ERROR, "users_get_logged() failed");
+        LOG_CMD(LOG_ERROR,
+            "users_get_logged failed (count=%d)",
+            count);
+
         snprintf(buffer, size, "❌ Failed to get users");
         return -1;
     }
@@ -148,10 +151,12 @@ int users_get(char *buffer, size_t size) {
     );
 
     if (written < 0 || (size_t)written >= size) {
-        log_msg(LOG_WARN, "users: response truncated");
+        LOG_CMD(LOG_WARN,
+            "users response truncated (written=%d size=%zu)",
+            written, size);
     }
 
-    log_msg(LOG_INFO,
+    LOG_CMD(LOG_INFO,
             "users response: count=%d, bytes=%zu",
             count, strlen(buffer));
 
