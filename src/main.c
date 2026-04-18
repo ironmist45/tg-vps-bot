@@ -383,6 +383,8 @@ static void check_fail2ban() {
 
             return;
         }
+
+    }
         
 LOG_SYS(LOG_INFO, "fail2ban-wrapper: OK");
 
