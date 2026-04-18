@@ -63,6 +63,22 @@ static int get_service_status(const char *service, char *out, size_t size) {
 
     int rc = exec_command(args, out, size, NULL, &res);
 
+    // 🔥 Проверяем, что у нас с systemctl (диагностика)
+    if (res.status == EXEC_EXIT_NONZERO) {
+
+        if (strstr(out, "password is required")) {
+            LOG_CMD(LOG_ERROR,
+                "sudo misconfigured for systemctl (%s)",
+                service);
+        }
+
+        else if (strstr(out, "not found")) {
+            LOG_CMD(LOG_ERROR,
+                "systemctl not found (%s)",
+                service);
+        }
+    }
+
     if (rc != 0) {
 
         if (res.status == EXEC_TIMEOUT) {
