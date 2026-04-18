@@ -408,29 +408,63 @@ static int exec_command_internal(char *const argv[],
     }
 
     if (log_enabled) {
-        LOG_EXEC(LOG_INFO,
-            "cmd='%s' status=%s exit=%d time=%ldms out=%zuB",
-            cmdline,
-            result ? exec_status_str(result->status) : "N/A",
-            exit_code,
-            elapsed_ms,
-            used
-        );
+
+        int quiet = (opts && opts->quiet);
+
+        if (quiet) {
+            LOG_EXEC_CHECK(LOG_DEBUG,
+                "cmd='%s' status=%s exit=%d time=%ldms out=%zuB",
+                cmdline,
+                result ? exec_status_str(result->status) : "N/A",
+                exit_code,
+                elapsed_ms,
+                used
+            );
+        } else {
+            LOG_EXEC(LOG_INFO,
+                "cmd='%s' status=%s exit=%d time=%ldms out=%zuB",
+                cmdline,
+                result ? exec_status_str(result->status) : "N/A",
+                exit_code,
+                elapsed_ms,
+                used
+            );
+        }
     }
 
     if (exit_code != 0 && log_enabled) {
-        LOG_EXEC(LOG_WARN,
-            "cmd='%s' failed status=%s exit=%d",
-            cmdline,
-            result ? exec_status_str(result->status) : "N/A",
-            exit_code
-        );
 
-        if (resp && resp[0]) {
-            LOG_EXEC(LOG_WARN,
-                "output: %.200s",
-                resp
+        int quiet = (opts && opts->quiet);
+
+        if (quiet) {
+            LOG_EXEC_CHECK(LOG_DEBUG,
+                "cmd='%s' failed status=%s exit=%d",
+                cmdline,
+                result ? exec_status_str(result->status) : "N/A",
+                exit_code
             );
+
+            if (resp && resp[0]) {
+                LOG_EXEC_CHECK(LOG_DEBUG,
+                    "output: %.200s",
+                    resp
+                );
+            }
+
+        } else {
+            LOG_EXEC(LOG_WARN,
+                "cmd='%s' failed status=%s exit=%d",
+                cmdline,
+                result ? exec_status_str(result->status) : "N/A",
+                exit_code
+            );
+
+            if (resp && resp[0]) {
+                LOG_EXEC(LOG_WARN,
+                    "output: %.200s",
+                    resp
+                );
+            }
         }
     }
 
