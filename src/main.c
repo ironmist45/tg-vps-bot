@@ -243,22 +243,44 @@ static void log_workdir() {
     }
 }
 
-static void check_journal_access() {
-    FILE *f = popen("journalctl -n 1 --no-pager 2>&1", "r");
+// ==== Startup check routine ====
 
-    if (!f) return;
+static void check_journal_access(void) {
+    const char *argv[] = {
+        "journalctl",
+        "-n", "1",
+        "--no-pager",
+        NULL
+    };
 
-    char line[256];
+    exec_opts_t opts = {
+        .timeout_sec = 2,
+        .capture_stderr = true,
+        .quiet = true
+    };
 
-    if (fgets(line, sizeof(line), f)) {
-        if (strstr(line, "not seeing messages")) {
-            LOG_SYS(LOG_WARN, "journalctl: NO ACCESS");
-        } else {
-            LOG_SYS(LOG_INFO, "journalctl: access OK");
-        }
+    exec_result_t res = exec_command(argv, &opts);
+
+    if (res.error != 0) {
+        LOG_SYS(LOG_WARN, "journalctl: execution failed");
+        return;
     }
 
-    pclose(f);
+    if (res.exit_code != 0) {
+        LOG_SYS(LOG_WARN, "journalctl: no access (exit=%d)", res.exit_code);
+        exec_result_free(&res);
+        return;
+    }
+
+    const char *output = res.stderr_len ? res.stderr : res.stdout;
+
+    if (output && strstr(output, "not seeing messages")) {
+        LOG_SYS(LOG_WARN, "journalctl: NO ACCESS");
+    } else {
+        LOG_SYS(LOG_INFO, "journalctl: access OK");
+    }
+
+    exec_result_free(&res);
 }
 
 static void check_systemctl_access() {
