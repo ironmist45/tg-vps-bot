@@ -6,50 +6,52 @@ This document describes the structure and organization of the project tg-bot.
 
 ```
 tg-bot/
-├── README.md
-├── Makefile
-├── .gitignore
+├── README.md                # 📘 project documentation (setup, usage, architecture)
+├── Makefile                 # ⚙️ build system (compile, clean, targets)
+├── .gitignore               # 🚫 ignored files (build artifacts, logs, etc.)
 │
 ├── config/
-│   └── config.example.conf
+│   └── config.example.conf  # 🔧 example configuration (env template)
 │
-├── include/
-│   ├── config.h
-│   ├── telegram.h
-│   ├── commands.h
-│   ├── logger.h
-│   ├── utils.h
-│   ├── security.h
-│   ├── system.h 
-│   ├── services.h
-│   ├── users.h
-│   ├── logs.h
-│   └── exec.h          # 🔹 execution API (NEW)
+├── include/                 # 📂 public headers (module APIs)
+│   ├── config.h             # 🔹 config loader API (parsing + access)
+│   ├── telegram.h           # 🔹 Telegram API client interface
+│   ├── commands.h           # 🔹 command dispatcher interface (/logs, /services, etc.)
+│   ├── logger.h             # 🔹 logging system API (levels, macros, output)
+│   ├── utils.h              # 🔹 shared helpers (parsing, strings, misc)
+│   ├── security.h           # 🔹 security layer (tokens, validation)
+│   ├── system.h             # 🔹 system control (reboot, uptime, host info)
+│   ├── services.h           # 🔹 systemd services management API
+│   ├── users.h              # 🔹 user management / access control
+│   ├── logs.h               # 🔹 logs retrieval API (journalctl integration)
+│   ├── logs_filter.h        # 🔹 log filtering API (semantic + multi-keyword)
+│   └── exec.h               # 🔹 execution API (command runner with timeout & safety)
 │
-├── src/
-│   ├── main.c
-│   ├── config.c
-│   ├── telegram.c
-│   ├── commands.c
-│   ├── logger.c
-│   ├── utils.c
-│   ├── security.c
-│   ├── system.c
-│   ├── services.c
-│   ├── users.c
-│   ├── logs.c
-│   └── exec.c          # 🔹 centralized command execution (NEW)
+├── src/                     # 📂 implementation (module sources)
+│   ├── main.c               # 🚀 entry point (init, main loop)
+│   ├── config.c             # 🔹 config parser implementation
+│   ├── telegram.c           # 🔹 Telegram polling + request handling
+│   ├── commands.c           # 🔹 command routing and handlers
+│   ├── logger.c             # 🔹 logging implementation (file/stdout, formatting)
+│   ├── utils.c              # 🔹 helper functions implementation
+│   ├── security.c           # 🔹 auth/token validation logic
+│   ├── system.c             # 🔹 system operations (reboot, metrics)
+│   ├── services.c           # 🔹 systemd service control implementation
+│   ├── users.c              # 🔹 user access / permissions logic
+│   ├── logs.c               # 🔹 logs processing (journalctl + formatting + fallback)
+│   ├── logs_filter.c        # 🔹 log filtering engine (semantic + multi-keyword)
+│   └── exec.c               # 🔹 centralized command execution (NEW)
 │
-├── tools/              # 🔹 internal utilities (NEW)
-│   └── f2b-wrapper.c   # 🔹 Fail2Ban wrapper
+├── tools/                   # 🔧 internal utilities (standalone helpers)
+│   └── f2b-wrapper.c        # 🔹 Fail2Ban wrapper (safe CLI bridge)
 │
-├── external/
+├── external/                # 📦 third-party dependencies
 │   ├── cJSON/
-│   │   ├── cJSON.c
-│   │   └── cJSON.h
+│   │   ├── cJSON.c          # 🔹 JSON parser implementation
+│   │   └── cJSON.h          # 🔹 JSON parser API
 │
-└── build/
-    └── (compiled binaries and object files)
+└── build/                   # 🏗 build artifacts (objects, binaries)
+    └── (compiled files)
 ```
 
 ---
