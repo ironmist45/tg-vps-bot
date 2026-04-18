@@ -274,7 +274,7 @@ static void check_systemctl_access() {
         .quiet = 1   // 🔥 ключевой момент
     };
 
-    int rc = exec_command(args, out, sizeof(out), &opts, &res);
+    exec_command(args, out, sizeof(out), &opts, &res);
 
         if (res.status != EXEC_OK || res.exit_code != 0) {
 
@@ -329,7 +329,7 @@ static void check_fail2ban() {
         .quiet = 1
     };
 
-    int rc = exec_command(args, out, sizeof(out), &opts, &res);
+    exec_command(args, out, sizeof(out), &opts, &res);
 
     if (res.status != EXEC_OK || res.exit_code != 0) {
 
