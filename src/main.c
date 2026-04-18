@@ -266,29 +266,36 @@ static void check_systemctl_access() {
         "sudo", "-n", "systemctl", "is-active", "ssh", NULL
     };
 
-    char out[128];
+    char out[128] = {0};
     exec_result_t res;
 
-    if (exec_command(args, out, sizeof(out), NULL, &res) != 0) {
+    int rc = exec_command(args, out, sizeof(out), NULL, &res);
 
-        if (strstr(out, "password is required")) {
-            LOG_SYS(LOG_ERROR, "systemctl: sudo NOT configured");
+    if (rc != 0) {
+
+        // 🔴 sudo misconfig (самое частое!)
+        if (strstr(out, "password is required") ||
+            strstr(out, "no tty")) {
+
+            LOG_SYS(LOG_ERROR, "systemctl: FAIL (sudo)");
             return;
         }
 
-        if (strstr(out, "no tty")) {
-            LOG_SYS(LOG_ERROR, "systemctl: TTY required (bad sudo config)");
+        // 🔴 бинарь не найден / не запустился
+        if (res.status == EXEC_EXEC_FAILED) {
+            LOG_SYS(LOG_ERROR, "systemctl: FAIL (exec)");
             return;
         }
 
-        LOG_SYS(LOG_WARN,
-            "systemctl: check failed (%s)",
+        // 🟡 прочие ошибки
+        LOG_SYS(LOG_ERROR,
+            "systemctl: FAIL (%s)",
             exec_status_str(res.status));
-
         return;
     }
 
-    LOG_SYS(LOG_INFO, "systemctl: access OK");
+    // 🟢 успех
+    LOG_SYS(LOG_INFO, "systemctl: OK");
 }
 
 static void check_fail2ban() {
@@ -299,33 +306,35 @@ static void check_fail2ban() {
         NULL
     };
 
-    char out[256];
+    char out[256] = {0};
     exec_result_t res;
 
-    if (exec_command(args, out, sizeof(out), NULL, &res) != 0) {
+    int rc = exec_command(args, out, sizeof(out), NULL, &res);
 
-        if (res.status == EXEC_EXEC_FAILED) {
-            LOG_SYS(LOG_ERROR,
-                "fail2ban: exec failed (binary missing or broken)");
-            return;
-        }
+    if (rc != 0) {
 
+        // 🔴 GLIBC mismatch (наш кейс!)
         if (strstr(out, "GLIBC")) {
-            LOG_SYS(LOG_ERROR,
-                "fail2ban: GLIBC mismatch");
+            LOG_SYS(LOG_ERROR, "fail2ban: FAIL (glibc)");
             return;
         }
 
+        // 🔴 бинарь не запустился
+        if (res.status == EXEC_EXEC_FAILED) {
+            LOG_SYS(LOG_ERROR, "fail2ban: FAIL (exec)");
+            return;
+        }
+
+        // 🔴 нет файла
         if (strstr(out, "No such file")) {
-            LOG_SYS(LOG_ERROR,
-                "fail2ban: wrapper not found");
+            LOG_SYS(LOG_ERROR, "fail2ban: FAIL (missing)");
             return;
         }
 
+        // 🟡 остальное
         LOG_SYS(LOG_WARN,
-            "fail2ban: check failed (%s)",
+            "fail2ban: FAIL (%s)",
             exec_status_str(res.status));
-
         return;
     }
 
