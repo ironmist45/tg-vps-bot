@@ -141,6 +141,8 @@ static int cmd_ping(int argc, char *argv[],
         (end.tv_sec - start.tv_sec) * 1000 +
         (end.tv_nsec - start.tv_nsec) / 1000000;
 
+    LOG_STATE(LOG_INFO, "ping latency=%ld ms", ms);
+
     // ===== uptime =====
     time_t now = time(NULL);
     long uptime = now - g_start_time;
@@ -645,6 +647,9 @@ static int cmd_help(int argc, char *argv[],
         used += written;
     }
 
+    LOG_STATE(LOG_DEBUG, "help: building command list");
+    LOG_STATE(LOG_INFO, "help generated (len=%zu)", used);
+    
     return 0;
 }
 
