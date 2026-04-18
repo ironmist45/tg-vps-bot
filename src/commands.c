@@ -565,19 +565,20 @@ static int cmd_reboot_confirm(int argc, char *argv[],
 // ===== COMMAND TABLE =====
 
 static command_t commands[] = {
-    {"/start", cmd_start, "Start bot", "General"},
-    {"/help", cmd_help, "Help", "General"},
-    {"/status", cmd_status, "System status", "System"},
-    {"/about", cmd_about, "About", "System"},
-    {"/ping", cmd_ping, "Ping", "System"},
+    {"/start", cmd_start, NULL, "General"},
+    {"/help", cmd_help, NULL, "General"},
 
-    {"/services", cmd_services, "Services", "Services"},
-    {"/users", cmd_users, "Users", "Services"},
-    {"/logs", cmd_logs, "Logs", "Services"},
+    {"/status", cmd_status, "System status", "System info"},
+    {"/about", cmd_about, "About bot", "System info"},
+    {"/ping", cmd_ping, NULL, "System info"},
 
-    {"/fail2ban", cmd_fail2ban, "Fail2Ban", "Security"},
+    {"/services", cmd_services, NULL, "Services"},
+    {"/users", cmd_users, NULL, "Services"},
+    {"/logs", cmd_logs, NULL, "Services"},
 
-    {"/reboot", cmd_reboot, "Reboot", "System"},
+    {"/fail2ban", cmd_fail2ban, NULL, "Security"},
+
+    {"/reboot", cmd_reboot, NULL, "System"},
     {"/reboot_confirm", cmd_reboot_confirm, NULL, NULL},
 };
 
@@ -585,6 +586,7 @@ static const int commands_count =
     sizeof(commands) / sizeof(commands[0]);
 
 // ===== HELP =====
+
 static int cmd_help(int argc, char *argv[],
                     long chat_id,
                     char *resp, size_t size,
@@ -600,13 +602,12 @@ static int cmd_help(int argc, char *argv[],
 
     for (int i = 0; i < commands_count; i++) {
 
-        if (!commands[i].description)
+        if (!commands[i].category)
             continue;
 
         // ===== CATEGORY HEADER =====
-        if (commands[i].category &&
-            (!current_category ||
-             strcmp(current_category, commands[i].category) != 0)) {
+        if (!current_category ||
+            strcmp(current_category, commands[i].category) != 0) {
 
             current_category = commands[i].category;
 
@@ -621,10 +622,18 @@ static int cmd_help(int argc, char *argv[],
         }
 
         // ===== COMMAND LINE =====
-        int written = snprintf(resp + used, size - used,
-            "• %s — %s\n",
-            commands[i].name,
-            commands[i].description);
+        int written;
+
+        if (commands[i].description) {
+            written = snprintf(resp + used, size - used,
+                "%s %s\n",
+                commands[i].name,
+                commands[i].description);
+        } else {
+            written = snprintf(resp + used, size - used,
+                "%s\n",
+                commands[i].name);
+        }
 
         if (written < 0 || (size_t)written >= size - used)
             break;
