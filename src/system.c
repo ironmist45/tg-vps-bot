@@ -43,7 +43,7 @@ static void get_memory(int *used_mb, int *total_mb, int *percent) {
 
     char key[64];
     long value;
-    char unit[16];
+    char unit[16] = {0};
     char line[128];
 
     while (fgets(line, sizeof(line), fp)) {
@@ -218,15 +218,18 @@ int system_get_status(char *buffer, size_t size) {
         used_disk, total_disk, disk_pct
     );
 
-    if (written < 0 || (size_t)written >= size) {
-        log_msg(LOG_WARN, "system_get_status truncated");
+   if (written < 0) {
+        LOG_STATE(LOG_ERROR, "system_get_status failed");
+        return -1;
+    }
+
+    if ((size_t)written >= size) {
+        LOG_STATE(LOG_WARN, "system_get_status truncated");
     }
 
     LOG_STATE(LOG_INFO, "system status built successfully (len=%d)",
-                        written);
-    
-    if (written < 0)
-        return -1;
+                    written);
 
     return 0;
+    
 }
