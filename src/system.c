@@ -305,28 +305,35 @@ int system_get_status(char *buffer, size_t size) {
     int written = snprintf(buffer, size,
         "🖥 *System info*\n\n"
 
-        "🐧 OS   : %s\n"
-        "🖥 Host  : %s\n\n"
+        "%-7s : %s\n"
+        "%-7s : %s\n\n"
 
-        "⏱ Uptime  : %dd %dh %dm\n"
-        "👥 Users  : %d online\n"
+        "%-7s : %dd %dh %dm\n"
+        "%-7s : %d online\n\n"
 
         "⚡ *CPU Load*\n"
-        "1m  : %.2f\n"
-        "5m  : %.2f\n"
-        "15m : %.2f\n\n"
+        "%-7s : %.2f\n"
+        "%-7s : %.2f\n"
+        "%-7s : %.2f\n\n"
 
         "🧠 *Memory*\n"
-        "Used : %d / %d MB (%d%%)\n\n"
+        "%-7s : %d / %d MB (%d%%)\n\n"
 
         "💾 *Disk*\n"
-        "Used : %d / %d GB (%d%%)",
-        os, host,
-        days, hours, mins,
-        users,
-        l1, l5, l15,
-        used_mem, total_mem, mem_pct,
-        used_disk, total_disk, disk_pct
+        "%-7s : %d / %d GB (%d%%)",
+
+        "OS",   os,
+        "Host", host,
+
+        "Uptime", days, hours, mins,
+        "Users",  users,
+
+        "1m",  l1,
+        "5m",  l5,
+        "15m", l15,
+
+        "Used", used_mem, total_mem, mem_pct,
+        "Used", used_disk, total_disk, disk_pct
     );
 
    if (written < 0) {
