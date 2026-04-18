@@ -172,7 +172,110 @@ static int get_user_count() {
     return count;
 }
 
-// ===== main API =====
+// ===== OS =====
+
+static void get_os(char *buf, size_t size) {
+    FILE *fp = fopen("/etc/os-release", "r");
+    if (!fp) {
+        snprintf(buf, size, "Unknown");
+        return;
+    }
+
+    char line[256];
+
+    while (fgets(line, sizeof(line), fp)) {
+        if (strncmp(line, "PRETTY_NAME=", 12) == 0) {
+            char *val = line + 12;
+
+            // убрать кавычки и \n
+            val[strcspn(val, "\n")] = 0;
+
+            if (*val == '"' || *val == '\'') {
+                val++;
+                char *end = strrchr(val, '"');
+                if (end) *end = 0;
+            }
+
+            snprintf(buf, size, "%s", val);
+            fclose(fp);
+            return;
+        }
+    }
+
+    fclose(fp);
+    snprintf(buf, size, "Unknown");
+}
+
+// ===== HOST =====
+
+static void get_host(char *buf, size_t size) {
+    char vendor[128] = {0};
+    char product[128] = {0};
+
+    // ===== read vendor =====
+    FILE *fp = fopen("/sys/devices/virtual/dmi/id/sys_vendor", "r");
+    if (fp) {
+        if (fgets(vendor, sizeof(vendor), fp)) {
+            vendor[strcspn(vendor, "\n")] = 0;
+        }
+        fclose(fp);
+    }
+
+    // ===== read product =====
+    fp = fopen("/sys/devices/virtual/dmi/id/product_name", "r");
+    if (fp) {
+        if (fgets(product, sizeof(product), fp)) {
+            product[strcspn(product, "\n")] = 0;
+        }
+        fclose(fp);
+    }
+
+    // ===== fallback =====
+    if (vendor[0] == '\0' && product[0] == '\0') {
+        snprintf(buf, size, "Unknown");
+        return;
+    }
+
+    // ===== extract Q35 =====
+    char model[64] = {0};
+
+    char *start = strchr(product, '(');
+    char *end   = strchr(product, ')');
+
+    if (start && end && end > start + 1) {
+        size_t len = (size_t)(end - start - 1);
+        if (len < sizeof(model)) {
+            strncpy(model, start + 1, len);
+            model[len] = '\0';
+
+            // 👉 обрезаем " + ICH9, 2009"
+            char *plus = strstr(model, " +");
+            if (plus) *plus = '\0';
+        }
+    }
+
+    // ===== build result =====
+    if (vendor[0] && model[0]) {
+        snprintf(buf, size, "%s (%s)", vendor, model);
+    }
+    else if (vendor[0] && product[0]) {
+        snprintf(buf, size, "%s (%s)", vendor, product);
+    }
+    else if (vendor[0]) {
+        snprintf(buf, size, "%s", vendor);
+    }
+    else {
+        snprintf(buf, size, "%s", product);
+    }
+}
+
+// ===== Main API =====
+
+char os[128];
+char host[128];
+
+get_os(os, sizeof(os));
+get_host(host, sizeof(host));
 
 int system_get_status(char *buffer, size_t size) {
 
@@ -199,18 +302,23 @@ int system_get_status(char *buffer, size_t size) {
     int users = get_user_count();
 
     int written = snprintf(buffer, size,
-        "🖥 *System*\n"
-        "⏱ Uptime: `%dd %dh %dm`\n"
-        "👥 Users: `%d`\n\n"
+        "🖥 *System info*\n\n"
+
+        "🐧 OS: %s\n"
+        "🖥 Host: %s\n\n"
+
+        "⏱ Uptime: %dd %dh %dm\n"
+        "👥 Users: %d\n\n"
 
         "⚡ *CPU Load*\n"
-        "`%.2f / %.2f / %.2f`\n\n"
+        "%.2f / %.2f / %.2f\n\n"
 
         "🧠 *Memory*\n"
-        "`%d / %d MB (%d%%)`\n\n"
+        "%d / %d MB (%d%%)\n\n"
 
         "💾 *Disk*\n"
-        "`%d / %d GB (%d%%)`",
+        "%d / %d GB (%d%%)",
+        os, host,
         days, hours, mins,
         users,
         l1, l5, l15,
