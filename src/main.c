@@ -246,41 +246,42 @@ static void log_workdir() {
 // ==== Startup check routine ====
 
 static void check_journal_access(void) {
-    const char *argv[] = {
+    char *argv[] = {
         "journalctl",
         "-n", "1",
         "--no-pager",
         NULL
     };
 
+    char output[512];
+
     exec_opts_t opts = {
-        .timeout_sec = 2,
-        .capture_stderr = true,
-        .quiet = true
+        .timeout_ms = 2000,
+        .capture_stderr = 1,
+        .log_output = 0,
+        .quiet = 1
     };
 
-    exec_result_t res = exec_command(argv, &opts);
+    exec_result_t res;
 
-    if (res.error != 0) {
-        LOG_SYS(LOG_WARN, "journalctl: execution failed");
+    int rc = exec_command(argv, output, sizeof(output), &opts, &res);
+
+    if (rc != 0) {
+        LOG_SYS(LOG_WARN, "journalctl: execution failed (%s)",
+                exec_status_str(res.status));
         return;
     }
 
     if (res.exit_code != 0) {
         LOG_SYS(LOG_WARN, "journalctl: no access (exit=%d)", res.exit_code);
-        exec_result_free(&res);
         return;
     }
 
-    const char *output = res.stderr_len ? res.stderr : res.stdout;
-
-    if (output && strstr(output, "not seeing messages")) {
+    if (strstr(output, "not seeing messages")) {
         LOG_SYS(LOG_WARN, "journalctl: NO ACCESS");
     } else {
         LOG_SYS(LOG_INFO, "journalctl: access OK");
     }
-
-    exec_result_free(&res);
 }
 
 static void check_systemctl_access() {
