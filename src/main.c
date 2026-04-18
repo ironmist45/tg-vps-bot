@@ -1,3 +1,11 @@
+#include "version.h"
+#include "logger.h"
+#include "config.h"
+#include "cli.h"
+#include "exec.h"
+#include "telegram.h"
+#include "security.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -9,13 +17,6 @@
 
 #include <sys/reboot.h>
 #include <errno.h>
-
-#include "version.h"
-#include "logger.h"
-#include "config.h"
-#include "cli.h"
-#include "telegram.h"
-#include "security.h"
 
 // ===== uptime =====
 time_t g_start_time;
@@ -260,6 +261,77 @@ static void check_journal_access() {
     pclose(f);
 }
 
+static void check_systemctl_access() {
+    char *const args[] = {
+        "sudo", "-n", "systemctl", "is-active", "ssh", NULL
+    };
+
+    char out[128];
+    exec_result_t res;
+
+    if (exec_command(args, out, sizeof(out), NULL, &res) != 0) {
+
+        if (strstr(out, "password is required")) {
+            LOG_SYS(LOG_ERROR, "systemctl: sudo NOT configured");
+            return;
+        }
+
+        if (strstr(out, "no tty")) {
+            LOG_SYS(LOG_ERROR, "systemctl: TTY required (bad sudo config)");
+            return;
+        }
+
+        LOG_SYS(LOG_WARN,
+            "systemctl: check failed (%s)",
+            exec_status_str(res.status));
+
+        return;
+    }
+
+    LOG_SYS(LOG_INFO, "systemctl: access OK");
+}
+
+static void check_fail2ban() {
+    char *const args[] = {
+        "sudo", "-n",
+        "/usr/local/bin/f2b-wrapper",
+        "status",
+        NULL
+    };
+
+    char out[256];
+    exec_result_t res;
+
+    if (exec_command(args, out, sizeof(out), NULL, &res) != 0) {
+
+        if (res.status == EXEC_EXEC_FAILED) {
+            LOG_SYS(LOG_ERROR,
+                "fail2ban: exec failed (binary missing or broken)");
+            return;
+        }
+
+        if (strstr(out, "GLIBC")) {
+            LOG_SYS(LOG_ERROR,
+                "fail2ban: GLIBC mismatch");
+            return;
+        }
+
+        if (strstr(out, "No such file")) {
+            LOG_SYS(LOG_ERROR,
+                "fail2ban: wrapper not found");
+            return;
+        }
+
+        LOG_SYS(LOG_WARN,
+            "fail2ban: check failed (%s)",
+            exec_status_str(res.status));
+
+        return;
+    }
+
+    LOG_SYS(LOG_INFO, "fail2ban: OK");
+}
+
 static void check_logfile_access(const char *path) {
     FILE *f = fopen(path, "a");
     if (!f) {
@@ -347,7 +419,9 @@ int main(int argc, char *argv[]) {
     fflush(NULL); // 🔥 flush стартовой шапки
     log_user_info();
     log_workdir();
-    check_journal_access();
+    check_journal_access();     // Проверка journalctl
+    check_systemctl_access();   // Проверка systemctl
+    check_fail2ban();           // Проверка f2b-wrapper
     check_logfile_access(fallback_log);
 
     config_t cfg;
