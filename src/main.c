@@ -247,6 +247,8 @@ static void log_workdir() {
 
 static void check_journal_access(void) {
     char *argv[] = {
+        "sudo",
+        "-n",
         "journalctl",
         "-n", "1",
         "--no-pager",
@@ -273,15 +275,13 @@ static void check_journal_access(void) {
     }
 
     if (res.exit_code != 0) {
-        LOG_SYS(LOG_WARN, "journalctl: no access (exit=%d)", res.exit_code);
+        LOG_SYS(LOG_WARN,
+                "journalctl: no access via sudo (exit=%d)",
+                res.exit_code);
         return;
     }
 
-    if (strstr(output, "not seeing messages")) {
-        LOG_SYS(LOG_WARN, "journalctl: NO ACCESS");
-    } else {
-        LOG_SYS(LOG_INFO, "journalctl: access OK");
-    }
+    LOG_SYS(LOG_INFO, "journalctl: access OK (via sudo)");
 }
 
 static void check_systemctl_access() {
