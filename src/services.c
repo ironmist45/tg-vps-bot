@@ -51,54 +51,50 @@ static int get_service_status(const char *service, char *out, size_t size) {
         return -1;
     }
 
-    char cmd[256];
-    int written = snprintf(cmd, sizeof(cmd),
-        "systemctl is-active %s.service 2>/dev/null", service);
+    char *const args[] = {
+        "sudo",
+        "-n",
+        "systemctl",
+        "is-active",
+        (char *)service,
+        NULL
+    };
 
-    if (written < 0 || (size_t)written >= sizeof(cmd)) {
-        LOG_SYS(LOG_ERROR, "Command buffer overflow for service %s", service);
-        if (size > 0) {
-            snprintf(out, size, "error");
+    exec_result_t res;
+
+    int rc = exec_command(args, out, size, NULL, &res);
+
+    if (rc != 0) {
+
+        if (res.status == EXEC_TIMEOUT) {
+            LOG_SYS(LOG_ERROR, "service %s: timeout", service);
+        } else {
+            LOG_SYS(LOG_ERROR,
+                "service %s: exec failed (%s)",
+                service,
+                exec_status_str(res.status));
         }
-        
-        return -1;
-    }
-    
-    LOG_SYS(LOG_DEBUG, "exec cmd: %s", cmd);
 
-    FILE *fp = popen(cmd, "r");
-    if (!fp) {
-        LOG_SYS(LOG_ERROR, "popen() failed for %s", service);
-        if (size > 0) {
-            snprintf(out, size, "unknown");
-        }
-        
-        return -1;
-    }
-
-    if (fgets(out, size, fp) == NULL) {
-        LOG_SYS(LOG_WARN, "systemctl returned no output for %s", service);
         if (size > 0) {
             snprintf(out, size, "unknown");
         }
-        
-        rc = pclose(fp);
 
-        if (rc == -1) {
-            LOG_SYS(LOG_WARN, "pclose failed for %s", service);
-        }
-        
         return -1;
     }
 
-        rc = pclose(fp);
-
-        if (rc == -1) {
-            LOG_SYS(LOG_WARN, "pclose failed for %s", service);
-        }
+    if (res.exit_code != 0) {
+        LOG_SYS(LOG_DEBUG,
+            "service %s: non-zero exit (%d)",
+            service,
+            res.exit_code);
+    }
 
     // убрать \n
     out[strcspn(out, "\n")] = 0;
+
+    if (out[0] == '\0') {
+        snprintf(out, size, "unknown");
+    }
 
     // 🔥 убрать ведущие пробелы (на всякий случай)
     char *p = out;
@@ -138,9 +134,8 @@ static const char *format_status(const char *status) {
 
 int services_get_status(char *buffer, size_t size) {
 
-    LOG_STATE(LOG_INFO, "services_get_status() called");
+    LOG_CMD(LOG_INFO, "services_get_status()");
     LOG_STATE(LOG_DEBUG, "services count: %d", services_count);
-    LOG_STATE(LOG_DEBUG, "collecting services status...");
 
     if (!buffer || size == 0) {
         LOG_SYS(LOG_ERROR, "Invalid buffer");
@@ -201,7 +196,9 @@ int services_get_status(char *buffer, size_t size) {
         }
 
         if ((size_t)written >= size - offset) {
-            LOG_SYS(LOG_WARN, "services buffer limit reached");
+            LOG_CMD(LOG_WARN,
+                "services buffer limit reached (offset=%zu size=%zu)",
+                offset, size);
             break;
         }
 
