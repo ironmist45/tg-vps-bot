@@ -250,7 +250,21 @@ Linking model:
 
 ## Optional Dependencies
 
-- f2b-wrapper — required only for fail2ban commands (pls, see /tools directory).
+- f2b-wrapper — required only for fail2ban commands (pls, see the source code in /tools directory of this repo).
+
+### fail2ban wrapper integration note
+
+The `f2b-wrapper` binary must be built on the target system.
+
+Using binaries compiled on a different system may result in runtime errors such as:
+
+    GLIBC_X.Y not found
+
+If you see during tg-bot start the following message:
+
+    [ERROR] [SYS] fail2ban-wrapper: FAIL (no output, EXIT_NONZERO)
+
+then, pls kindly rebuild `f2b-wrapper` locally.
 
 ## Philosophy
 
