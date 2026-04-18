@@ -28,6 +28,11 @@ const char* exec_status_str(exec_status_t s) {
     }
 }
 
+int exec_success(const exec_result_t *r) {
+    if (!r) return 0;
+    return (r->status == EXEC_OK && r->exit_code == 0);
+}
+
 // ===== helpers =====
 
 static void exec_result_fail(exec_result_t *r,
