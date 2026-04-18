@@ -297,14 +297,35 @@ static int cmd_fail2ban(int argc, char *argv[],
         };
 
         char tmp[RESP_MAX];
+        exec_result_t res;
 
-        if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
-            snprintf(resp, size, "❌ Fail2Ban failed");
+        if (exec_command(args, tmp, sizeof(tmp), NULL, &res) != 0) {
+
+            if (res.status == EXEC_TIMEOUT) {
+                snprintf(resp, size, "❌ Fail2Ban timeout");
+            }
+            else if (res.status == EXEC_EXEC_FAILED) {
+                snprintf(resp, size,
+                "❌ Fail2Ban binary error\n"
+                "Possible GLIBC mismatch");
+            }
+            else {
+                snprintf(resp, size,
+                "❌ Fail2Ban failed (%s)",
+                exec_status_str(res.status));
+            }
+
             return -1;
-        }
+      }
 
-        safe_code_block(tmp, resp, size);
-        return 0;
+      // exit != 0 — тоже ошибка, но с выводом
+      if (res.status == EXEC_EXIT_NONZERO) {
+          safe_code_block(tmp, resp, size);
+          return -1;
+      }
+
+      safe_code_block(tmp, resp, size);
+      return 0;
                   
     }
           
@@ -319,14 +340,35 @@ static int cmd_fail2ban(int argc, char *argv[],
         };
 
         char tmp[RESP_MAX];
+        exec_result_t res;
 
-        if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
-            snprintf(resp, size, "❌ Fail2Ban failed");
+        if (exec_command(args, tmp, sizeof(tmp), NULL, &res) != 0) {
+
+            if (res.status == EXEC_TIMEOUT) {
+                snprintf(resp, size, "❌ Fail2Ban timeout");
+            }
+            else if (res.status == EXEC_EXEC_FAILED) {
+                snprintf(resp, size,
+                "❌ Fail2Ban binary error\n"
+                "Possible GLIBC mismatch");
+            }
+            else {
+                snprintf(resp, size,
+                "❌ Fail2Ban failed (%s)",
+                exec_status_str(res.status));
+            }
+
             return -1;
-        }
+      }
 
-        safe_code_block(tmp, resp, size);
-        return 0;
+      // exit != 0 — тоже ошибка, но с выводом
+      if (res.status == EXEC_EXIT_NONZERO) {
+          safe_code_block(tmp, resp, size);
+          return -1;
+      }
+
+      safe_code_block(tmp, resp, size);
+      return 0;
       
     }
       
@@ -359,14 +401,32 @@ static int cmd_fail2ban(int argc, char *argv[],
         };
 
         char tmp[RESP_MAX];
+        exec_result_t res;
 
-        if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
-            snprintf(resp, size, "❌ Fail2Ban failed");
+        if (exec_command(args, tmp, sizeof(tmp), NULL, &res) != 0) {
+
+            if (res.status == EXEC_TIMEOUT) {
+              snprintf(resp, size, "❌ Ban timeout");
+            }
+            else if (res.status == EXEC_EXEC_FAILED) {
+                snprintf(resp, size, "❌ Fail2Ban wrapper broken");
+            }
+            else {
+                snprintf(resp, size,
+                    "❌ Ban failed (%s)",
+                    exec_status_str(res.status));
+            }
+
             return -1;
-        }
+      }
 
-        safe_code_block(tmp, resp, size);
-        return 0;
+      if (res.status == EXEC_EXIT_NONZERO) {
+          safe_code_block(tmp, resp, size);
+          return -1;
+      }
+
+      snprintf(resp, size, "✅ IP banned");
+      return 0;
       
 }
 
@@ -393,13 +453,31 @@ static int cmd_fail2ban(int argc, char *argv[],
         };
 
         char tmp[RESP_MAX];
+        exec_result_t res;
 
-        if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
-            snprintf(resp, size, "❌ Fail2Ban failed");
+        if (exec_command(args, tmp, sizeof(tmp), NULL, &res) != 0) {
+
+            if (res.status == EXEC_TIMEOUT) {
+                snprintf(resp, size, "❌ Unban timeout");
+            }
+            else if (res.status == EXEC_EXEC_FAILED) {
+                snprintf(resp, size, "❌ Fail2Ban wrapper broken");
+            }
+            else {
+                snprintf(resp, size,
+                    "❌ Unban failed (%s)",
+                    exec_status_str(res.status));
+            }
+
             return -1;
         }
 
-        safe_code_block(tmp, resp, size);
+        if (res.status == EXEC_EXIT_NONZERO) {
+            safe_code_block(tmp, resp, size);
+            return -1;
+        }
+
+        snprintf(resp, size, "✅ IP unbanned");
         return 0;
       
 }
