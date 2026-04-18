@@ -14,6 +14,7 @@ typedef struct {
     int timeout_ms;
     int capture_stderr;
     int log_output;
+    int quiet; // 🔥 НОВОЕ
 } exec_opts_t;
 
 // ===== status =====
