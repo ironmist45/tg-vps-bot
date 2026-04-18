@@ -302,14 +302,9 @@ int system_get_status(char *buffer, size_t size) {
 
     buffer[0] = '\0';
 
-    // ✅ Контекст
+    // ✅ Контекст номер 1 (Основная инфа о системе)
     char os[128];
     char host[128];
-    char mem_bar[64];
-    char disk_bar[64];
-
-    make_bar(mem_bar, sizeof(mem_bar), mem_pct);
-    make_bar(disk_bar, sizeof(disk_bar), disk_pct);
 
     get_os(os, sizeof(os));
     get_host(host, sizeof(host));
@@ -322,6 +317,20 @@ int system_get_status(char *buffer, size_t size) {
 
     int used_disk, total_disk, disk_pct;
     get_disk(&used_disk, &total_disk, &disk_pct);
+    
+    // ✅ Clamp: защита от "мусора"
+    if (mem_pct < 0) mem_pct = 0;
+    if (mem_pct > 100) mem_pct = 100;
+
+    if (disk_pct < 0) disk_pct = 0;
+    if (disk_pct > 100) disk_pct = 100;
+
+    // ✅ Контекст номер 2 (строим ASCII бары)
+    char mem_bar[64];
+    char disk_bar[64];
+
+    make_bar(mem_bar, sizeof(mem_bar), mem_pct);
+    make_bar(disk_bar, sizeof(disk_bar), disk_pct);
 
     int days, hours, mins;
     get_uptime(&days, &hours, &mins);
