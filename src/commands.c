@@ -622,7 +622,6 @@ static int cmd_help(int argc, char *argv[],
         }
 
         // ===== COMMAND LINE =====
-        int written;
 
         int written = snprintf(resp + used, size - used,
             "%s\n",
