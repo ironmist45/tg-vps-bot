@@ -30,6 +30,7 @@ extern long g_reboot_requested_by;
 static int cmd_help(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_start(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_status(int, char **, long, char *, size_t, response_type_t *);
+static int cmd_status_mini(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_about(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_ping(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_services(int, char **, long, char *, size_t, response_type_t *);
@@ -87,6 +88,30 @@ static int cmd_status(int argc, char *argv[],
   
 return 0;
   
+}
+
+static int cmd_status_mini(int argc, char *argv[],
+                           long chat_id,
+                           char *resp, size_t size,
+                           response_type_t *resp_type) {
+
+    (void)argc;
+
+    if (resp_type) *resp_type = RESP_MARKDOWN;
+
+    if (!argv || !argv[0]) {
+        snprintf(resp, size, "Invalid command");
+        return -1;
+    }
+
+    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
+
+    if (system_get_status_mini(resp, size) != 0) {
+        snprintf(resp, size, "⚠️ Failed to get system status");
+        return -1;
+    }
+
+    return 0;
 }
 
 static int cmd_about(int argc, char *argv[],
@@ -579,13 +604,14 @@ static int cmd_reboot_confirm(int argc, char *argv[],
     return 0;
 }
 
-// ===== COMMAND TABLE =====
+// ===== COMMANDS TABLE =====
 
 static command_t commands[] = {
     {"/start", cmd_start, NULL, "General"},
     {"/help", cmd_help, NULL, "General"},
 
     {"/status", cmd_status, "System status", "System info"},
+    {"/status_mini", cmd_status_mini, NULL, "System info"},
     {"/about", cmd_about, "About bot", "System info"},
     {"/ping", cmd_ping, NULL, "System info"},
 
