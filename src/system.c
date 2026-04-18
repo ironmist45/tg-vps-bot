@@ -150,6 +150,27 @@ static void get_uptime(int *days, int *hours, int *mins) {
             *days, *hours, *mins);
 }
 
+// ===== helpers =====
+
+static void make_bar(char *buf, size_t size, int percent) {
+    const int width = 20;
+
+    int filled = (percent * width) / 100;
+    int empty  = width - filled;
+
+    int pos = 0;
+
+    pos += snprintf(buf + pos, size - pos, "[");
+
+    for (int i = 0; i < filled && pos < (int)size - 1; i++)
+        pos += snprintf(buf + pos, size - pos, "█");
+
+    for (int i = 0; i < empty && pos < (int)size - 1; i++)
+        pos += snprintf(buf + pos, size - pos, "░");
+
+    snprintf(buf + pos, size - pos, "]");
+}
+
 // ===== users =====
 
 static int get_user_count() {
@@ -284,6 +305,11 @@ int system_get_status(char *buffer, size_t size) {
     // ✅ Контекст
     char os[128];
     char host[128];
+    char mem_bar[64];
+    char disk_bar[64];
+
+    make_bar(mem_bar, sizeof(mem_bar), mem_pct);
+    make_bar(disk_bar, sizeof(disk_bar), disk_pct);
 
     get_os(os, sizeof(os));
     get_host(host, sizeof(host));
@@ -319,9 +345,11 @@ int system_get_status(char *buffer, size_t size) {
 
         "Memory\n"
         "%-7s : %d / %d MB (%d%%)\n\n"
+        "Bar     : %s %d%%\n\n"
 
         "Disk\n"
         "%-7s : %d / %d GB (%d%%)\n"
+        "Bar     : %s %d%%\n"
 
         "```",
 
@@ -336,7 +364,9 @@ int system_get_status(char *buffer, size_t size) {
         "15m", l15,
 
         "Used", used_mem, total_mem, mem_pct,
-        "Used", used_disk, total_disk, disk_pct
+                mem_bar, mem_pct,
+        "Used", used_disk, total_disk, disk_pct,
+                disk_bar, disk_pct
     );
 
    if (written < 0) {
