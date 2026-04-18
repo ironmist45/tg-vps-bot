@@ -132,18 +132,30 @@ static int cmd_ping(int argc, char *argv[],
     struct timespec start, end;
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-    usleep(1000);
+
+    // 👉 никакого usleep — меряем реальное время выполнения
+
     clock_gettime(CLOCK_MONOTONIC, &end);
 
-    long ms =
+    long latency_ms =
         (end.tv_sec - start.tv_sec) * 1000 +
         (end.tv_nsec - start.tv_nsec) / 1000000;
 
+    // ===== uptime =====
+    time_t now = time(NULL);
+    long uptime = now - g_start_time;
+
+    int mins = (uptime % 3600) / 60;
+    int secs = uptime % 60;
+
     int written = snprintf(resp, size,
         "*🏓 PING*\n\n"
-        "Response: `pong`\n"
-        "Latency: `%ld ms`",
-        ms);
+        "Status: `OK`\n"
+        "Latency: `%ld ms`\n"
+        "Uptime: `%dm %ds`",
+        latency_ms,
+        mins, secs);
+
     if (written < 0 || (size_t)written >= size)
         return -1;
 
