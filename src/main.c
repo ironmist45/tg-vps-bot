@@ -276,31 +276,41 @@ static void check_systemctl_access() {
 
     int rc = exec_command(args, out, sizeof(out), &opts, &res);
 
-    if (rc != 0) {
+        if (res.status != EXEC_OK || res.exit_code != 0) {
 
-        // 🔴 sudo misconfig (самое частое!)
-        if (strstr(out, "password is required") ||
-            strstr(out, "no tty")) {
+            if (strstr(out, "command not found")) {
+                LOG_SYS(LOG_ERROR, "systemctl: FAIL (missing)");
+                return;
+            }
+            
+            if (strstr(out, "password is required") ||
+                strstr(out, "no tty")) {
 
-            LOG_SYS(LOG_ERROR, "systemctl: FAIL (sudo)");
+                LOG_SYS(LOG_ERROR, "systemctl: FAIL (sudo)");
+                return;
+            }
+
+            if (res.status == EXEC_EXEC_FAILED) {
+                LOG_SYS(LOG_ERROR, "systemctl: FAIL (exec)");
+                return;
+            }
+
+            // 👉 Fallback: иногда sudo может вернуть ошибку без текста, тогда out будет пустой
+            if (out[0] == '\0') {
+                LOG_SYS(LOG_ERROR,
+                    "systemctl: FAIL (no output, %s)",
+                    exec_status_str(res.status));
+                return;
+            }
+
+            LOG_SYS(LOG_ERROR,
+                "systemctl: FAIL (%s)",
+                exec_status_str(res.status));
             return;
-        }
+       }
 
-        // 🔴 бинарь не найден / не запустился
-        if (res.status == EXEC_EXEC_FAILED) {
-            LOG_SYS(LOG_ERROR, "systemctl: FAIL (exec)");
-            return;
-        }
+LOG_SYS(LOG_INFO, "systemctl: OK");
 
-        // 🟡 прочие ошибки
-        LOG_SYS(LOG_ERROR,
-            "systemctl: FAIL (%s)",
-            exec_status_str(res.status));
-        return;
-    }
-
-    // 🟢 успех
-    LOG_SYS(LOG_INFO, "systemctl: OK");
 }
 
 static void check_fail2ban() {
@@ -321,34 +331,43 @@ static void check_fail2ban() {
 
     int rc = exec_command(args, out, sizeof(out), &opts, &res);
 
-    if (rc != 0) {
+    if (res.status != EXEC_OK || res.exit_code != 0) {
 
         // 🔴 GLIBC mismatch (наш кейс!)
         if (strstr(out, "GLIBC")) {
-            LOG_SYS(LOG_ERROR, "fail2ban: FAIL (glibc)");
+            LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (glibc)");
             return;
         }
 
         // 🔴 бинарь не запустился
         if (res.status == EXEC_EXEC_FAILED) {
-            LOG_SYS(LOG_ERROR, "fail2ban: FAIL (exec)");
+            LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (exec)");
             return;
         }
 
         // 🔴 нет файла
         if (strstr(out, "No such file")) {
-            LOG_SYS(LOG_ERROR, "fail2ban: FAIL (missing)");
+            LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (missing)");
             return;
         }
 
-        // 🟡 остальное
+        // 👉 👉 Fallback: иногда sudo может вернуть ошибку без текста, тогда out будет пустой
+        if (out[0] == '\0') {
+            LOG_SYS(LOG_ERROR,
+                "fail2ban-wrapper: FAIL (no output, %s)",
+                exec_status_str(res.status));
+            return;
+        }
+
+        // 🟡 всё остальное
         LOG_SYS(LOG_ERROR,
-            "fail2ban: FAIL (%s)",
+            "fail2ban-wrapper: FAIL (%s)",
             exec_status_str(res.status));
         return;
     }
 
-    LOG_SYS(LOG_INFO, "fail2ban: OK");
+LOG_SYS(LOG_INFO, "fail2ban-wrapper: OK");
+
 }
 
 static void check_logfile_access(const char *path) {
