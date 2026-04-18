@@ -297,9 +297,7 @@ static void check_systemctl_access() {
         .quiet = 1   // 🔥 ключевой момент
     };
 
-    exec_command(args, out, sizeof(out), &opts, &res);
-
-        if (!exec_success(&res)) {
+    if (!exec_check_cmd(args, out, sizeof(out), &opts, &res)) {
 
             if (strstr(out, "command not found")) {
                 LOG_SYS(LOG_ERROR, "systemctl: FAIL (missing)");
@@ -352,9 +350,7 @@ static void check_fail2ban() {
         .quiet = 1
     };
 
-    exec_command(args, out, sizeof(out), &opts, &res);
-
-    if (!exec_success(&res)) {
+    if (!exec_check_cmd(args, out, sizeof(out), &opts, &res)) {
 
         // 🔴 GLIBC mismatch (наш кейс!)
         if (strstr(out, "GLIBC")) {
