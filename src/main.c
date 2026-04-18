@@ -299,7 +299,7 @@ static void check_systemctl_access() {
 
     exec_command(args, out, sizeof(out), &opts, &res);
 
-        if (res.status != EXEC_OK || res.exit_code != 0) {
+        if (!exec_success(&res)) {
 
             if (strstr(out, "command not found")) {
                 LOG_SYS(LOG_ERROR, "systemctl: FAIL (missing)");
@@ -354,7 +354,7 @@ static void check_fail2ban() {
 
     exec_command(args, out, sizeof(out), &opts, &res);
 
-    if (res.status != EXEC_OK || res.exit_code != 0) {
+    if (!exec_success(&res)) {
 
         // 🔴 GLIBC mismatch (наш кейс!)
         if (strstr(out, "GLIBC")) {
