@@ -47,4 +47,11 @@ const char *logger_level_to_string(log_level_t level);
 #define LOG_EXEC(level, fmt, ...) \
     log_msg(level, "[EXEC] " fmt, ##__VA_ARGS__)
 
+// 🔥 EXEC для health-check (менее шумный)
+#define LOG_EXEC_CHECK(level, fmt, ...) \
+    do { \
+        if (level <= LOG_DEBUG) \
+            log_msg(level, "[EXEC] " fmt, ##__VA_ARGS__); \
+    } while (0)
+
 #endif
