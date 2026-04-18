@@ -269,7 +269,12 @@ static void check_systemctl_access() {
     char out[128] = {0};
     exec_result_t res;
 
-    int rc = exec_command(args, out, sizeof(out), NULL, &res);
+    exec_opts_t opts = {
+        .timeout_ms = 2000,
+        .quiet = 1   // 🔥 ключевой момент
+    };
+
+    int rc = exec_command(args, out, sizeof(out), &opts, &res);
 
     if (rc != 0) {
 
@@ -309,7 +314,12 @@ static void check_fail2ban() {
     char out[256] = {0};
     exec_result_t res;
 
-    int rc = exec_command(args, out, sizeof(out), NULL, &res);
+    exec_opts_t opts = {
+        .timeout_ms = 2000,
+        .quiet = 1
+    };
+
+    int rc = exec_command(args, out, sizeof(out), &opts, &res);
 
     if (rc != 0) {
 
@@ -332,7 +342,7 @@ static void check_fail2ban() {
         }
 
         // 🟡 остальное
-        LOG_SYS(LOG_WARN,
+        LOG_SYS(LOG_ERROR,
             "fail2ban: FAIL (%s)",
             exec_status_str(res.status));
         return;
