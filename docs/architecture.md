@@ -24,7 +24,7 @@ tg-bot/
 │   ├── services.h           # 🔹 systemd services management API
 │   ├── users.h              # 🔹 user management / access control
 │   ├── logs.h               # 🔹 logs retrieval API (journalctl integration)
-│   ├── logs_filter.h        # 🔹 log filtering API (semantic + multi-keyword)
+│   ├── logs_filter.h        # 🔹 log filtering API (semantic parsing + multi-keyword filtering)
 │   └── exec.h               # 🔹 execution API (command runner with timeout & safety)
 │
 ├── src/                     # 📂 implementation (module sources)
@@ -39,8 +39,8 @@ tg-bot/
 │   ├── services.c           # 🔹 systemd service control implementation
 │   ├── users.c              # 🔹 user access / permissions logic
 │   ├── logs.c               # 🔹 logs processing (journalctl + formatting + fallback)
-│   ├── logs_filter.c        # 🔹 log filtering engine (semantic + multi-keyword)
-│   └── exec.c               # 🔹 centralized command execution (NEW)
+│   ├── logs_filter.c        # 🔹 log filtering engine (semantic analysis + multi-keyword matching)
+│   └── exec.c               # 🔹 centralized command execution (timeout, safety, diagnostics)
 │
 ├── tools/                   # 🔧 internal utilities (standalone helpers)
 │   └── f2b-wrapper.c        # 🔹 Fail2Ban wrapper (safe CLI bridge)
