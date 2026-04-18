@@ -393,3 +393,73 @@ int system_get_status(char *buffer, size_t size) {
     return 0;
     
 }
+
+int system_get_status_mini(char *buffer, size_t size) {
+
+    LOG_STATE(LOG_DEBUG, "system_get_status_mini() called");
+
+    if (!buffer || size == 0) {
+        return -1;
+    }
+
+    buffer[0] = '\0';
+
+    // ===== данные =====
+    double l1, l5, l15;
+    get_load(&l1, &l5, &l15);
+
+    int used_mem, total_mem, mem_pct;
+    get_memory(&used_mem, &total_mem, &mem_pct);
+
+    int used_disk, total_disk, disk_pct;
+    get_disk(&used_disk, &total_disk, &disk_pct);
+
+    // clamp
+    if (mem_pct < 0) mem_pct = 0;
+    if (mem_pct > 100) mem_pct = 100;
+
+    if (disk_pct < 0) disk_pct = 0;
+    if (disk_pct > 100) disk_pct = 100;
+
+    int days, hours, mins;
+    get_uptime(&days, &hours, &mins);
+
+    // ===== heat indicators =====
+    const char *mem_icon =
+        (mem_pct > 85) ? "🔴" :
+        (mem_pct > 60) ? "🟡" : "🟢";
+
+    const char *disk_icon =
+        (disk_pct > 90) ? "🔴" :
+        (disk_pct > 70) ? "🟡" : "🟢";
+
+    const char *cpu_icon =
+        (l1 > 2.0) ? "🔴" :
+        (l1 > 1.0) ? "🟡" : "🟢"; // TODO: можно учитывать количество CPU (get_nprocs())
+
+    // ===== ultra-compact output =====
+    int written = snprintf(buffer, size,
+        "⚡ *System status (mini)*\n\n"
+        "CPU  %s %.2f (1m)\n"
+        "MEM  %s %d%%\n"
+        "DSK  %s %d%%\n"
+        "UP   %dd %dh %dm",
+        cpu_icon, l1,
+        mem_icon, mem_pct,
+        disk_icon, disk_pct,
+        days, hours, mins
+    );
+
+    if (written < 0) {
+        LOG_STATE(LOG_ERROR, "system_get_status_mini failed");
+        return -1;
+    }
+
+    if ((size_t)written >= size) {
+        LOG_STATE(LOG_WARN, "system_get_status_mini truncated");
+    }
+
+    LOG_STATE(LOG_INFO, "system mini status built (len=%d)", written);
+
+    return 0;
+}
