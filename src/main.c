@@ -377,7 +377,7 @@ static void check_fail2ban() {
                     dbg_out);
             } else {
                 LOG_SYS(LOG_ERROR,
-                    "fail2ban-wrapper: FAIL (no output, %s)",
+                    "fail2ban-wrapper: FAIL (no output, %s, possible broken binary)",
                     exec_status_str(res.status));
             }
 
