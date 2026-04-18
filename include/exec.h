@@ -58,6 +58,8 @@ const char* exec_status_str(exec_status_t s);
      (r)->status == EXEC_FORK_FAILED || \
      (r)->status == EXEC_PIPE_FAILED))
 
+int exec_success(const exec_result_t *r);
+
 // ===== API =====
 
 int exec_command(char *const argv[],
