@@ -35,6 +35,25 @@ int exec_success(const exec_result_t *r) {
 
 // ===== helpers =====
 
+int exec_check_cmd(char *const argv[],
+                   char *output,
+                   size_t size,
+                   const exec_opts_t *opts,
+                   exec_result_t *res)
+{
+    int rc = exec_command(argv, output, size, opts, res);
+
+    if (rc != 0) {
+        return 0;
+    }
+
+    if (!exec_success(res)) {
+        return 0;
+    }
+
+    return 1;
+}
+
 static void exec_result_fail(exec_result_t *r,
                             exec_status_t status)
 {
