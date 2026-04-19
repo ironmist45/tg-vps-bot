@@ -16,11 +16,11 @@ extern time_t g_start_time;
 // ==== General: /start command ====
 
 int cmd_start(int argc, char *argv[],
-                  long chat_id,
-                  char *resp, size_t size,
-                  response_type_t *resp_type) {
-
-    (void)argc; (void)argv; (void)chat_id;
+              long chat_id,
+              char *resp, size_t size,
+              response_type_t *resp_type) {
+  
+  (void)argc; (void)argv; (void)chat_id;
 
     if (resp_type) *resp_type = RESP_MARKDOWN;
 
