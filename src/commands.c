@@ -8,6 +8,7 @@
 #include "version.h"
 #include "utils.h"
 #include "exec.h"
+#include "cmd_system.h"
 
 #include <stdio.h>
 #include <string.h>
