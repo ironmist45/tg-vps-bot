@@ -74,5 +74,8 @@ int cmd_reboot_confirm(int argc, char *argv[],
     g_shutdown_requested = 2;
 
     if (snprintf(resp, size, "♻️ Rebooting...") >= (int)size)
-    return -1;
+        return -1;
+  
+  return 0;
+
 }
