@@ -50,6 +50,8 @@ int cmd_status(int argc, char *argv[],
     (void)argc;      // unused
     (void)chat_id;  // unused
 
+    if (resp_type) *resp_type = RESP_MARKDOWN;
+
     if (!argv || !argv[0]) {
         snprintf(resp, size, "Invalid command");
         return -1;
