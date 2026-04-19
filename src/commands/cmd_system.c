@@ -16,9 +16,9 @@ extern time_t g_start_time;
 // ==== General: /start command ====
 
 int cmd_start(int argc, char *argv[],
-                     long chat_id,
-                     char *resp, size_t size,
-                     response_type_t *resp_type) {
+                  long chat_id,
+                  char *resp, size_t size,
+                  response_type_t *resp_type) {
 
     (void)argc; (void)argv; (void)chat_id;
 
@@ -42,9 +42,9 @@ int cmd_start(int argc, char *argv[],
 // ==== System info: /status command ====
 
 int cmd_status(int argc, char *argv[],
-                      long chat_id,
-                      char *resp, size_t size,
-                      response_type_t *resp_type) {
+                   long chat_id,
+                   char *resp, size_t size,
+                   response_type_t *resp_type) {
     (void)argc;
 
     if (resp_type) *resp_type = RESP_MARKDOWN;
@@ -68,9 +68,9 @@ return 0;
 // ==== General: /status_mini command ====
 
 int cmd_status_mini(int argc, char *argv[],
-                           long chat_id,
-                           char *resp, size_t size,
-                           response_type_t *resp_type) {
+                        long chat_id,
+                        char *resp, size_t size,
+                        response_type_t *resp_type) {
 
     (void)argc;
 
