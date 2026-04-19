@@ -93,7 +93,17 @@ int security_validate_text(const char *text) {
 }
 
 int security_check_access(long chat_id, const char *cmd) {
-    if (!security_is_allowed_chat(chat_id)) {
+
+    int allowed = security_is_allowed_chat(chat_id); // использовать { return 0;} - 🚫 для теста запретить доступ всем!
+
+    LOG_SEC(LOG_INFO,
+      "ACCESS CHECK: chat_id=%ld cmd=%s result=%s",
+       chat_id,
+       cmd ? cmd : "NULL",
+       allowed ? "ALLOW" : "DENY"
+    );
+
+    if (!allowed) {
         LOG_STATE(LOG_WARN,
             "ACCESS DENIED: cmd=%s (chat_id=%ld)",
             cmd ? cmd : "NULL", chat_id);
