@@ -90,6 +90,7 @@ int cmd_status_mini(int argc, char *argv[],
 }
 
 // ===== System info: /about command =====
+
 int cmd_about(int argc, char *argv[],
               long chat_id,
               char *resp, size_t size,
@@ -121,6 +122,7 @@ int cmd_about(int argc, char *argv[],
 }
 
 // ===== System info: /ping command =====
+
 int cmd_ping(int argc, char *argv[],
              long chat_id,
              char *resp, size_t size,
