@@ -24,9 +24,9 @@ int cmd_reboot(int argc, char *argv[],
 
     if (resp_type) *resp_type = RESP_MARKDOWN;
     
-    if (!argv || !argv[0]) {
-        snprintf(resp, size, "Invalid command");
+    if (validate_command(argv, resp, size) != 0)
         return -1;
+  
     }
 
     int token = security_generate_reboot_token(chat_id);
@@ -49,9 +49,9 @@ int cmd_reboot_confirm(int argc, char *argv[],
     
     if (resp_type) *resp_type = RESP_MARKDOWN;
   
-    if (!argv || !argv[0]) {
-        snprintf(resp, size, "Invalid command");
+    if (validate_command(argv, resp, size) != 0)
         return -1;
+  
     }
     
     if (argc < 2) {
