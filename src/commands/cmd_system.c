@@ -1,7 +1,7 @@
 #include "commands.h"
 #include "logger.h"
 #include "system.h"
-#include "utils.h"     // 👈 for REQUIRE_ACCESS in cmd_status (/status)
+#include "security.h"
 #include "version.h"
 
 #include <stdio.h>
