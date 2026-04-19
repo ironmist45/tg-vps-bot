@@ -38,29 +38,15 @@ return 0;
 
 int cmd_services_v2(command_ctx_t *ctx)
 {
-
-    (void)ctx; // ⚠️ suppress warning!
-    
-    // ⚠️ пока используем временный буфер (bridge)
-    static char buf[1024];
-
-    buf[0] = '\0';
-
-    // вызываем тот же сервисный слой
-    if (services_get_status(buf, sizeof(buf)) != 0) {
-        // ⚠️ пока просто пишем в буфер dispatcher’а через fallback
-        snprintf(buf, sizeof(buf), "⚠️ Failed to get services");
-        return -1;
+    if (ctx->resp_type) {
+        *(ctx->resp_type) = RESP_MARKDOWN;
     }
 
-    // ⚠️ КЛЮЧЕВОЕ: как передать ответ обратно?
-    // Пока никак напрямую → поэтому используем HACK через глобальный response
-
-    // 👉 ВРЕМЕННОЕ РЕШЕНИЕ:
-    // просто печатаем в stdout, чтобы убедиться что handler вызывается
-    // (позже заменим на reply_*)
-
-    printf("[DEBUG] services_v2 output:\n%s\n", buf);
+    if (services_get_status(ctx->response, ctx->resp_size) != 0) {
+        snprintf(ctx->response, ctx->resp_size,
+                 "⚠️ Failed to get services");
+        return -1;
+    }
 
     return 0;
 }
