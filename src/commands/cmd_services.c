@@ -2,7 +2,6 @@
 #include "services.h"
 #include "users.h"
 #include "logs.h"
-#include "security.h"
 
 #include <stdio.h>
 
@@ -17,7 +16,8 @@ int cmd_services(int argc, char *argv[],
                  char *resp, size_t size,
                  response_type_t *resp_type) {
   
-  (void)argc;
+  (void)argc;    // unused
+  (void)chat_id; // unused
 
     if (resp_type) *resp_type = RESP_MARKDOWN;
 
@@ -106,7 +106,6 @@ int cmd_logs(int argc, char *argv[],
             return -1;
         }
 
-    // ✅ FIX /logs
     if (logs_get(args, resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get logs");
         return -1;
