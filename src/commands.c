@@ -28,24 +28,6 @@ extern time_t g_start_time;
 extern volatile sig_atomic_t g_shutdown_requested;
 extern long g_reboot_requested_by;
 
-// ===== forward declarations =====
-// ===== COMMANDS =====
-// NOTE: this code has been moved to /src/commands/cmd_system.c!
-// ===== SERVICES =====
-// NOTE: this code has been moved to /src/commands/cmd_services.c!
-// ===== LOGS =====
-// NOTE: this code has been moved to /src/commands/cmd_services.c!
-// ===== USERS =====
-// NOTE: this code has been moved to /src/commands/cmd_services.c!
-// ===== HELP =====
-// NOTE: this code has been moved to /src/commands/cmd_help.c!
-// ===== FAIL2BAN (🔥 FIXED + LOGGING) =====
-// NOTE: this code has been moved to /src/commands/cmd_security.c!
-// ===== REBOOT =====
-// NOTE: this code has been moved to /src/commands/cmd_control.c!
-// ==== REBOOT CONFIRM ====
-// NOTE: this code has been moved to /src/commands/cmd_control.c!
-
 // ===== COMMANDS TABLE =====
 
 command_t commands[] = {
@@ -71,6 +53,7 @@ const int commands_count =
     sizeof(commands) / sizeof(commands[0]);
 
 // ===== DISPATCHER =====
+
 int commands_handle(const char *text,
                     long chat_id,
                     char *response,
