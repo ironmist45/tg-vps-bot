@@ -162,12 +162,17 @@ int commands_handle(const char *text,
             // ===== V2 handler =====
             if (commands[i].handler_v2) {
 
-                command_ctx_t ctx = {
+            command_ctx_t ctx = {
                 .chat_id = chat_id,
                 .user_id = 0,
                 .username = NULL,
                 .args = (argc > 1) ? argv[1] : NULL,
-                .raw_text = text
+                .raw_text = text,
+
+                // 🔥 bridge
+                .response = response,
+                .resp_size = resp_size,
+                .resp_type = &local_resp_type
             };
 
             LOG_NET(LOG_INFO,
