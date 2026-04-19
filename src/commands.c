@@ -647,52 +647,31 @@ static int cmd_help(int argc, char *argv[],
         if (!commands[i].category)
             continue;
 
-        // ===== CATEGORY HEADER =====
-        if (!current_category ||
-            strcmp(current_category, commands[i].category) != 0) {
+        const char *name = commands[i].name;
 
-            current_category = commands[i].category;
+        // 👉 специальная отрисовка для /status
+        if (strcmp(name, "/status") == 0) {
 
             int written = snprintf(resp + used, size - used,
-                "*%s*\n",
-                current_category);
+                "/status\n"
+                "  ↳ /status mini\n");
 
             if (written < 0 || (size_t)written >= size - used)
                 break;
 
             used += written;
+            continue;
         }
 
-        // ===== COMMAND LINE =====
+        // 👉 обычные команды
+        int written = snprintf(resp + used, size - used,
+            "%s\n",
+            name);
 
-        const char *name = commands[i].name;
+        if (written < 0 || (size_t)written >= size - used)
+            break;
 
-      // 👉 специальная отрисовка для /status
-      if (strcmp(name, "/status") == 0) {
-
-          int written = snprintf(resp + used, size - used,
-              "/status\n"
-              "  ↳ /status mini\n");
-
-          if (written < 0 || (size_t)written >= size - used)
-              break;
-
-          used += written;
-      }
-
-// 👉 обычные команды
-int written = snprintf(resp + used, size - used,
-    "%s\n",
-    name);
-
-if (written < 0 || (size_t)written >= size - used)
-    break;
-
-used += written;
-          continue;
-          
-        }
-      
+        used += written;
     }
 
     LOG_STATE(LOG_DEBUG, "help: building command list");
