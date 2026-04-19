@@ -155,10 +155,6 @@ int commands_handle(const char *text,
       
          if (strcmp(argv[0], commands[i].name) == 0) {
 
-            LOG_NET(LOG_INFO,
-                    "cmd: %.32s (chat_id=%ld)",
-                    argv[0], chat_id);
-
             // ===== V2 handler =====
             if (commands[i].handler_v2) {
 
