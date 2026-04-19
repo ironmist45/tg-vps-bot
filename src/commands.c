@@ -32,8 +32,6 @@ static int cmd_help(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_start(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_status(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_status_mini(int, char **, long, char *, size_t, response_type_t *);
-static int cmd_about(int, char **, long, char *, size_t, response_type_t *);
-static int cmd_ping(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_services(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_logs(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_users(int, char **, long, char *, size_t, response_type_t *);
@@ -111,84 +109,6 @@ static int cmd_status_mini(int argc, char *argv[],
         snprintf(resp, size, "⚠️ Failed to get system status");
         return -1;
     }
-
-    return 0;
-}
-
-static int cmd_about(int argc, char *argv[],
-                     long chat_id,
-                     char *resp, size_t size,
-                     response_type_t *resp_type) {
-
-    (void)argc; (void)argv; (void)chat_id;
-
-    if (resp_type) *resp_type = RESP_MARKDOWN;
-
-    time_t now = time(NULL);
-    long uptime = now - g_start_time;
-
-    int days = uptime / 86400;
-    int hours = (uptime % 86400) / 3600;
-    int mins = (uptime % 3600) / 60;
-
-    int written = snprintf(resp, size,
-        "*ℹ️ ABOUT*\n\n"
-        "%s v%s (%s)\n"
-        "PID: %d\n"
-        "Uptime: %dd %dh %dm",
-        APP_NAME, APP_VERSION, APP_CODENAME,
-        getpid(), days, hours, mins);
-    if (written < 0 || (size_t)written >= size)
-        return -1;
-
-    return 0;
-}
-
-// ===== PING =====
-
-static int cmd_ping(int argc, char *argv[],
-                    long chat_id,
-                    char *resp, size_t size,
-                    response_type_t *resp_type) {
-
-    (void)argc; (void)argv; (void)chat_id;
-
-    if (resp_type) *resp_type = RESP_MARKDOWN;
-
-    struct timespec start, end;
-
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
-    // 👉 никакого usleep — меряем реальное время выполнения
-
-    clock_gettime(CLOCK_MONOTONIC, &end);
-
-    long latency_ms =
-        (end.tv_sec - start.tv_sec) * 1000 +
-        (end.tv_nsec - start.tv_nsec) / 1000000;
-
-    // ===== uptime =====
-    time_t now = time(NULL);
-    long uptime = now - g_start_time;
-
-    int mins = (uptime % 3600) / 60;
-    int secs = uptime % 60;
-
-    // ✅ логируем /ping в лог бота
-    LOG_STATE(LOG_INFO,
-        "ping: latency=%ld ms uptime=%dm%ds",
-        latency_ms, mins, secs);
-
-    int written = snprintf(resp, size,
-        "*🏓 PING*\n\n"
-        "Status: `OK`\n"
-        "Latency: `%ld ms`\n"
-        "Uptime: `%dm %ds`",
-        latency_ms,
-        mins, secs);
-
-    if (written < 0 || (size_t)written >= size)
-        return -1;
 
     return 0;
 }
