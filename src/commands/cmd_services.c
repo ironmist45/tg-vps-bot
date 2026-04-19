@@ -38,6 +38,9 @@ return 0;
 
 int cmd_services_v2(command_ctx_t *ctx)
 {
+
+    (void)ctx; // ⚠️ suppress warning!
+    
     // ⚠️ пока используем временный буфер (bridge)
     static char buf[1024];
 
