@@ -10,7 +10,34 @@
 // extern globals
 extern time_t g_start_time;
 
-// ===== /about =====
+// ==== COMMANDS: General + System info ====
+// ==== General: /start command ====
+
+static int cmd_start(int argc, char *argv[],
+                     long chat_id,
+                     char *resp, size_t size,
+                     response_type_t *resp_type) {
+
+    (void)argc; (void)argv; (void)chat_id;
+
+    if (resp_type) *resp_type = RESP_MARKDOWN;
+
+    char status[1024];
+
+    if (system_get_status(status, sizeof(status)) != 0) {
+        snprintf(status, sizeof(status), "⚠️ Failed to get system info");
+    }
+
+    int written = snprintf(resp, size,
+        "*🚀 %s v%s (%s)*\n\n%s\n\n👉 /help",
+        APP_NAME, APP_VERSION, APP_CODENAME, status);
+    if (written < 0 || (size_t)written >= size)
+        return -1;
+
+    return 0;
+}
+
+// ===== System info: /about =====
 int cmd_about(int argc, char *argv[],
               long chat_id,
               char *resp, size_t size,
@@ -41,7 +68,7 @@ int cmd_about(int argc, char *argv[],
     return 0;
 }
 
-// ===== /ping =====
+// ===== System info: /ping =====
 int cmd_ping(int argc, char *argv[],
              long chat_id,
              char *resp, size_t size,
