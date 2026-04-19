@@ -229,3 +229,13 @@ int is_safe_ip(const char *ip) {
     struct sockaddr_in sa;
     return inet_pton(AF_INET, ip, &(sa.sin_addr)) == 1;
 }
+
+// ==== общий валидатор команды ====
+
+int validate_command(char *argv[], char *resp, size_t size) {
+    if (!argv || !argv[0]) {
+        snprintf(resp, size, "Invalid command");
+        return -1;
+    }
+    return 0;
+}
