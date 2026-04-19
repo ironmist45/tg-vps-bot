@@ -30,10 +30,36 @@ int commands_handle(const char *text,
                     response_type_t *resp_type);
 
 // 👇 Command handlers (exported)
+// General
 int cmd_start(int argc, char *argv[],
               long chat_id,
               char *response,
               size_t resp_size,
               response_type_t *resp_type);
+
+// System info
+int cmd_status(int argc, char *argv[],
+               long chat_id,
+               char *response,
+               size_t resp_size,
+               response_type_t *resp_type);
+
+int cmd_status_mini(int argc, char *argv[],
+                    long chat_id,
+                    char *response,
+                    size_t resp_size,
+                    response_type_t *resp_type);
+
+int cmd_about(int argc, char *argv[],
+              long chat_id,
+              char *response,
+              size_t resp_size,
+              response_type_t *resp_type);
+
+int cmd_ping(int argc, char *argv[],
+             long chat_id,
+             char *response,
+             size_t resp_size,
+             response_type_t *resp_type);
 
 #endif
