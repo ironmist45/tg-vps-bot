@@ -62,4 +62,11 @@ int cmd_ping(int argc, char *argv[],
              size_t resp_size,
              response_type_t *resp_type);
 
+// Services
+int cmd_services(int argc, char *argv[],
+                 long chat_id,
+                 char *response,
+                 size_t resp_size,
+                 response_type_t *resp_type);
+
 #endif
