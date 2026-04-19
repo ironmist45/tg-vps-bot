@@ -1,26 +1,17 @@
 #include "commands.h"
 #include "logger.h"
-#include "system.h"
-#include "services.h"
-#include "users.h"
-#include "logs.h"
 #include "security.h"
-#include "version.h"
 #include "utils.h"
-#include "exec.h"
+
 #include "cmd_system.h"
+#include "cmd_services.h"
 #include "cmd_help.h"
 #include "cmd_security.h"
-// #include"cmd_services.h" - TBD!
+#include "cmd_control.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <time.h>
-#include <ctype.h>
-#include <signal.h>
-#include <unistd.h>
-#include <sys/types.h>
 
 #define MAX_ARGS 8
 
