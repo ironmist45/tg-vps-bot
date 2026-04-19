@@ -1,7 +1,6 @@
 #include "commands.h"
 #include "logger.h"
 #include "system.h"
-#include "security.h"
 #include "version.h"
 
 #include <stdio.h>
@@ -12,7 +11,9 @@
 extern time_t g_start_time;
 
 // ==== COMMANDS: General + System info ====
-// (/start, /status, /status_mini, /about, /ping)
+// Bot commands: /start, /status,
+// ===========  /status_mini, /about, /ping)
+
 // ==== General: /start command ====
 
 int cmd_start(int argc, char *argv[],
