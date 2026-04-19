@@ -29,4 +29,11 @@ int commands_handle(const char *text,
                     size_t resp_size,
                     response_type_t *resp_type);
 
+// 👇 Command handlers (exported)
+int cmd_start(int argc, char *argv[],
+              long chat_id,
+              char *response,
+              size_t resp_size,
+              response_type_t *resp_type);
+
 #endif
