@@ -32,7 +32,7 @@ command_t commands[] = {
     {"/ping", cmd_ping, NULL, NULL, "System info"},
 
     {"/services", NULL, cmd_services_v2, NULL, "Services"},
-    {"/users", cmd_users, NULL, NULL, "Services"},
+    {"/users", NULL, cmd_users_v2, NULL, "Services"},
     {"/logs", cmd_logs, NULL, NULL, "Services"},
 
     {"/fail2ban", cmd_fail2ban, NULL, NULL, "Security"},
