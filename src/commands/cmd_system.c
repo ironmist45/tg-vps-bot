@@ -1,7 +1,7 @@
 #include "commands.h"
 #include "logger.h"
 #include "system.h"
-#include "security.h"   // 👈 REQUIRE_ACCESS в /status
+#include "security.h"   // 👈 for REQUIRE_ACCESS in cmd_status (/status)
 #include "version.h"
 
 #include <stdio.h>
@@ -12,6 +12,7 @@
 extern time_t g_start_time;
 
 // ==== COMMANDS: General + System info ====
+// (/start, /status, /status_mini, /about, /ping)
 // ==== General: /start command ====
 
 int cmd_start(int argc, char *argv[],
@@ -64,7 +65,33 @@ return 0;
   
 }
 
-// ===== System info: /about =====
+// ==== General: /status_mini command ====
+
+int cmd_status_mini(int argc, char *argv[],
+                           long chat_id,
+                           char *resp, size_t size,
+                           response_type_t *resp_type) {
+
+    (void)argc;
+
+    if (resp_type) *resp_type = RESP_MARKDOWN;
+
+    if (!argv || !argv[0]) {
+        snprintf(resp, size, "Invalid command");
+        return -1;
+    }
+
+    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
+
+    if (system_get_status_mini(resp, size) != 0) {
+        snprintf(resp, size, "⚠️ Failed to get system status");
+        return -1;
+    }
+
+    return 0;
+}
+
+// ===== System info: /about command =====
 int cmd_about(int argc, char *argv[],
               long chat_id,
               char *resp, size_t size,
@@ -95,7 +122,7 @@ int cmd_about(int argc, char *argv[],
     return 0;
 }
 
-// ===== System info: /ping =====
+// ===== System info: /ping command =====
 int cmd_ping(int argc, char *argv[],
              long chat_id,
              char *resp, size_t size,
