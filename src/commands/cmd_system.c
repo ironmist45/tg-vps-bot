@@ -52,9 +52,9 @@ int cmd_status(int argc, char *argv[],
 
     if (resp_type) *resp_type = RESP_MARKDOWN;
 
-    if (!argv || !argv[0]) {
-        snprintf(resp, size, "Invalid command");
+    if (validate_command(argv, resp, size) != 0)
         return -1;
+  
     }
   
     if (system_get_status(resp, size) != 0) {
@@ -78,9 +78,9 @@ int cmd_status_mini(int argc, char *argv[],
 
     if (resp_type) *resp_type = RESP_MARKDOWN;
 
-    if (!argv || !argv[0]) {
-        snprintf(resp, size, "Invalid command");
+    if (validate_command(argv, resp, size) != 0)
         return -1;
+  
     }
 
     if (system_get_status_mini(resp, size) != 0) {
