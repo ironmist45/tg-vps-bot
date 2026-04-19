@@ -4,8 +4,8 @@
 
 #include <stdio.h>
 
-// ==== COMMANDS: /services /users /logs ====
-//
+// ==== COMMANDS: Servies ====
+//  (/services /users /logs)
 // ==== /services command ====
 
 int cmd_services(int argc, char *argv[],
