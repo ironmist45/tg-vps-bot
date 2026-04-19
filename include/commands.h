@@ -30,14 +30,14 @@ int commands_handle(const char *text,
                     response_type_t *resp_type);
 
 // 👇 Command handlers (exported)
-// General
+// General → cmd_system.h
 int cmd_start(int argc, char *argv[],
               long chat_id,
               char *response,
               size_t resp_size,
               response_type_t *resp_type);
 
-// System info
+// System info → cmd_system.h
 int cmd_status(int argc, char *argv[],
                long chat_id,
                char *response,
@@ -62,7 +62,7 @@ int cmd_ping(int argc, char *argv[],
              size_t resp_size,
              response_type_t *resp_type);
 
-// Services
+// Services → cmd_services.h (создать, отсутствует)
 int cmd_services(int argc, char *argv[],
                  long chat_id,
                  char *response,
@@ -74,5 +74,11 @@ int cmd_users(int argc, char *argv[],
               char *response,
               size_t resp_size,
               response_type_t *resp_type);
+
+int cmd_logs(int argc, char *argv[],
+             long chat_id,
+             char *response,
+             size_t resp_size,
+             response_type_t *resp_type);
 
 #endif
