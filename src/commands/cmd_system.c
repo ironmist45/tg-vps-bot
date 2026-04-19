@@ -1,6 +1,7 @@
 #include "commands.h"
 #include "logger.h"
 #include "system.h"
+#include "security.h"   // 👈 REQUIRE_ACCESS в /status
 #include "version.h"
 
 #include <stdio.h>
@@ -35,6 +36,32 @@ int cmd_start(int argc, char *argv[],
         return -1;
 
     return 0;
+}
+
+// ==== System info: /status command ====
+
+int cmd_status(int argc, char *argv[],
+                      long chat_id,
+                      char *resp, size_t size,
+                      response_type_t *resp_type) {
+    (void)argc;
+
+    if (resp_type) *resp_type = RESP_MARKDOWN;
+
+    if (!argv || !argv[0]) {
+        snprintf(resp, size, "Invalid command");
+        return -1;
+    }
+
+    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
+    
+    if (system_get_status(resp, size) != 0) {
+        snprintf(resp, size, "⚠️ Failed to get system status");
+        return -1;
+    }
+  
+return 0;
+  
 }
 
 // ===== System info: /about =====
