@@ -50,14 +50,14 @@ int cmd_reboot_confirm(int argc, char *argv[],
         snprintf(resp, size, "Invalid command");
         return -1;
     }
+
+    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
     
     if (argc < 2) {
         snprintf(resp, size, "Usage: /reboot_confirm <token>");
         return -1;
     }
-
-    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
-  
+   
     int token;
 
     if (parse_int(argv[1], &token) != 0) {
@@ -73,6 +73,6 @@ int cmd_reboot_confirm(int argc, char *argv[],
     g_reboot_requested_by = chat_id;   // 👈 КТО запросил ребут
     g_shutdown_requested = 2;
 
-    snprintf(resp, size, "♻️ Rebooting...");
-    return 0;
+    if (snprintf(resp, size, "♻️ Rebooting...") >= (int)size)
+    return -1;
 }
