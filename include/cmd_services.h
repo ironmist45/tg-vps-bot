@@ -4,9 +4,13 @@
 #include <stddef.h>
 #include "commands.h"
 
-// ===== 👇 Command handlers - Services commands =====
+// ===== 👇 Command handlers V2 =====
 
 int cmd_services_v2(command_ctx_t *ctx);
+
+int cmd_users_v2(command_ctx_t *ctx);
+
+// ===== 👇 Command handlers Legacy =====
 
 int cmd_services(int argc, char *argv[],
                  long chat_id,
