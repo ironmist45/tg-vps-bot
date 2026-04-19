@@ -1,6 +1,7 @@
 #ifndef SECURITY_H
 #define SECURITY_H
 
+#include <stdio.h>
 #include <stddef.h>
 
 // ===== INIT =====
