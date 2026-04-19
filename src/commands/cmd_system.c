@@ -53,9 +53,7 @@ int cmd_status(int argc, char *argv[],
         snprintf(resp, size, "Invalid command");
         return -1;
     }
-
-    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
-    
+  
     if (system_get_status(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get system status");
         return -1;
@@ -80,8 +78,6 @@ int cmd_status_mini(int argc, char *argv[],
         snprintf(resp, size, "Invalid command");
         return -1;
     }
-
-    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
 
     if (system_get_status_mini(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get system status");
