@@ -17,9 +17,9 @@ int cmd_fail2ban(int argc, char *argv[],
 
     if (resp_type) *resp_type = RESP_PLAIN;
 
-    if (!argv || !argv[0]) {
-        snprintf(resp, size, "Invalid command");
+    if (validate_command(argv, resp, size) != 0)
         return -1;
+  
     }
 
     if (argc < 2) {
