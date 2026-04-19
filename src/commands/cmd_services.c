@@ -67,6 +67,8 @@ int cmd_logs(int argc, char *argv[],
                  long chat_id,
                  char *resp, size_t size,
                  response_type_t *resp_type) {
+  
+  (void)chat_id; // unused
 
     if (resp_type) *resp_type = RESP_PLAIN;
 
