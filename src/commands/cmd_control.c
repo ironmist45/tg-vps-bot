@@ -9,8 +9,13 @@
 extern volatile sig_atomic_t g_shutdown_requested;
 extern long g_reboot_requested_by;
 
-// ===== REBOOT: /reboot and /reboot_confirm commands =====
+// ===== REBOOT logic =====
+// Bot commands: /reboot,
+// ============  /reboot_confirm
+
+
 // ==== /reboot command ====
+
 int cmd_reboot(int argc, char *argv[],
                long chat_id,
                char *resp, size_t size,
@@ -23,8 +28,6 @@ int cmd_reboot(int argc, char *argv[],
         snprintf(resp, size, "Invalid command");
         return -1;
     }
-
-    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
 
     int token = security_generate_reboot_token(chat_id);
 
@@ -50,8 +53,6 @@ int cmd_reboot_confirm(int argc, char *argv[],
         snprintf(resp, size, "Invalid command");
         return -1;
     }
-
-    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
     
     if (argc < 2) {
         snprintf(resp, size, "Usage: /reboot_confirm <token>");
