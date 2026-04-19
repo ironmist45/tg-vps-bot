@@ -347,7 +347,7 @@ static int cmd_reboot_confirm(int argc, char *argv[],
 
 // ===== COMMANDS TABLE =====
 
-static command_t commands[] = {
+command_t commands[] = {
     {"/start", cmd_start, NULL, "General"},
     {"/help", cmd_help, NULL, "General"},
 
@@ -366,7 +366,7 @@ static command_t commands[] = {
     {"/reboot_confirm", cmd_reboot_confirm, NULL, NULL},
 };
 
-static const int commands_count =
+const int commands_count =
     sizeof(commands) / sizeof(commands[0]);
 
 // ===== HELP =====
