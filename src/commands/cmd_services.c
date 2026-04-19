@@ -6,8 +6,10 @@
 
 #include <stdio.h>
 
-// ==== COMMANDS: Servies ====
-//  (/services /users /logs)
+// ==== COMMANDS: Services ====
+// Bot commands:  /services,
+// ============   /users, /logs
+
 // ==== /services command ====
 
 int cmd_services(int argc, char *argv[],
