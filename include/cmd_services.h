@@ -6,6 +6,8 @@
 
 // ===== 👇 Command handlers - Services commands =====
 
+int cmd_services_v2(command_ctx_t *ctx);
+
 int cmd_services(int argc, char *argv[],
                  long chat_id,
                  char *response,
