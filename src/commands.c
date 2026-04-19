@@ -29,7 +29,6 @@ extern long g_reboot_requested_by;
 // ===== forward declarations =====
 
 static int cmd_help(int, char **, long, char *, size_t, response_type_t *);
-static int cmd_start(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_status(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_status_mini(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_services(int, char **, long, char *, size_t, response_type_t *);
@@ -40,30 +39,6 @@ static int cmd_reboot(int, char **, long, char *, size_t, response_type_t *);
 static int cmd_reboot_confirm(int, char **, long, char *, size_t, response_type_t *);
 
 // ===== COMMANDS =====
-
-static int cmd_start(int argc, char *argv[],
-                     long chat_id,
-                     char *resp, size_t size,
-                     response_type_t *resp_type) {
-
-    (void)argc; (void)argv; (void)chat_id;
-
-    if (resp_type) *resp_type = RESP_MARKDOWN;
-
-    char status[1024];
-
-    if (system_get_status(status, sizeof(status)) != 0) {
-        snprintf(status, sizeof(status), "⚠️ Failed to get system info");
-    }
-
-    int written = snprintf(resp, size,
-        "*🚀 %s v%s (%s)*\n\n%s\n\n👉 /help",
-        APP_NAME, APP_VERSION, APP_CODENAME, status);
-    if (written < 0 || (size_t)written >= size)
-        return -1;
-
-    return 0;
-}
 
 static int cmd_status(int argc, char *argv[],
                       long chat_id,
