@@ -667,20 +667,28 @@ static int cmd_help(int argc, char *argv[],
 
         const char *name = commands[i].name;
 
-        // 👉 рисуем подкоманду сразу после /status
-        if (strcmp(name, "/status") == 0) {
-            "/status\n"
-            "  ↳ /status mini\n");
+      // 👉 специальная отрисовка для /status
+      if (strcmp(name, "/status") == 0) {
 
-            // 👉 обычные команды
-            int written = snprintf(resp + used, size - used,
-                "%s\n",
-                name);
+          int written = snprintf(resp + used, size - used,
+              "/status\n"
+              "  ↳ /status mini\n");
 
           if (written < 0 || (size_t)written >= size - used)
               break;
 
           used += written;
+      }
+
+// 👉 обычные команды
+int written = snprintf(resp + used, size - used,
+    "%s\n",
+    name);
+
+if (written < 0 || (size_t)written >= size - used)
+    break;
+
+used += written;
           continue;
           
         }
