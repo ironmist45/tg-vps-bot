@@ -3,6 +3,8 @@
 
 #include "commands.h"
 
+// ==== 👇 Command handlers - Fail2Ban ====
+
 int cmd_fail2ban(int argc, char *argv[],
                  long chat_id,
                  char *response,
