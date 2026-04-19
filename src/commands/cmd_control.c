@@ -26,8 +26,6 @@ int cmd_reboot(int argc, char *argv[],
     
     if (validate_command(argv, resp, size) != 0)
         return -1;
-  
-    }
 
     int token = security_generate_reboot_token(chat_id);
 
@@ -51,8 +49,6 @@ int cmd_reboot_confirm(int argc, char *argv[],
   
     if (validate_command(argv, resp, size) != 0)
         return -1;
-  
-    }
     
     if (argc < 2) {
         snprintf(resp, size, "Usage: /reboot_confirm <token>");
