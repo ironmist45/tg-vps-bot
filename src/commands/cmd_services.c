@@ -2,6 +2,7 @@
 #include "services.h"
 #include "users.h"
 #include "logs.h"
+#include "utils.h"
 
 #include <stdio.h>
 
