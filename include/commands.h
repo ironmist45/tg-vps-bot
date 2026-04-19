@@ -22,6 +22,11 @@ typedef struct {
     const char *username;
     const char *args;
     const char *raw_text;
+
+    // 🔥 bridge to legacy response system
+    char *response;
+    size_t resp_size;
+    response_type_t *resp_type;
 } command_ctx_t;
 
 // ===== V2 HANDLER =====
