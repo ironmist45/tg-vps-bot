@@ -657,6 +657,10 @@ static int cmd_help(int argc, char *argv[],
         if (!commands[i].category)
             continue;
 
+        // 🔥 скрываем алиас /status_mini
+        if (strcmp(commands[i].name, "/status_mini") == 0)
+            continue;
+
         // 🔥 новая категория
         if (!current_category ||
             strcmp(current_category, commands[i].category) != 0) {
