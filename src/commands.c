@@ -611,6 +611,7 @@ static command_t commands[] = {
     {"/help", cmd_help, NULL, "General"},
 
     {"/status", cmd_status, "System status", "System info"},
+    {"/status_mini", cmd_status_mini, "Short status", "System info"},
     {"/about", cmd_about, "About bot", "System info"},
     {"/ping", cmd_ping, NULL, "System info"},
 
@@ -680,7 +681,7 @@ static int cmd_help(int argc, char *argv[],
 
             int written = snprintf(resp + used, size - used,
                 "/status\n"
-                "  ↳ /status mini\n");
+                "  └ mini (/status_mini)\n");
 
             if (written < 0 || (size_t)written >= size - used)
                 break;
