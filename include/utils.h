@@ -37,4 +37,7 @@ int url_encode(const char *src, char *dst, size_t dst_size);
 // ===== network utils =====
 int is_safe_ip(const char *ip);
 
+// ==== общий валидатор команды ====
+int validate_command(char *argv[], char *resp, size_t size);
+
 #endif
