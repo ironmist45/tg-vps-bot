@@ -29,10 +29,6 @@ extern volatile sig_atomic_t g_shutdown_requested;
 extern long g_reboot_requested_by;
 
 // ===== forward declarations =====
-
-static int cmd_reboot(int, char **, long, char *, size_t, response_type_t *);
-static int cmd_reboot_confirm(int, char **, long, char *, size_t, response_type_t *);
-
 // ===== COMMANDS =====
 // NOTE: this code has been moved to /src/commands/cmd_system.c!
 // ===== SERVICES =====
@@ -41,73 +37,14 @@ static int cmd_reboot_confirm(int, char **, long, char *, size_t, response_type_
 // NOTE: this code has been moved to /src/commands/cmd_services.c!
 // ===== USERS =====
 // NOTE: this code has been moved to /src/commands/cmd_services.c!
+// ===== HELP =====
+// NOTE: this code has been moved to /src/commands/cmd_help.c!
 // ===== FAIL2BAN (🔥 FIXED + LOGGING) =====
-// NOTE: this code has been moved to /src/commands/cmd_services.c!
+// NOTE: this code has been moved to /src/commands/cmd_security.c!
 // ===== REBOOT =====
-
-static int cmd_reboot(int argc, char *argv[],
-                      long chat_id,
-                      char *resp, size_t size,
-                      response_type_t *resp_type) {
-    (void)argc;
-
-    if (resp_type) *resp_type = RESP_MARKDOWN;
-    
-    if (!argv || !argv[0]) {
-        snprintf(resp, size, "Invalid command");
-        return -1;
-    }
-
-    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
-
-    int token = security_generate_reboot_token(chat_id);
-
-    int written = snprintf(resp, size,
-        "⚠️ Confirm reboot:\n`/reboot_confirm %d`",
-        token);
-    if (written < 0 || (size_t)written >= size)
-        return -1;
-
-    return 0;
-}
-
-static int cmd_reboot_confirm(int argc, char *argv[],
-                              long chat_id,
-                              char *resp, size_t size,
-                              response_type_t *resp_type) {
-    
-    if (resp_type) *resp_type = RESP_MARKDOWN;
-  
-    if (!argv || !argv[0]) {
-        snprintf(resp, size, "Invalid command");
-        return -1;
-    }
-    
-    if (argc < 2) {
-        snprintf(resp, size, "Usage: /reboot_confirm <token>");
-        return -1;
-    }
-
-    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
-  
-    int token;
-
-    if (parse_int(argv[1], &token) != 0) {
-        snprintf(resp, size, "Invalid token format");
-        return -1;
-    }
-
-    if (security_validate_reboot_token(chat_id, token) != 0) {
-        snprintf(resp, size, "❌ Invalid or expired token");
-        return -1;
-    }
-
-    g_reboot_requested_by = chat_id;   // 👈 КТО запросил ребут
-    g_shutdown_requested = 2;
-
-    snprintf(resp, size, "♻️ Rebooting...");
-    return 0;
-}
+// NOTE: this code has been moved to /src/commands/cmd_control.c!
+// ==== REBOOT CONFIRM ====
+// NOTE: this code has been moved to /src/commands/cmd_control.c!
 
 // ===== COMMANDS TABLE =====
 
@@ -132,9 +69,6 @@ command_t commands[] = {
 
 const int commands_count =
     sizeof(commands) / sizeof(commands[0]);
-
-// ===== HELP =====
-// NOTE: this code has been moved to /src/commands/cmd_help.c!
 
 // ===== DISPATCHER =====
 int commands_handle(const char *text,
