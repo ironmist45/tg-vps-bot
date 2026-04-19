@@ -49,8 +49,6 @@ int cmd_users(int argc, char *argv[],
         snprintf(resp, size, "Invalid command");
         return -1;
     }
-
-    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
   
     if (users_get(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get users");
@@ -74,8 +72,6 @@ int cmd_logs(int argc, char *argv[],
         snprintf(resp, size, "Invalid command");
         return -1;
     } 
-
-    REQUIRE_ACCESS(chat_id, argv[0], resp, size);
 
     if (argc < 2) {
         snprintf(resp, size,
