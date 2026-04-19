@@ -11,10 +11,10 @@
 // ==== /services command ====
 
 int cmd_services(int argc, char *argv[],
-                     long chat_id,
-                     char *resp, size_t size,
-                     response_type_t *resp_type) {
-    (void)argc;
+                 long chat_id,
+                 char *resp, size_t size,
+                 response_type_t *resp_type) {
+  (void)argc;
 
     if (resp_type) *resp_type = RESP_MARKDOWN;
 
