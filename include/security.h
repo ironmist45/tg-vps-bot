@@ -27,4 +27,13 @@ int security_rate_limit(void);
 int security_generate_reboot_token(long chat_id);
 int security_validate_reboot_token(long chat_id, int token);
 
+// ===== access control helpers =====
+#define REQUIRE_ACCESS(chat_id, cmd, resp, size)            \
+    do {                                                    \
+        if (security_check_access(chat_id, cmd) != 0) {     \
+            snprintf(resp, size, "❌ Access denied");        \
+            return -1;                                      \
+        }                                                   \
+    } while (0)
+
 #endif // SECURITY_H
