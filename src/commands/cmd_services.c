@@ -25,8 +25,6 @@ int cmd_services(int argc, char *argv[],
     if (validate_command(argv, resp, size) != 0)
         return -1;
   
-    }
-  
     if (services_get_status(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get services");
         return -1;
@@ -50,9 +48,7 @@ int cmd_users(int argc, char *argv[],
 
     if (validate_command(argv, resp, size) != 0)
         return -1;
-  
-    }
-  
+       
     if (users_get(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get users");
         return -1;
@@ -75,8 +71,6 @@ int cmd_logs(int argc, char *argv[],
 
     if (validate_command(argv, resp, size) != 0)
         return -1;
-  
-    } 
 
     if (argc < 2) {
         snprintf(resp, size,
