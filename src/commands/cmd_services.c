@@ -21,9 +21,9 @@ int cmd_services(int argc, char *argv[],
 
     if (resp_type) *resp_type = RESP_MARKDOWN;
 
-    if (!argv || !argv[0]) {
-        snprintf(resp, size, "Invalid command");
+    if (validate_command(argv, resp, size) != 0)
         return -1;
+  
     }
   
     if (services_get_status(resp, size) != 0) {
@@ -47,9 +47,9 @@ int cmd_users(int argc, char *argv[],
   
     if (resp_type) *resp_type = RESP_MARKDOWN;
 
-    if (!argv || !argv[0]) {
-        snprintf(resp, size, "Invalid command");
+    if (validate_command(argv, resp, size) != 0)
         return -1;
+  
     }
   
     if (users_get(resp, size) != 0) {
@@ -72,9 +72,9 @@ int cmd_logs(int argc, char *argv[],
 
     if (resp_type) *resp_type = RESP_PLAIN;
 
-    if (!argv || !argv[0]) {
-        snprintf(resp, size, "Invalid command");
+    if (validate_command(argv, resp, size) != 0)
         return -1;
+  
     } 
 
     if (argc < 2) {
