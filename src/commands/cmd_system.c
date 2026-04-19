@@ -21,7 +21,7 @@ int cmd_start(int argc, char *argv[],
               char *resp, size_t size,
               response_type_t *resp_type) {
   
-  (void)argc; (void)argv; (void)chat_id;
+    (void)argc; (void)argv; (void)chat_id;
 
     if (resp_type) *resp_type = RESP_MARKDOWN;
 
@@ -55,8 +55,6 @@ int cmd_status(int argc, char *argv[],
     if (validate_command(argv, resp, size) != 0)
         return -1;
   
-    }
-  
     if (system_get_status(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get system status");
         return -1;
@@ -73,15 +71,13 @@ int cmd_status_mini(int argc, char *argv[],
                         char *resp, size_t size,
                         response_type_t *resp_type) {
   
-  (void)argc;      // unused
-  (void)chat_id;  // unused
+    (void)argc;      // unused
+    (void)chat_id;  // unused
 
     if (resp_type) *resp_type = RESP_MARKDOWN;
 
     if (validate_command(argv, resp, size) != 0)
         return -1;
-  
-    }
 
     if (system_get_status_mini(resp, size) != 0) {
         snprintf(resp, size, "⚠️ Failed to get system status");
