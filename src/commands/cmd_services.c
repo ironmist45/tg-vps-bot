@@ -75,6 +75,23 @@ return 0;
   
 }
 
+// ==== /users v2 command ====
+
+int cmd_users_v2(command_ctx_t *ctx)
+{
+    if (ctx->resp_type) {
+        *(ctx->resp_type) = RESP_MARKDOWN;
+    }
+
+    if (users_get(ctx->response, ctx->resp_size) != 0) {
+        snprintf(ctx->response, ctx->resp_size,
+                 "⚠️ Failed to get users");
+        return -1;
+    }
+
+    return 0;
+}
+
 // ==== /logs command ====
 
 int cmd_logs(int argc, char *argv[],
