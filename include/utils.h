@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stddef.h>
 
+#define RESP_MAX 8192
+
 // trim
 char *ltrim(char *s);
 void rtrim(char *s);
