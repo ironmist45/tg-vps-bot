@@ -3,6 +3,8 @@
 
 #include "commands.h"
 
+// ==== 👇 Command handlers - /help command ====
+
 int cmd_help(int argc, char *argv[],
              long chat_id,
              char *response,
