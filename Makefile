@@ -11,7 +11,8 @@ BUILD_DIR := build
 
 # ===== Sources =====
 
-SRCS := $(wildcard $(SRC_DIR)/*.c)
+SRCS := $(wildcard $(SRC_DIR)/*.c) \
+		$(wildcard $(SRC_DIR)/commands/*.c)
 OBJS := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # ===== Flags =====
