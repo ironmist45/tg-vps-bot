@@ -23,22 +23,22 @@ extern long g_reboot_requested_by;
 // ===== COMMANDS TABLE =====
 
 command_t commands[] = {
-    {"/start", cmd_start, NULL, "General"},
-    {"/help", cmd_help, NULL, "General"},
+    {"/start", cmd_start, NULL, NULL, "General"},
+    {"/help", cmd_help, NULL, NULL, "General"},
 
-    {"/status", cmd_status, "System status", "System info"},
-    {"/status_mini", cmd_status_mini, "Short status", "System info"},
-    {"/about", cmd_about, "About bot", "System info"},
-    {"/ping", cmd_ping, NULL, "System info"},
+    {"/status", cmd_status, NULL, "System status", "System info"},
+    {"/status_mini", cmd_status_mini, NULL, "Short status", "System info"},
+    {"/about", cmd_about, NULL, "About bot", "System info"},
+    {"/ping", cmd_ping, NULL, NULL, "System info"},
 
-    {"/services", cmd_services, NULL, "Services"},
-    {"/users", cmd_users, NULL, "Services"},
-    {"/logs", cmd_logs, NULL, "Services"},
+    {"/services", cmd_services, NULL, NULL, "Services"},
+    {"/users", cmd_users, NULL, NULL, "Services"},
+    {"/logs", cmd_logs, NULL, NULL, "Services"},
 
-    {"/fail2ban", cmd_fail2ban, NULL, "Security"},
+    {"/fail2ban", cmd_fail2ban, NULL, NULL, "Security"},
 
-    {"/reboot", cmd_reboot, NULL, "System"},
-    {"/reboot_confirm", cmd_reboot_confirm, NULL, NULL},
+    {"/reboot", cmd_reboot, NULL, NULL, "System"},
+    {"/reboot_confirm", cmd_reboot_confirm, NULL, NULL, NULL},
 };
 
 const int commands_count =
@@ -159,16 +159,50 @@ int commands_handle(const char *text,
                     "cmd: %.32s (chat_id=%ld)",
                     argv[0], chat_id);
 
-            if (!commands[i].handler) {
+            // ===== V2 handler =====
+            if (commands[i].handler_v2) {
+
+                command_ctx_t ctx = {
+                .chat_id = chat_id,
+                .user_id = 0,
+                .username = NULL,
+                .args = (argc > 1) ? argv[1] : NULL,
+                .raw_text = text
+            };
+
+            LOG_NET(LOG_INFO,
+                    "cmd: %.32s [v2] (chat_id=%ld)",
+                    argv[0], chat_id);
+
+            int rc = commands[i].handler_v2(&ctx);
+
+            // ⚠️ временный fallback (пока нет reply_* системы)
+            if (response[0] == '\0') {
                 snprintf(response, resp_size,
-                         "Command not implemented");
-                return -1;
+                         (rc == 0) ? "OK" : "Error");
             }
 
-            int rc = commands[i].handler(
-                argc, argv, chat_id, response, resp_size, &local_resp_type
-            );
+            if (resp_type) {
+                *resp_type = local_resp_type;
+            }
 
+            return rc;
+        }
+
+        // ===== LEGACY handler =====
+        if (!commands[i].handler) {
+            snprintf(response, resp_size,
+                     "Command not implemented");
+            return -1;
+        }
+
+        LOG_NET(LOG_INFO,
+                "cmd: %.32s (chat_id=%ld)",
+                argv[0], chat_id);
+
+        int rc = commands[i].handler(
+            argc, argv, chat_id, response, resp_size, &local_resp_type
+        );
             // ===== fallback если пустой ответ =====
             if (response[0] == '\0') {
                 snprintf(response, resp_size,
