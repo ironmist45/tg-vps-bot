@@ -31,7 +31,7 @@ command_t commands[] = {
     {"/about", cmd_about, NULL, "About bot", "System info"},
     {"/ping", cmd_ping, NULL, NULL, "System info"},
 
-    {"/services", cmd_services, NULL, NULL, "Services"},
+    {"/services", NULL, cmd_services_v2, NULL, "Services"},
     {"/users", cmd_users, NULL, NULL, "Services"},
     {"/logs", cmd_logs, NULL, NULL, "Services"},
 
