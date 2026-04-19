@@ -669,16 +669,20 @@ static int cmd_help(int argc, char *argv[],
 
         // 👉 рисуем подкоманду сразу после /status
         if (strcmp(name, "/status") == 0) {
+            "/status\n"
+            "  ↳ /status mini\n");
 
+            // 👉 обычные команды
             int written = snprintf(resp + used, size - used,
-                "/status\n"
-                "  ↳ /status mini\n");
+                "%s\n",
+                name);
 
-            if (written < 0 || (size_t)written >= size - used)
-                break;
+          if (written < 0 || (size_t)written >= size - used)
+              break;
 
-            used += written;
-            continue;
+          used += written;
+          continue;
+          
         }
       
     }
@@ -744,7 +748,8 @@ int commands_handle(const char *text,
         return -1;
     }
 
-    // ===== SUBCOMMAND: /status mini =====
+    // ===== SUBCOMMAND: /status =====
+  
     if (strcmp(argv[0], "/status") == 0) {
 
         if (argc >= 2 && strcmp(argv[1], "mini") == 0) {
@@ -771,6 +776,7 @@ int commands_handle(const char *text,
             return rc;
         }
 
+        // 👉 ОБЫЧНЫЙ /status (был потерян!)
         LOG_NET(LOG_INFO,
                 "cmd: /status (chat_id=%ld)",
                 chat_id);
@@ -795,30 +801,7 @@ int commands_handle(const char *text,
 
     for (int i = 0; i < commands_count; i++) {
       
-    // 👉 обычный /status
-    LOG_NET(LOG_INFO,
-            "cmd: /status (chat_id=%ld)",
-            chat_id);
-
-    int rc = cmd_status(
-        argc, argv, chat_id,
-        response, resp_size,
-        &local_resp_type
-    );
-
-    if (response[0] == '\0') {
-        snprintf(response, resp_size,
-                 (rc == 0) ? "OK" : "Error");
-    }
-
-    if (resp_type) {
-        *resp_type = local_resp_type;
-    }
-
-    return rc;
-}
-
-        if (strcmp(argv[0], commands[i].name) == 0) {
+         if (strcmp(argv[0], commands[i].name) == 0) {
 
             LOG_NET(LOG_INFO,
                     "cmd: %.32s (chat_id=%ld)",
