@@ -1,6 +1,7 @@
 #include "commands.h"
 #include "logger.h"
 #include "system.h"
+#include "utils.h"
 #include "version.h"
 
 #include <stdio.h>
