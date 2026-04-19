@@ -17,9 +17,11 @@ int cmd_fail2ban(int argc, char *argv[],
 
     if (resp_type) *resp_type = RESP_PLAIN;
 
-    if (validate_command(argv, resp, size) != 0)
+    (void)chat_id;
+
+    if (!argv || !argv[0]) {
+        snprintf(resp, size, "Invalid command");
         return -1;
-  
     }
 
     if (argc < 2) {
@@ -36,10 +38,11 @@ int cmd_fail2ban(int argc, char *argv[],
     if (strcmp(argv[1], "status") == 0) {
 
         char *const args[] = {
-            "sudo", "-n",
+            "sudo",
+            "-n",
             "/usr/local/bin/f2b-wrapper",
             "status",
-            (argc == 3 ? argv[2] : NULL),
+            (argc == 3) ? argv[2] : NULL,
             NULL
         };
 
@@ -49,17 +52,16 @@ int cmd_fail2ban(int argc, char *argv[],
         int rc = exec_command(args, tmp, sizeof(tmp), NULL, &res);
 
         if (rc != 0) {
-            if (res.status == EXEC_TIMEOUT) {
+            if (res.status == EXEC_TIMEOUT)
                 snprintf(resp, size, "❌ Fail2Ban timeout");
-            } else if (res.status == EXEC_EXEC_FAILED) {
+            else if (res.status == EXEC_EXEC_FAILED)
                 snprintf(resp, size,
-                    "❌ Fail2Ban binary error\n"
-                    "Possible GLIBC mismatch");
-            } else {
+                    "❌ Fail2Ban binary error\nPossible GLIBC mismatch");
+            else
                 snprintf(resp, size,
                     "❌ Fail2Ban failed (%s)",
                     exec_status_str(res.status));
-            }
+
             return 0;
         }
 
@@ -75,14 +77,13 @@ int cmd_fail2ban(int argc, char *argv[],
             return -1;
         }
 
-        LOG_STATE(LOG_WARN,
-            "FAIL2BAN BAN: ip=%s (chat_id=%ld)",
-            argv[2], chat_id);
-
         char *const args[] = {
-            "sudo", "-n",
+            "sudo",
+            "-n",
             "/usr/local/bin/f2b-wrapper",
-            "set", "sshd", "banip",
+            "set",
+            "sshd",
+            "banip",
             argv[2],
             NULL
         };
@@ -91,15 +92,7 @@ int cmd_fail2ban(int argc, char *argv[],
         exec_result_t res;
 
         if (exec_command(args, tmp, sizeof(tmp), NULL, &res) != 0) {
-            if (res.status == EXEC_TIMEOUT) {
-                snprintf(resp, size, "❌ Ban timeout");
-            } else if (res.status == EXEC_EXEC_FAILED) {
-                snprintf(resp, size, "❌ Fail2Ban wrapper broken");
-            } else {
-                snprintf(resp, size,
-                    "❌ Ban failed (%s)",
-                    exec_status_str(res.status));
-            }
+            snprintf(resp, size, "❌ Ban failed");
             return -1;
         }
 
@@ -120,14 +113,13 @@ int cmd_fail2ban(int argc, char *argv[],
             return -1;
         }
 
-        LOG_STATE(LOG_WARN,
-            "FAIL2BAN UNBAN: ip=%s (chat_id=%ld)",
-            argv[2], chat_id);
-
         char *const args[] = {
-            "sudo", "-n",
+            "sudo",
+            "-n",
             "/usr/local/bin/f2b-wrapper",
-            "set", "sshd", "unbanip",
+            "set",
+            "sshd",
+            "unbanip",
             argv[2],
             NULL
         };
@@ -136,15 +128,7 @@ int cmd_fail2ban(int argc, char *argv[],
         exec_result_t res;
 
         if (exec_command(args, tmp, sizeof(tmp), NULL, &res) != 0) {
-            if (res.status == EXEC_TIMEOUT) {
-                snprintf(resp, size, "❌ Unban timeout");
-            } else if (res.status == EXEC_EXEC_FAILED) {
-                snprintf(resp, size, "❌ Fail2Ban wrapper broken");
-            } else {
-                snprintf(resp, size,
-                    "❌ Unban failed (%s)",
-                    exec_status_str(res.status));
-            }
+            snprintf(resp, size, "❌ Unban failed");
             return -1;
         }
 
@@ -157,7 +141,7 @@ int cmd_fail2ban(int argc, char *argv[],
         return 0;
     }
 
-    // ===== UNKNOWN =====
+    // ===== FALLBACK =====
     else {
         snprintf(resp, size, "Invalid fail2ban command");
         return -1;
