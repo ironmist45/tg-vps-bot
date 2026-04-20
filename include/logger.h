@@ -58,7 +58,7 @@ const char *logger_level_to_string(log_level_t level);
         (ctx) ? (ctx)->req_id : 0, \
         ##__VA_ARGS__, \
         (ctx) ? (ctx)->chat_id : -1, \
-        (ctx) ? (ctx)->user_id : -1, \
+        (ctx) ? (long)(ctx)->user_id : -1, \
         (ctx && (ctx)->username) ? " user=@" : "", \
         (ctx && (ctx)->username) ? (ctx)->username : "")
 
