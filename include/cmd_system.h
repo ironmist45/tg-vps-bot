@@ -5,27 +5,9 @@
 #include "commands.h"
 
 
-// ==== 👇 Command handlers - General & System info ====
-// Bot commands: /start, /status, /status_mini,
+// ==== 👇 Command handlers v2 - General & System info ====
+// Bot commands: /start, /status, /health,
 // ============  /about and /ping
-
-int cmd_start(int argc, char *argv[], // TODO: remove legacy cmd_start after full v2 migration
-              long chat_id,
-              char *response,
-              size_t resp_size,
-              response_type_t *resp_type);
-
-int cmd_status(int argc, char *argv[],
-               long chat_id,
-               char *response,
-               size_t resp_size,
-               response_type_t *resp_type);
-
-int cmd_status_mini(int argc, char *argv[],
-                    long chat_id,
-                    char *response,
-                    size_t resp_size,
-                    response_type_t *resp_type);
 
 int cmd_about(int argc, char **argv,
               long chat_id,
