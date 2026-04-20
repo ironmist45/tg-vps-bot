@@ -359,7 +359,7 @@ int telegram_poll() {
             }
 
             long update_uid = (long)update_id->valuedouble;
-            LOG_NET(LOG_DEBUG, "update_id=%ld", uid);
+            LOG_NET(LOG_DEBUG, "update_id=%ld", update_uid);
 
             if (update_uid <= g_last_processed_update)
                 continue;
