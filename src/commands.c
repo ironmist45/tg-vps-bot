@@ -122,6 +122,9 @@ int commands_handle(const char *text,
                 .response = response,
                 .resp_size = resp_size,
                 .resp_type = &local_resp_type
+
+                // 🔥 req_id
+                ctx.req_id = req_id;
             };
 
             LOG_NET(LOG_INFO,
