@@ -216,15 +216,19 @@ int cmd_ping_v2(command_ctx_t *ctx)
         uptime);
 
     // ===== RESPONSE =====
-    return reply_markdown(ctx,
-        "*🏓 PONG*\n\n"
-        "Status: `OK`\n"
-        "Processing: `%ld ms`\n"
-        "Inbound: `%s`\n"
-        "RTT (est): `%s`\n"
-        "Uptime: `%s`",
+    char msg[256];
+
+    snprintf(msg, sizeof(msg),
+        "🏓 PONG\n\n"
+        "Status: OK\n"
+        "Processing: %ld ms\n"
+        "Inbound: %s\n"
+        "RTT (est): %s\n"
+        "Uptime: %s",
         processing_ms,
         inbound_str,
         rtt_str,
         uptime);
+
+    return reply_markdown(ctx, msg);
 }
