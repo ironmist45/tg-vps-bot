@@ -1,21 +1,26 @@
+/**
+ * tg-bot - Telegram bot for system administration
+ * 
+ * cmd_control.c - System control commands (/reboot)
+ * 
+ * MIT License - Copyright (c) 2026
+ */
+
 #include "commands.h"
 #include "utils.h"
 #include "security.h"
+#include "lifecycle.h"
 
 #include <stdio.h>
 #include <signal.h>
 
-// extern globals
-extern volatile sig_atomic_t g_shutdown_requested;
-extern long g_reboot_requested_by;
+// ============================================================================
+// REBOOT COMMANDS
+// ============================================================================
 
-// ===== REBOOT logic =====
-// Bot commands: /reboot,
-// ============  /reboot_confirm
-
-
-// ==== /reboot command ====
-
+/**
+ * /reboot - Request system reboot (generates confirmation token)
+ */
 int cmd_reboot(int argc, char *argv[],
                long chat_id,
                char *resp, size_t size,
@@ -38,8 +43,9 @@ int cmd_reboot(int argc, char *argv[],
     return 0;
 }
 
-// ==== /reboot_confirm command ====
-
+/**
+ * /reboot_confirm <token> - Confirm and execute reboot
+ */
 int cmd_reboot_confirm(int argc, char *argv[],
                        long chat_id,
                        char *resp, size_t size,
@@ -56,7 +62,6 @@ int cmd_reboot_confirm(int argc, char *argv[],
     }
    
     int token;
-
     if (parse_int(argv[1], &token) != 0) {
         snprintf(resp, size, "Invalid token format");
         return -1;
@@ -67,12 +72,11 @@ int cmd_reboot_confirm(int argc, char *argv[],
         return -1;
     }
 
-    g_reboot_requested_by = chat_id;   // 👈 КТО запросил ребут
-    g_shutdown_requested = 2;
+    // Request reboot via lifecycle module
+    lifecycle_request_shutdown(2, chat_id);
 
     if (snprintf(resp, size, "♻️ Rebooting...") >= (int)size)
         return -1;
   
-  return 0;
-
+    return 0;
 }
