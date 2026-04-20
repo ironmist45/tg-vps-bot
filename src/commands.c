@@ -51,6 +51,7 @@ int commands_handle(const char *text,
                     time_t msg_date, // 🔥 cmd_ping_v2
                     int user_id,
                     const char *username,
+                    unsigned int req_id, // 🔥 req_id
                     char *response,
                     size_t resp_size,
                     response_type_t *resp_type) {
