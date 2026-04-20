@@ -163,7 +163,7 @@ int commands_handle(const char *text,
 
             command_ctx_t ctx = {
                 .chat_id = chat_id,
-                .user_id = 0,
+                .user_id = user_id,
                 .username = username,
                 .args = (argc > 1) ? argv[1] : NULL,
                 .raw_text = text,
