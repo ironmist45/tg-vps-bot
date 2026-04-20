@@ -365,7 +365,7 @@ int telegram_poll() {
                 continue;
 
             g_last_processed_update = update_uid;
-            last_update_id = update_uid; + 1;
+            last_update_id = update_uid + 1;
 
             if (++g_offset_counter >= 5) {
                 LOG_NET(LOG_DEBUG, "saving offset: %ld", last_update_id);
