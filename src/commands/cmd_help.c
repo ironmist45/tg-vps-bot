@@ -35,10 +35,6 @@ int cmd_help(int argc, char *argv[],
         if (!commands[i].category)
             continue;
 
-        // 🔥 скрываем алиас /status_mini
-        if (strcmp(commands[i].name, "/status_mini") == 0)
-            continue;
-
         // 🔥 новая категория
         if (!current_category ||
             strcmp(current_category, commands[i].category) != 0) {
@@ -57,21 +53,7 @@ int cmd_help(int argc, char *argv[],
         }
 
         const char *name = commands[i].name;
-
-        // 👉 специальная отрисовка для /status
-        if (strcmp(name, "/status") == 0) {
-
-            int written = snprintf(resp + used, size - used,
-                "/status\n"
-                "  └ mini (/status_mini)\n");
-
-            if (written < 0 || (size_t)written >= size - used)
-                break;
-
-            used += written;
-            continue;
-        }
-
+        
         // 👉 обычные команды
         int written = snprintf(resp + used, size - used,
             "%s\n",
