@@ -47,7 +47,9 @@ typedef struct {
 // ===== API =====
 int commands_handle(const char *text,
                     long chat_id,
-                    time_t msg_date, // 🔥 cmd_ping_v2
+                    time_t msg_date,
+                    int user_id,
+                    const char *username,
                     char *response,
                     size_t resp_size,
                     response_type_t *resp_type);
