@@ -59,7 +59,7 @@ int cmd_logs_v2(command_ctx_t *ctx)
         return reply_error(ctx, "Too many arguments");
     }
 
-    // ===== 🔒 ВАЛИДАЦИЯ АРГУМЕНТОВ =====
+    // ===== ВАЛИДАЦИЯ =====
     for (const char *p = ctx->args; *p; p++) {
         if (!isalnum((unsigned char)*p) &&
             *p != ' ' && *p != '_' && *p != '-') {
@@ -68,14 +68,11 @@ int cmd_logs_v2(command_ctx_t *ctx)
     }
 
     // ===== BACKEND =====
-    if (logs_get(ctx->args, ctx->response, ctx->resp_size) != 0) {
+    char buffer[2048];
+
+    if (logs_get(ctx->args, buffer, sizeof(buffer)) != 0) {
         return reply_error(ctx, "Failed to get logs");
     }
 
-    // 🔥 ВАЖНО: backend пишет plain → фиксируем тип
-    if (ctx->resp_type) {
-        *(ctx->resp_type) = RESP_PLAIN;
-    }
-
-    return 0;
+    return reply_plain(ctx, buffer);
 }
