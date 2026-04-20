@@ -1,3 +1,39 @@
+/**
+ * tg-bot - Telegram bot for system administration
+ * 
+ * Main entry point and orchestration layer.
+ * Coordinates initialization, main event loop, and graceful shutdown.
+ * 
+ * Business logic is delegated to:
+ *   - lifecycle.c   (signal handling, reboot/restart logic)
+ *   - environment.c (startup checks and diagnostics)
+ *   - telegram.c    (bot API communication)
+ *   - commands.c    (command processing)
+ *   - security.c    (access control and token validation)
+ * 
+ * MIT License
+ * 
+ * Copyright (c) 2026 ironmist45
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #include "version.h"
 #include "logger.h"
 #include "config.h"
@@ -5,465 +41,31 @@
 #include "exec.h"
 #include "telegram.h"
 #include "security.h"
+#include "lifecycle.h"
+#include "environment.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <time.h>
 #include <stdlib.h>
-#include <signal.h>
-#include <pwd.h>
-#include <sys/types.h>
 
-#include <sys/reboot.h>
-#include <errno.h>
-
-// ===== uptime =====
-time_t g_start_time;
-
-// 👉 кто запросил reboot (бонус)
-long g_reboot_requested_by = 0;
-
-// ===== signals =====
-static volatile sig_atomic_t g_reload_config = 0;
-volatile sig_atomic_t g_shutdown_requested = 0; // 0=none,1=restart,2=reboot
-
-// 🔥 защита от повторных сигналов
-static volatile sig_atomic_t g_signal_received = 0;
-
-// ===== SIGNAL HANDLERS =====
-
-static void handle_sighup(int sig) {
-    (void)sig;
-    g_reload_config = 1;
-}
-
-static void handle_sigterm(int sig) {
-    (void)sig;
-
-    // 🔥 защита от спама сигналами
-    if (g_signal_received) return;
-    g_signal_received = 1;
-
-    LOG_SYS(LOG_WARN, "Received SIGTERM, shutting down...");
-    g_shutdown_requested = 1;
-}
-
-// ===== UTILS =====
-
-static void log_uptime() {
-    time_t now = time(NULL);
-    long uptime = now - g_start_time;
-
-    int days = uptime / 86400;
-    int hours = (uptime % 86400) / 3600;
-    int mins = (uptime % 3600) / 60;
-
-    LOG_SYS(LOG_INFO,
-        "Uptime: %dd %dh %dm",
-        days, hours, mins);
-}
-
-// ===== GRACEFUL SHUTDOWN =====
-
-static void graceful_shutdown() {
-
-    static int done = 0;
-    if (done) return;
-    done = 1;
-
-    LOG_SYS(LOG_INFO, "Graceful shutdown: stopping services...");
-
-    // 1. остановить telegram
-    telegram_shutdown();
-
-    // 2. немного времени на завершение сетевых операций
-    usleep(200000); // 200 ms
-
-    // 3. flush логов
-    LOG_SYS(LOG_INFO, "Flushing logs...");
-    fflush(NULL);
-    
-    // 4. sync файловой системы
-    LOG_SYS(LOG_INFO, "Shutdown sequence complete");
-    fflush(NULL);
-   
-    sync();
-}
-
-// ===== detect CI =====
-
-static int is_ci(void) {
-    return getenv("CI") != NULL;
-}
-
-// ===== SHUTDOWN HANDLER =====
-
-static void handle_shutdown() {
-
-    const char *mode =
-        (g_shutdown_requested == 2) ? "reboot" :
-        (g_shutdown_requested == 1) ? "restart" :
-        "unknown";
-
-    LOG_SYS(LOG_INFO, "Shutdown handler entered (%s)", mode);
-    LOG_SYS(LOG_DEBUG, "shutdown mode raw=%d", g_shutdown_requested);
-
-    static int handled = 0;
-    
-    if (handled) {
-        LOG_SYS(LOG_DEBUG, "handle_shutdown already executed");
-        return;
-    }
-    
-    handled = 1;
-
-    struct timespec start, end;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
-    // ===== REBOOT =====
-    if (g_shutdown_requested == 2) {
-
-        LOG_SYS(LOG_WARN, "Reboot requested");
-
-        if (g_reboot_requested_by != 0) {
-            LOG_SYS(LOG_INFO,
-                "Requested by chat_id=%ld",
-                g_reboot_requested_by);
-        }
-
-        log_uptime();
-
-        graceful_shutdown();
-
-        clock_gettime(CLOCK_MONOTONIC, &end);
-
-        long ms =
-            (end.tv_sec - start.tv_sec) * 1000 +
-            (end.tv_nsec - start.tv_nsec) / 1000000;
-
-        LOG_SYS(LOG_INFO, "Shutdown took %ld ms", ms);
-
-        LOG_SYS(LOG_WARN, "Rebooting via reboot(RB_AUTOBOOT)...");
-        logger_close(); // 🔥 закрываем логгер ПЕРЕД reboot
-        fflush(NULL);
-        sync();
-
-        if (reboot(RB_AUTOBOOT) != 0) {
-            LOG_SYS(LOG_ERROR,
-                    "reboot() failed: errno=%d (%s)",
-                    errno, strerror(errno));
-
-            if (is_ci()) {
-                LOG_SYS(LOG_INFO, "Skipping systemctl reboot (CI environment)");
-                return;
-            }
-            
-            LOG_SYS(LOG_WARN, "Fallback: systemctl reboot");
-
-            fflush(NULL); // flush всех буферов
-
-            execl("/bin/systemctl", "systemctl", "reboot", NULL);
-
-            LOG_SYS(LOG_ERROR,
-                    "fallback exec failed: errno=%d (%s)",
-                    errno, strerror(errno));
-        }
-
-        return;
-    }
-
-    // ===== RESTART =====
-    if (g_shutdown_requested == 1) {
-
-        LOG_SYS(LOG_WARN, "Restart requested");
-
-        if (g_reboot_requested_by != 0) {
-            LOG_SYS(LOG_INFO,
-                "Requested by chat_id=%ld",
-                g_reboot_requested_by);
-        }
-
-        log_uptime();
-
-        graceful_shutdown();
-
-        clock_gettime(CLOCK_MONOTONIC, &end);
-
-        long ms =
-            (end.tv_sec - start.tv_sec) * 1000 +
-            (end.tv_nsec - start.tv_nsec) / 1000000;
-
-        LOG_SYS(LOG_INFO, "Shutdown took %ld ms", ms);
-        logger_close(); // 🔥 ВАЖНО: закрываем логгер ПОСЛЕ всех логов
-        fflush(NULL);
-        sync();
-
-        if (is_ci()) {
-            LOG_SYS(LOG_INFO, "Skipping systemctl restart (CI environment)");
-            return;
-        }
-
-        execl("/bin/systemctl",
-              "systemctl",
-              "restart",
-              "tg-bot",
-              NULL);
-
-        LOG_SYS(LOG_ERROR,
-                "exec restart failed: errno=%d (%s)",
-                errno, strerror(errno));
-        }
-
-    // если вдруг не reboot/restart (на всякий случай)
-    LOG_STATE(LOG_INFO, "Bot stopped");
-
-}
-
-// ===== DEBUG =====
-
-static void log_user_info() {
-    uid_t uid = getuid();
-    uid_t euid = geteuid();
-
-    struct passwd *pw = getpwuid(uid);
-    struct passwd *epw = getpwuid(euid);
-
-    LOG_SYS(LOG_INFO, "User UID: %d (%s)",
-            uid, pw ? pw->pw_name : "unknown");
-
-    LOG_SYS(LOG_INFO, "Effective UID: %d (%s)",
-            euid, epw ? epw->pw_name : "unknown");
-}
-
-static void log_workdir() {
-    char buf[256];
-    if (getcwd(buf, sizeof(buf))) {
-        LOG_SYS(LOG_INFO, "Working directory: %s", buf);
-    }
-}
-
-// ==== Startup check routine ====
-
-static void check_journal_access(void) {
-    char *argv[] = {
-        "sudo",
-        "-n",
-        "journalctl",
-        "-n", "1",
-        "--no-pager",
-        NULL
-    };
-
-    char output[512];
-
-    exec_opts_t opts = {
-        .timeout_ms = 2000,
-        .capture_stderr = 1,
-        .log_output = 0,
-        .quiet = 1
-    };
-
-    exec_result_t res;
-
-    int rc = exec_command(argv, output, sizeof(output), &opts, &res);
-
-    if (rc != 0) {
-        LOG_SYS(LOG_WARN, "journalctl: execution failed (%s)",
-                exec_status_str(res.status));
-        return;
-    }
-
-    if (res.exit_code != 0) {
-        LOG_SYS(LOG_WARN,
-                "journalctl: no access via sudo (exit=%d)",
-                res.exit_code);
-        return;
-    }
-
-    LOG_SYS(LOG_INFO, "journalctl: access OK (via sudo)");
-}
-
-static void check_systemctl_access() {
-    char *const args[] = {
-        "sudo", "-n", "systemctl", "is-active", "ssh", NULL
-    };
-
-    char out[128] = {0};
-    exec_result_t res;
-
-    exec_opts_t opts = {
-        .timeout_ms = 2000,
-        .quiet = 1   // 🔥 ключевой момент
-    };
-
-    if (!exec_check_cmd(args, out, sizeof(out), &opts, &res)) {
-
-            if (strstr(out, "command not found")) {
-                LOG_SYS(LOG_ERROR, "systemctl: FAIL (missing)");
-                return;
-            }
-            
-            if (strstr(out, "password is required") ||
-                strstr(out, "no tty")) {
-
-                LOG_SYS(LOG_ERROR, "systemctl: FAIL (sudo)");
-                return;
-            }
-
-            if (res.status == EXEC_EXEC_FAILED) {
-                LOG_SYS(LOG_ERROR, "systemctl: FAIL (exec)");
-                return;
-            }
-
-            // 👉 Fallback: иногда sudo может вернуть ошибку без текста, тогда out будет пустой
-            if (out[0] == '\0') {
-                LOG_SYS(LOG_ERROR,
-                    "systemctl: FAIL (no output, %s)",
-                    exec_status_str(res.status));
-                return;
-            }
-
-            LOG_SYS(LOG_ERROR,
-                "systemctl: FAIL (%s)",
-                exec_status_str(res.status));
-            return;
-       }
-
-LOG_SYS(LOG_INFO, "systemctl: OK");
-
-}
-
-static void check_fail2ban() {
-    char *const args[] = {
-        "sudo", "-n",
-        "/usr/local/bin/f2b-wrapper",
-        "status",
-        NULL
-    };
-
-    char out[256] = {0};
-    exec_result_t res;
-
-    exec_opts_t opts = {
-        .timeout_ms = 2000,
-        .quiet = 1
-    };
-
-    if (!exec_check_cmd(args, out, sizeof(out), &opts, &res)) {
-
-        // 🔴 GLIBC mismatch (наш кейс!)
-        if (strstr(out, "GLIBC")) {
-            LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (glibc)");
-            return;
-        }
-
-        // 🔴 бинарь не запустился
-        if (res.status == EXEC_EXEC_FAILED) {
-            LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (exec)");
-            return;
-        }
-
-        // 🔴 нет файла
-        if (strstr(out, "No such file")) {
-            LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (missing)");
-            return;
-        }
-
-        // 👉 Fallback: иногда sudo может вернуть ошибку без текста, тогда out будет пустой
-        if (out[0] == '\0') {
-
-            exec_opts_t debug_opts = {
-                .timeout_ms = 2000,
-                .quiet = 0
-            };
-
-            char dbg_out[256] = {0};
-            exec_result_t dbg_res;
-
-            exec_command(args, dbg_out, sizeof(dbg_out), &debug_opts, &dbg_res);
-
-            // 🔴 проверяем GLIBC тут
-            if (strstr(dbg_out, "GLIBC")) {
-                LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (glibc)");
-                return;
-            }
-
-            if (dbg_out[0]) {
-                LOG_SYS(LOG_ERROR,
-                    "fail2ban-wrapper: FAIL (%s) -> %.100s",
-                    exec_status_str(dbg_res.status),
-                    dbg_out);
-            } else {
-                LOG_SYS(LOG_ERROR,
-                    "fail2ban-wrapper: FAIL (no output, %s, possible broken binary)",
-                    exec_status_str(res.status));
-            }
-
-            return;
-        }
-
-    }
-        
-LOG_SYS(LOG_INFO, "fail2ban-wrapper: OK");
-
-}
-
-static void check_logfile_access(const char *path) {
-    FILE *f = fopen(path, "a");
-    if (!f) {
-        LOG_SYS(LOG_WARN, "No write access: %s", path);
-        return;
-    }
-    fclose(f);
-}
-
-// ===== LOGGER SWITCH =====
-
-static int try_reopen_logger(const char *path) {
-    FILE *f = fopen(path, "a");
-    if (!f) return -1;
-    fclose(f);
-
-    // 🔥 ВАЖНО: сбросить буферы перед закрытием
-    fflush(NULL);
-
-    logger_close();
-    return logger_init(path);
-}
-
-// ===== CONFIG LOG =====
-
-static void log_config(const config_t *cfg) {
-    LOG_CFG(LOG_INFO, "===== CONFIG =====");
-    LOG_CFG(LOG_INFO, "CHAT_ID: %ld", cfg->chat_id);
-    LOG_CFG(LOG_INFO, "TOKEN_TTL: %d", cfg->token_ttl);
-    LOG_CFG(LOG_INFO, "POLL_TIMEOUT: %d", cfg->poll_timeout);
-    LOG_CFG(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
-    LOG_CFG(LOG_INFO, "LOG_LEVEL: %s",
-            logger_level_to_string(cfg->log_level));
-}
+// ===== Прототипы вспомогательных функций =====
+static int try_reopen_logger(const char *path);
+static void log_config(const config_t *cfg);
 
 // ===== MAIN =====
 
 int main(int argc, char *argv[]) {
+    // -----------------------------------------------------------
+    // 1. Инициализация жизненного цикла (сигналы, таймеры)
+    // -----------------------------------------------------------
+    lifecycle_init();
+    lifecycle_register_handlers();
 
-    srand(time(NULL));
-    g_start_time = time(NULL);
-
-    struct sigaction sa = {0};
-    sa.sa_handler = handle_sighup;
-    sa.sa_flags = SA_RESTART;
-    sigaction(SIGHUP, &sa, NULL);
-
-    struct sigaction sa_term = {0};
-    sa_term.sa_handler = handle_sigterm;
-    sa_term.sa_flags = SA_RESTART;
-    sigaction(SIGTERM, &sa_term, NULL);
-    sigaction(SIGINT, &sa_term, NULL);
-
+    // -----------------------------------------------------------
+    // 2. Парсинг аргументов командной строки
+    // -----------------------------------------------------------
     cli_args_t args;
-
     if (cli_parse(argc, argv, &args) != 0) {
         printf("Invalid arguments\n");
         return 1;
@@ -484,95 +86,158 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // -----------------------------------------------------------
+    // 3. Инициализация логгера с fallback-путём
+    // -----------------------------------------------------------
     const char *fallback_log = "/var/log/tg-bot.log";
-
     logger_init(fallback_log);
 
+    // -----------------------------------------------------------
+    // 4. Стартовое логирование
+    // -----------------------------------------------------------
     LOG_SYS(LOG_INFO, "==== START ====");
-    LOG_SYS(LOG_INFO, "%s v%s (%s)",
-            APP_NAME, APP_VERSION, APP_CODENAME);
-    fflush(NULL); // 🔥 flush стартовой шапки
+    LOG_SYS(LOG_INFO, "%s v%s (%s)", APP_NAME, APP_VERSION, APP_CODENAME);
+    fflush(NULL);
+    
     LOG_SYS(LOG_INFO, "Process started (PID=%d)", getpid());
-    log_user_info();
-    log_workdir();
-    check_journal_access();     // Проверка journalctl
-    check_systemctl_access();   // Проверка systemctl
-    check_fail2ban();           // Проверка f2b-wrapper
-    check_logfile_access(fallback_log);
+    
+    // -----------------------------------------------------------
+    // 5. Логирование контекста и проверки окружения
+    // -----------------------------------------------------------
+    env_log_user_info();
+    env_log_workdir();
+    env_check_all(fallback_log);
 
+    // -----------------------------------------------------------
+    // 6. Загрузка конфигурации
+    // -----------------------------------------------------------
     config_t cfg;
-
     if (config_load(args.config_path, &cfg) != 0) {
         LOG_CFG(LOG_ERROR, "Config load failed");
+        logger_close();
         return 1;
     }
 
+    // -----------------------------------------------------------
+    // 7. Переключение на лог-файл из конфига (если указан)
+    // -----------------------------------------------------------
     if (try_reopen_logger(cfg.log_file) == 0) {
         LOG_CFG(LOG_INFO, "Logger switched: %s", cfg.log_file);
     }
 
     logger_set_level(cfg.log_level);
-
-    LOG_SYS(LOG_INFO, "Logger level applied: %s",
+    LOG_SYS(LOG_INFO, "Logger level applied: %s", 
             logger_level_to_string(cfg.log_level));
     
     log_config(&cfg);
 
+    // -----------------------------------------------------------
+    // 8. Инициализация модулей безопасности
+    // -----------------------------------------------------------
     security_set_allowed_chat(cfg.chat_id);
     security_set_token_ttl(cfg.token_ttl);
     security_init();
 
+    // -----------------------------------------------------------
+    // 9. Инициализация Telegram
+    // -----------------------------------------------------------
     if (telegram_init(cfg.token) != 0) {
         LOG_NET(LOG_ERROR, "Telegram init failed");
+        logger_close();
         return 1;
     }
 
     LOG_STATE(LOG_INFO, "Bot started");
     LOG_STATE(LOG_INFO, "Entering main loop");
 
-    // ===== LOOP =====
-
+    // ===========================================================
+    // 10. ГЛАВНЫЙ ЦИКЛ
+    // ===========================================================
     while (1) {
-
-    if (g_shutdown_requested) {
-        handle_shutdown();
-        break;
-    }
-
-    if (g_reload_config) {
-
-        LOG_STATE(LOG_INFO, "Reload config");
-
-        config_t new_cfg;
-
-        if (config_load(args.config_path, &new_cfg) == 0) {
-
-            if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
-                try_reopen_logger(new_cfg.log_file);
-            }
-
-            logger_set_level(new_cfg.log_level);
-
-            security_set_allowed_chat(new_cfg.chat_id);
-            security_set_token_ttl(new_cfg.token_ttl);
-
-            cfg = new_cfg;
-            log_config(&cfg);
+        // -------------------------------------------------------
+        // Проверка запроса на shutdown (от сигнала или команды)
+        // -------------------------------------------------------
+        if (lifecycle_shutdown_requested()) {
+            lifecycle_handle_shutdown();
+            break;
         }
 
-        g_reload_config = 0;
+        // -------------------------------------------------------
+        // Проверка запроса на перезагрузку конфигурации (SIGHUP)
+        // -------------------------------------------------------
+        if (lifecycle_reload_requested()) {
+            LOG_STATE(LOG_INFO, "Reload config");
+
+            config_t new_cfg;
+            if (config_load(args.config_path, &new_cfg) == 0) {
+                // Если изменился путь к лог-файлу — переоткрываем
+                if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
+                    try_reopen_logger(new_cfg.log_file);
+                }
+
+                logger_set_level(new_cfg.log_level);
+                security_set_allowed_chat(new_cfg.chat_id);
+                security_set_token_ttl(new_cfg.token_ttl);
+
+                cfg = new_cfg;
+                log_config(&cfg);
+            }
+
+            lifecycle_clear_reload();
+        }
+
+        // -------------------------------------------------------
+        // Polling Telegram API
+        // -------------------------------------------------------
+        int poll_rc = telegram_poll();
+        if (poll_rc != 0) {
+            LOG_NET(LOG_WARN, "Polling error (rc=%d)", poll_rc);
+            sleep(5);
+        }
+
+        usleep(200000);  // небольшая пауза между циклами
     }
 
-    int poll_rc = telegram_poll();
-
-    if (poll_rc != 0) {
-        LOG_NET(LOG_WARN, "Polling error (rc=%d)", poll_rc);
-        sleep(5);
-    }
-
-    usleep(200000);
+    // -----------------------------------------------------------
+    // 11. Завершение работы
+    // -----------------------------------------------------------
+    logger_close();
+    return 0;
 }
 
-    logger_close(); // fallback на всякий случай
-    return 0;
+// =====================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// =====================================================================
+
+/**
+ * Переоткрытие лог-файла (например, после ротации или смены пути в конфиге)
+ * 
+ * @param path  путь к новому лог-файлу
+ * @return      0 при успехе, -1 при ошибке
+ */
+static int try_reopen_logger(const char *path) {
+    // Проверяем, что файл доступен для записи
+    FILE *f = fopen(path, "a");
+    if (!f) return -1;
+    fclose(f);
+
+    // Сбрасываем буферы перед закрытием старого логгера
+    fflush(NULL);
+    logger_close();
+    
+    return logger_init(path);
+}
+
+/**
+ * Логирование текущей конфигурации (для отладки)
+ * 
+ * @param cfg  указатель на структуру конфигурации
+ */
+static void log_config(const config_t *cfg) {
+    LOG_CFG(LOG_INFO, "===== CONFIG =====");
+    LOG_CFG(LOG_INFO, "CHAT_ID: %ld", cfg->chat_id);
+    LOG_CFG(LOG_INFO, "TOKEN_TTL: %d", cfg->token_ttl);
+    LOG_CFG(LOG_INFO, "POLL_TIMEOUT: %d", cfg->poll_timeout);
+    LOG_CFG(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
+    LOG_CFG(LOG_INFO, "LOG_LEVEL: %s", logger_level_to_string(cfg->log_level));
 }
