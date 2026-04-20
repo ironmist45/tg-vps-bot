@@ -92,21 +92,23 @@ int security_validate_text(const char *text) {
 
 }
 
-int security_check_access(long chat_id, const char *cmd) {
+int security_check_access(long chat_id, const char *cmd, unsigned short req_id) {
 
     int allowed = security_is_allowed_chat(chat_id); // использовать { return 0;} - 🚫 для теста запретить доступ всем!
 
     LOG_SEC(LOG_INFO,
-      "ACCESS CHECK: chat_id=%ld cmd=%s result=%s",
-       chat_id,
-       cmd ? cmd : "NULL",
-       allowed ? "ALLOW" : "DENY"
-    );
+        "ACCESS CHECK: req=%04x chat_id=%ld cmd=%s result=%s",
+        req_id,
+        chat_id,
+        cmd,
+        allowed ? "ALLOW" : "DENY");
 
     if (!allowed) {
         LOG_STATE(LOG_WARN,
-            "ACCESS DENIED: cmd=%s (chat_id=%ld)",
-            cmd ? cmd : "NULL", chat_id);
+            "ACCESS DENIED: req=%04x cmd=%s chat_id=%ld",
+             req_id,
+             cmd ? cmd : "NULL",
+             chat_id);
 
         return -1;
     }
