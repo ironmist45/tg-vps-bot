@@ -1,5 +1,6 @@
 #include "commands.h"
 #include "logger.h"
+#include "reply.h"
 #include "system.h"
 #include "utils.h"
 #include "version.h"
@@ -161,4 +162,69 @@ int cmd_ping(int argc, char *argv[],
         return -1;
 
     return 0;
+}
+
+int cmd_ping_v2(command_ctx_t *ctx)
+{
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    // ===== inbound latency =====
+    long inbound_ms = -1;
+
+    if (ctx->msg_date > 0) {
+        time_t now = time(NULL);
+        inbound_ms = (now - ctx->msg_date) * 1000;
+    }
+
+    // ===== uptime =====
+    char uptime[64];
+    system_get_uptime_str(uptime, sizeof(uptime));
+
+    // ===== processing time =====
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    long processing_ms =
+        (end.tv_sec - start.tv_sec) * 1000 +
+        (end.tv_nsec - start.tv_nsec) / 1000000;
+
+    // ===== RTT (estimated) =====
+    long rtt_ms = -1;
+    if (inbound_ms >= 0)
+        rtt_ms = inbound_ms + processing_ms;
+
+    // ===== format strings =====
+    char inbound_str[32];
+    char rtt_str[32];
+
+    if (inbound_ms >= 0)
+        snprintf(inbound_str, sizeof(inbound_str), "%ld ms", inbound_ms);
+    else
+        snprintf(inbound_str, sizeof(inbound_str), "N/A");
+
+    if (rtt_ms >= 0)
+        snprintf(rtt_str, sizeof(rtt_str), "%ld ms", rtt_ms);
+    else
+        snprintf(rtt_str, sizeof(rtt_str), "N/A");
+
+    // ===== LOG =====
+    LOG_CTX(LOG_CMD, ctx, LOG_INFO,
+        "ping: inbound=%s processing=%ldms rtt=%s uptime=%s",
+        inbound_str,
+        processing_ms,
+        rtt_str,
+        uptime);
+
+    // ===== RESPONSE =====
+    return reply_markdown(ctx,
+        "*🏓 PONG*\n\n"
+        "Status: `OK`\n"
+        "Processing: `%ld ms`\n"
+        "Inbound: `%s`\n"
+        "RTT (est): `%s`\n"
+        "Uptime: `%s`",
+        processing_ms,
+        inbound_str,
+        rtt_str,
+        uptime);
 }
