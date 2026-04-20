@@ -72,7 +72,7 @@ static logs_result_t process_logs_output(char *tmp,
                                         int is_fallback)
 {
 
-    log_msg(LOG_DEBUG,
+    LOG_CMD(LOG_DEBUG,
         "process_logs_output start: svc=%s filter=%s is_fallback=%d",
         svc,
         filter ? filter : "NULL",
@@ -110,15 +110,15 @@ static logs_result_t process_logs_output(char *tmp,
         raw_lines++;
 
         if (raw_lines <= 5) {
-            log_msg(LOG_DEBUG, "RAW LINE[%d]: %s", raw_lines, line);
+            LOG_CMD(LOG_DEBUG, "raw[%d]: %s", raw_lines, line);
         }
 
         if (strlen(buffer) > 3500) {
             safe_append(buffer, size,
                 "\n...\n⚠ logs truncated (limit reached)");
-            log_msg(LOG_WARN,
-                "%s truncated early: raw=%d matched=%d",
-                is_fallback ? "fallback" : "logs",
+            LOG_CMD(LOG_WARN,
+                "logs truncated early (%s): raw=%d matched=%d",
+                is_fallback ? "fallback" : svc,
                 raw_lines,
                 line_count);
             break;
@@ -136,9 +136,7 @@ static logs_result_t process_logs_output(char *tmp,
         // 🔥 СКРЫТЬ "Logs begin at"
         if (strstr(line, "Logs begin at")) {
 
-            log_msg(LOG_DEBUG,
-            "Skipping journal header line: %s",
-            line);
+            LOG_CMD(LOG_DEBUG, "Skipping journal header line: %s",line);
 
             line = strtok_r(NULL, "\n", &saveptr);
             continue;
@@ -157,7 +155,7 @@ static logs_result_t process_logs_output(char *tmp,
         }
 
         if (line_count < DEBUG_LINES) {
-            log_msg(LOG_DEBUG,
+            LOG_CMD(LOG_DEBUG,
                 "%s LOG LINE[%d]: %s",
                 is_fallback ? "FALLBACK" : "LOG",
                 line_count, line);
@@ -166,7 +164,10 @@ static logs_result_t process_logs_output(char *tmp,
         line_count++;
 
         if (strlen(buffer) + strlen(line) >= size - 5) {
-            log_msg(LOG_WARN, "Buffer limit reached");
+            LOG_CMD(LOG_WARN,
+                "buffer limit reached (svc=%s, matched=%d)",
+                svc,
+                line_count);
             break;
         }
 
@@ -176,24 +177,20 @@ static logs_result_t process_logs_output(char *tmp,
         line = strtok_r(NULL, "\n", &saveptr);
     }
 
-    log_msg(LOG_DEBUG,
-        "%s processed: lines=%d, bytes=%zu",
-        is_fallback ? "fallback" : "logs",
-        line_count, strlen(buffer));
-
-    log_msg(LOG_DEBUG,
-        "process_logs_output done: raw_lines=%d, matched_lines=%d",
-        raw_lines, line_count);
-
-    log_msg(LOG_DEBUG,
-        "filter stats: dropped=%d matched=%d",
-        dropped, line_count);
+    LOG_CMD(LOG_DEBUG,
+        "logs_done: svc=%s raw=%d matched=%d dropped=%d bytes=%zu",
+        svc,
+        raw_lines,
+        line_count,
+        dropped,
+        strlen(buffer));
 
     if (line_count == 0) {
-        log_msg(LOG_DEBUG,
-            "No matching lines (filter=%s)",
+        LOG_CMD(LOG_DEBUG,
+            "no matches (svc=%s filter=%s)",
+            svc,
             filter ? filter : "NULL");
-    }
+        }
     
     logs_result_t res = {
         .matched = line_count,
@@ -247,7 +244,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
     if (!real_service) {
         snprintf(buffer, size, "❌ Service not allowed");
-        log_msg(LOG_WARN, "Blocked logs access: %s", svc);
+        LOG_SEC(LOG_WARN, "Blocked logs access: %s", svc);
         return -1;
     }
 
@@ -276,14 +273,14 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
         // 📏 ограничение длины
         if (flen > 32) {
-            log_msg(LOG_WARN, "filter too long: %s", filter);
+            LOG_CMD(LOG_WARN, "filter too long: %s", filter);
             snprintf(buffer, size, "❌ Filter too long");
             return -1;
         }
 
         // ❗ минимальная длина (твоя новая защита)
         if (flen < 3) {
-            log_msg(LOG_WARN, "filter too short: %s", filter);
+            LOG_CMD(LOG_WARN, "filter too short: %s", filter);
             snprintf(buffer, size, "❌ Filter too short");
             return -1;
         }
@@ -297,7 +294,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
                 c != '_' &&
                 c != '.') {
 
-                log_msg(LOG_WARN,
+                LOG_CMD(LOG_WARN,
                         "invalid filter rejected: %s (bad char: %c)",
                         filter, c);
 
@@ -307,7 +304,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
         }
 
         // ✅ лог успешного фильтра
-        log_msg(LOG_DEBUG, "filter accepted: %s", filter);
+        LOG_CMD(LOG_DEBUG, "filter accepted: %s", filter);
     }
 
     // ограничение journalctl 200 строк!
@@ -315,7 +312,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
         lines = 30;
 
     if (lines > 200) {
-        log_msg(LOG_WARN, "lines limit exceeded (%d), clamped to 200", lines);
+        LOG_CMD(LOG_WARN, "lines clamped: %d -> 200", lines);
         lines = 200;
     }
 
@@ -341,8 +338,8 @@ int logs_get(const char *service, char *buffer, size_t size) {
 char tmp[8192] = {0};
 
 if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
-    log_msg(LOG_DEBUG, "RAW OUTPUT (%s): first 200 chars:\n%.200s", svc, tmp);
-    log_msg(LOG_ERROR, "exec_command_simple failed");
+    LOG_EXEC(LOG_DEBUG, "RAW OUTPUT (%s): first 200 chars:\n%.200s", svc, tmp);
+    LOG_EXEC(LOG_ERROR, "journalctl exec failed");
     snprintf(buffer, size, "❌ Failed to read logs");
     return -1;
 }
@@ -361,7 +358,7 @@ if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
 
     if (res.raw == 0) {
 
-        log_msg(LOG_WARN,
+        LOG_CMD(LOG_WARN,
                 "No logs for %s, trying global journal", svc);
 
         char lines_str2[16];
@@ -378,7 +375,7 @@ if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
         };
 
         if (exec_command_simple(fallback_args, tmp, sizeof(tmp)) != 0) {
-            log_msg(LOG_ERROR, "fallback exec_command_simple failed");
+            LOG_EXEC(LOG_ERROR, "fallback exec_command_simple failed");
             snprintf(buffer, size, "❌ No logs available");
             return -1;
         }
@@ -393,17 +390,17 @@ if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
             1
         );
 
-        log_msg(LOG_INFO,
-                "fallback exec done: matched=%d raw=%d bytes=%zu",
-                res.matched, res.raw, strlen(buffer));
+        LOG_CMD(LOG_INFO,
+                "fallback done: svc=%s matched=%d raw=%d bytes=%zu",
+                svc, res.matched, res.raw, strlen(buffer));
     }
 
     // ==== Добавляем лог "нет совпадений" ====
     if (res.raw > 0 && res.matched == 0) {
-        log_msg(LOG_INFO,
-            "No matches for filter='%s' in %s logs",
-            filter ? filter : "NULL",
-            svc);
+        LOG_CMD(LOG_INFO,
+            "no matches: svc=%s filter=%s",
+            svc,
+            filter ? filter : "NULL");
     }
     
     // ===== если всё ещё пусто =====
@@ -430,7 +427,9 @@ if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
         }
     }
     
-    log_msg(LOG_DEBUG, "final buffer size: %zu", strlen(buffer));
+    LOG_CMD(LOG_DEBUG,
+        "response size: %zu bytes",
+        strlen(buffer));
     
     return 0;
 }
