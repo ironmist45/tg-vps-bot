@@ -379,6 +379,22 @@ int telegram_poll() {
                 continue;
             }
 
+            cJSON *from = cJSON_GetObjectItem(message, "from");
+            cJSON *user_id_json = from ? cJSON_GetObjectItem(from, "id") : NULL;
+            cJSON *username_json = from ? cJSON_GetObjectItem(from, "username") : NULL;
+
+            // 🔥 и сразу парсинг
+            int uid = 0;
+            const char *uname = NULL;
+
+            if (user_id_json) {
+                uid = (int)user_id_json->valuedouble;
+            }
+
+            if (username_json && cJSON_IsString(username_json)) {
+                uname = username_json->valuestring;
+            }
+
             cJSON *date = cJSON_GetObjectItem(message, "date");
 
             time_t msg_date = 0;
@@ -422,7 +438,8 @@ int telegram_poll() {
             response_type_t resp_type;
 
             if (commands_handle(msg_text, cid, msg_date,
-                    response, sizeof(response), &resp_type) == 0) {
+                                uid, uname,
+                                response, sizeof(response), &resp_type) == 0) {
                 
                 LOG_NET(LOG_DEBUG,
                         "response ready: %zu bytes",
