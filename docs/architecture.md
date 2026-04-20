@@ -43,7 +43,7 @@ tg-bot/
 │   └── exec.c               # 🔹 centralized command execution
 │
 ├── src/commands/            # 🧩 command handlers (modularized)
-│   ├── cmd_system.c         # 🔹 /start, /status, /ping, /about
+│   ├── cmd_system.c         # 🔹 /start, /status, /health, /ping, /about
 │   ├── cmd_services.c       # 🔹 /services, /users, /logs (FULLY v2)
 │   ├── cmd_help.c           # 🔹 /help
 │   ├── cmd_security.c       # 🔹 /fail2ban
@@ -188,12 +188,12 @@ int exec_command_simple(
 ```
 
 ## Design Principles
-Minimalism
-Security-first
-Predictability
-Modular architecture
-Incremental refactoring (no big-bang rewrites)
-Backward compatibility during transitions
+- Minimalism
+- Security-first
+- Predictability
+- Modular architecture
+- Incremental refactoring (no big-bang rewrites)
+- Backward compatibility during transitions
 
 ## Data Flow
 1. Telegram update received
