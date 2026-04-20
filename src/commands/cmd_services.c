@@ -2,6 +2,7 @@
 #include "reply.h"
 #include "services.h"
 #include "users.h"
+#include "logger.h"
 #include "logs.h"
 #include "utils.h"
 
