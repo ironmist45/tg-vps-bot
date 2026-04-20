@@ -27,7 +27,7 @@ command_t commands[] = {
     {"/help", cmd_help, NULL, NULL, "General"},
 
     {"/status", cmd_status, NULL, "System status", "System info"},
-    {"/status_mini", cmd_status_mini, NULL, "Short status", "System info"},
+    {"/health", NULL, cmd_health_v2, "Health check", "System"},
     {"/about", cmd_about, NULL, "About bot", "System info"},
     {"/ping", NULL, cmd_ping_v2, NULL, "System info"},
 
