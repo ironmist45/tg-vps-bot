@@ -37,4 +37,6 @@ int cmd_ping(int argc, char **argv,
              char *resp, size_t size,
              response_type_t *resp_type);
 
+int cmd_ping_v2(command_ctx_t *ctx);
+
 #endif
