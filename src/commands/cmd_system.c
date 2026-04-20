@@ -197,19 +197,27 @@ int cmd_ping_v2(command_ctx_t *ctx)
     char inbound_str[32];
     char rtt_str[32];
 
-    if (inbound_ms >= 0)
-        snprintf(inbound_str, sizeof(inbound_str), "%ld ms", inbound_ms);
-    else
+    // inbound
+    if (inbound_ms < 0) {
         snprintf(inbound_str, sizeof(inbound_str), "N/A");
+    } else if (inbound_ms == 0) {
+        snprintf(inbound_str, sizeof(inbound_str), "<1 ms");
+    } else {
+        snprintf(inbound_str, sizeof(inbound_str), "%ld ms", inbound_ms);
+    }
 
-    if (rtt_ms >= 0)
-        snprintf(rtt_str, sizeof(rtt_str), "%ld ms", rtt_ms);
-    else
+    // rtt
+    if (rtt_ms < 0) {
         snprintf(rtt_str, sizeof(rtt_str), "N/A");
+    } else if (rtt_ms == 0) {
+        snprintf(rtt_str, sizeof(rtt_str), "<1 ms");
+    } else {
+        snprintf(rtt_str, sizeof(rtt_str), "%ld ms", rtt_ms);
+    }
 
     // ===== LOG =====
     LOG_CTX(LOG_CMD, ctx, LOG_INFO,
-        "ping: inbound=%s processing=%ldms rtt=%s uptime=%s",
+        "ping: inbound=%s processing=%ld ms rtt=%s uptime=%s",
         inbound_str,
         processing_ms,
         rtt_str,
