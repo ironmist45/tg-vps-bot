@@ -475,7 +475,7 @@ int system_get_status_mini(char *buffer, size_t size) {
         LOG_STATE(LOG_WARN, "system_get_status_mini truncated");
     }
 
-    LOG_STATE(LOG_INFO, "system mini status built (len=%d)", written);
+    LOG_STATE(LOG_INFO, "system status built (len=%d)", written);
 
     return 0;
 }
