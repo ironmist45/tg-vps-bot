@@ -422,6 +422,10 @@ int telegram_poll() {
             LOG_NET(LOG_INFO,
                     "incoming: chat_id=%ld len=%zu text=%.64s",
                     cid, strlen(msg_text), msg_text);
+            LOG_NET(LOG_DEBUG,
+                    "user: id=%d username=%s",
+                    uid,
+                    uname ? uname : "NULL");
 
             if (!security_is_allowed_chat(cid)) {
                 LOG_NET(LOG_WARN,
