@@ -52,14 +52,14 @@ const char *logger_level_to_string(log_level_t level);
     log_msg(level, "[EXECCHK] " fmt, ##__VA_ARGS__)
 
 // 🔥 НОВЫЙ: CONTEXT LOGGING
-#define LOG_CTX_SAFE(LOG_MACRO, ctx, level, fmt, ...) \
-    do { \
-        if (ctx) { \
-            LOG_CTX(LOG_MACRO, ctx, level, fmt, ##__VA_ARGS__); \
-        } else { \
-            LOG_MACRO(level, fmt " (req=0000 chat_id=-1 user_id=-1)", ##__VA_ARGS__); \
-        } \
-    } while(0)
+#define LOG_CTX(LOG_MACRO, ctx, level, fmt, ...) \
+    LOG_MACRO(level, fmt " (req=%04x chat_id=%ld user_id=%ld%s%s)", \
+        ##__VA_ARGS__, \
+        (ctx)->req_id, \
+        (ctx)->chat_id, \
+        (long)(ctx)->user_id, \
+        ((ctx)->username) ? " user=@" : "", \
+        ((ctx)->username) ? (ctx)->username : "")
 
 #define LOG_NET_CTX(ctx, level, fmt, ...) \
     LOG_CTX(LOG_NET, ctx, level, fmt, ##__VA_ARGS__)
