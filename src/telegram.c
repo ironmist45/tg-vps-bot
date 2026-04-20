@@ -466,6 +466,7 @@ int telegram_poll() {
 
             if (commands_handle(msg_text, cid, msg_date,
                                 uid, uname,
+                                req_id,
                                 response, sizeof(response), &resp_type) == 0) {
                 
                 LOG_NET(LOG_DEBUG,
