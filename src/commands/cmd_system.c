@@ -103,6 +103,20 @@ return 0;
   
 }
 
+int cmd_status_v2(command_ctx_t *ctx)
+{
+    char buf[1024];
+
+    if (system_get_status(buf, sizeof(buf)) != 0) {
+        return reply_markdown(ctx, "⚠️ Failed to get system status");
+    }
+
+    LOG_CTX(LOG_CMD, ctx, LOG_INFO,
+        "status: requested");
+
+    return reply_markdown(ctx, buf);
+}
+
 // ==== General: /status_mini command ====
 
 int cmd_status_mini(int argc, char *argv[],
