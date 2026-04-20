@@ -1,12 +1,15 @@
 #include "system.h"
 #include "logger.h"
 
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <utmp.h>
 #include <sys/statvfs.h>
+
+extern time_t g_start_time;
 
 // ===== CPU load =====
 
@@ -148,6 +151,19 @@ static void get_uptime(int *days, int *hours, int *mins) {
     LOG_STATE(LOG_DEBUG,
             "uptime: %dd %dh %dm",
             *days, *hours, *mins);
+}
+
+int system_get_uptime_str(char *buf, size_t size)
+{
+    time_t now = time(NULL);
+    int seconds = (int)(now - g_start_time);
+
+    int h = seconds / 3600;
+    int m = (seconds % 3600) / 60;
+    int s = seconds % 60;
+
+    snprintf(buf, size, "%dh %dm %ds", h, m, s);
+    return 0;
 }
 
 // ===== helpers =====
