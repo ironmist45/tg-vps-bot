@@ -14,33 +14,9 @@ extern time_t g_start_time;
 
 // ==== COMMANDS: General + System info ====
 // Bot commands: /start, /status,
-// ===========  /status_mini, /about, /ping)
+// ===========  /health, /about, /ping)
 
-// ==== General: /start command ====
-
-int cmd_start(int argc, char *argv[],
-              long chat_id,
-              char *resp, size_t size,
-              response_type_t *resp_type) {
-  
-    (void)argc; (void)argv; (void)chat_id;
-
-    if (resp_type) *resp_type = RESP_MARKDOWN;
-
-    char status[1024];
-
-    if (system_get_status(status, sizeof(status)) != 0) {
-        snprintf(status, sizeof(status), "⚠️ Failed to get system info");
-    }
-
-    int written = snprintf(resp, size,
-        "*🚀 %s v%s (%s)*\n\n%s\n\n👉 /help",
-        APP_NAME, APP_VERSION, APP_CODENAME, status);
-    if (written < 0 || (size_t)written >= size)
-        return -1;
-
-    return 0;
-}
+// ==== General: /start v2 command ====
 
 int cmd_start_v2(command_ctx_t *ctx)
 {
@@ -79,29 +55,7 @@ int cmd_start_v2(command_ctx_t *ctx)
     return reply_markdown(ctx, msg);
 }
 
-// ==== System info: /status command ====
-
-int cmd_status(int argc, char *argv[],
-                   long chat_id,
-                   char *resp, size_t size,
-                   response_type_t *resp_type) {
-  
-    (void)argc;      // unused
-    (void)chat_id;  // unused
-
-    if (resp_type) *resp_type = RESP_MARKDOWN;
-
-    if (validate_command(argv, resp, size) != 0)
-        return -1;
-  
-    if (system_get_status(resp, size) != 0) {
-        snprintf(resp, size, "⚠️ Failed to get system status");
-        return -1;
-    }
-  
-return 0;
-  
-}
+// ==== System info: /status v2 command ====
 
 int cmd_status_v2(command_ctx_t *ctx)
 {
@@ -118,27 +72,6 @@ int cmd_status_v2(command_ctx_t *ctx)
 }
 
 // ==== General: /status_mini command ====
-
-int cmd_status_mini(int argc, char *argv[],
-                        long chat_id,
-                        char *resp, size_t size,
-                        response_type_t *resp_type) {
-  
-    (void)argc;      // unused
-    (void)chat_id;  // unused
-
-    if (resp_type) *resp_type = RESP_MARKDOWN;
-
-    if (validate_command(argv, resp, size) != 0)
-        return -1;
-
-    if (system_get_status_mini(resp, size) != 0) {
-        snprintf(resp, size, "⚠️ Failed to get system status");
-        return -1;
-    }
-
-    return 0;
-}
 
 int cmd_health_v2(command_ctx_t *ctx)
 {
