@@ -30,6 +30,9 @@ typedef struct {
     char *response;
     size_t resp_size;
     response_type_t *resp_type;
+
+    // 🔥 16-bit req_id field
+    unsigned short req_id;
 } command_ctx_t;
 
 // ===== V2 HANDLER =====
