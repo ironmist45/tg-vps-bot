@@ -49,6 +49,8 @@ const int commands_count =
 int commands_handle(const char *text,
                     long chat_id,
                     time_t msg_date, // 🔥 cmd_ping_v2
+                    int user_id,
+                    const char *username,
                     char *response,
                     size_t resp_size,
                     response_type_t *resp_type) {
@@ -162,7 +164,7 @@ int commands_handle(const char *text,
             command_ctx_t ctx = {
                 .chat_id = chat_id,
                 .user_id = 0,
-                .username = NULL,
+                .username = username,
                 .args = (argc > 1) ? argv[1] : NULL,
                 .raw_text = text,
                 .msg_date = msg_date, // 🔥 cmd_ping_v2
