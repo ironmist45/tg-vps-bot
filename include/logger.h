@@ -53,9 +53,11 @@ const char *logger_level_to_string(log_level_t level);
 
 // 🔥 НОВЫЙ: CONTEXT LOGGING
 #define LOG_CTX(LOG_MACRO, ctx, level, fmt, ...) \
-    LOG_MACRO(level, fmt " (chat_id=%ld user_id=%ld)", \
-              ##__VA_ARGS__, \
-              (ctx) ? (ctx)->chat_id : -1, \
-              (ctx) ? (ctx)->user_id : -1)
+    LOG_MACRO(level, fmt " (chat_id=%ld user_id=%ld%s%s)", \
+        ##__VA_ARGS__, \
+        (ctx) ? (ctx)->chat_id : -1, \
+        (ctx) ? (ctx)->user_id : -1, \
+        (ctx && (ctx)->username) ? " user=" : "", \
+        (ctx && (ctx)->username) ? (ctx)->username : "")
 
 #endif
