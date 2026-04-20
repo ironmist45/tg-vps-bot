@@ -71,7 +71,7 @@ int cmd_status_v2(command_ctx_t *ctx)
     return reply_markdown(ctx, buf);
 }
 
-// ==== General: /status_mini command ====
+// ==== General: /health v2 command ====
 
 int cmd_health_v2(command_ctx_t *ctx)
 {
@@ -88,37 +88,7 @@ int cmd_health_v2(command_ctx_t *ctx)
     return reply_markdown(ctx, buf);
 }
 
-// ===== System info: /about command =====
-
-int cmd_about(int argc, char *argv[],
-              long chat_id,
-              char *resp, size_t size,
-              response_type_t *resp_type) {
-
-    (void)argc; (void)argv; (void)chat_id;
-
-    if (resp_type) *resp_type = RESP_MARKDOWN;
-
-    time_t now = time(NULL);
-    long uptime = now - g_start_time;
-
-    int days = uptime / 86400;
-    int hours = (uptime % 86400) / 3600;
-    int mins = (uptime % 3600) / 60;
-
-    int written = snprintf(resp, size,
-        "*ℹ️ ABOUT*\n\n"
-        "%s v%s (%s)\n"
-        "PID: %d\n"
-        "Uptime: %dd %dh %dm",
-        APP_NAME, APP_VERSION, APP_CODENAME,
-        getpid(), days, hours, mins);
-
-    if (written < 0 || (size_t)written >= size)
-        return -1;
-
-    return 0;
-}
+// ===== System info: /about v2 command =====
 
 int cmd_about_v2(command_ctx_t *ctx)
 {
@@ -146,7 +116,7 @@ int cmd_about_v2(command_ctx_t *ctx)
     return reply_markdown(ctx, msg);
 }
 
-// ===== System info: /ping command =====
+// ===== System info: /ping v2 command =====
 
 int cmd_ping_v2(command_ctx_t *ctx)
 {
