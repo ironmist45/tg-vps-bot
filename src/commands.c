@@ -122,7 +122,7 @@ int commands_handle(const char *text,
                 // 🔥 bridge
                 .response = response,
                 .resp_size = resp_size,
-                .resp_type = &local_resp_type
+                .resp_type = &local_resp_type,
 
                 // 🔥 req_id
                 .req_id = req_id
