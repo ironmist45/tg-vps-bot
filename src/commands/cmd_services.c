@@ -5,6 +5,7 @@
 #include "utils.h"
 
 #include <stdio.h>
+#include <ctype.h>
 
 // ==== COMMANDS: Services ====
 // Bot commands:  /services,
@@ -65,16 +66,24 @@ int cmd_logs_v2(command_ctx_t *ctx)
         return 0;
     }
 
-    // ===== КОПИРУЕМ args в буфер =====
-    char args_buf[256];
+    // ===== 🔒 ВАЛИДАЦИЯ АРГУМЕНТОВ =====
+    for (const char *p = ctx->args; *p; p++) {
+        if (!isalnum((unsigned char)*p) &&
+            *p != ' ' && *p != '_' && *p != '-') {
+            snprintf(ctx->response, ctx->resp_size,
+                     "Invalid arguments");
+            return -1;
+        }
+    }
 
-    if (safe_copy(args_buf, sizeof(args_buf), ctx->args) != 0) {
+    // ===== ДЛИНА =====
+    if (strlen(ctx->args) >= 256) {
         snprintf(ctx->response, ctx->resp_size, "Too many arguments");
         return -1;
     }
 
-    // ===== вызываем старый backend =====
-    if (logs_get(args_buf, ctx->response, ctx->resp_size) != 0) {
+    // ===== BACKEND =====
+    if (logs_get(ctx->args, ctx->response, ctx->resp_size) != 0) {
         snprintf(ctx->response, ctx->resp_size,
                  "⚠️ Failed to get logs");
         return -1;
