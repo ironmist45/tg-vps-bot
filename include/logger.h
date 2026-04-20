@@ -64,4 +64,13 @@ const char *logger_level_to_string(log_level_t level);
 #define LOG_NET_CTX(ctx, level, fmt, ...) \
     LOG_CTX(LOG_NET, ctx, level, fmt, ##__VA_ARGS__)
 
+#define LOG_SEC_CTX(ctx, level, fmt, ...) \
+    LOG_CTX(LOG_SEC, ctx, level, fmt, ##__VA_ARGS__)
+
+#define LOG_STATE_CTX(ctx, level, fmt, ...) \
+    LOG_CTX(LOG_STATE, ctx, level, fmt, ##__VA_ARGS__)
+
+#define LOG_SYS_CTX(ctx, level, fmt, ...) \
+    LOG_CTX(LOG_SYS, ctx, level, fmt, ##__VA_ARGS__)
+
 #endif
