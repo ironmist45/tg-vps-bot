@@ -5,6 +5,7 @@
 #include "utils.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <ctype.h>
 
 // ==== COMMANDS: Services ====
@@ -50,43 +51,38 @@ int cmd_users_v2(command_ctx_t *ctx)
 
 int cmd_logs_v2(command_ctx_t *ctx)
 {
-    if (ctx->resp_type) {
-        *(ctx->resp_type) = RESP_PLAIN;
-    }
-
     // ===== БЕЗ аргументов → меню =====
     if (!ctx->args || ctx->args[0] == '\0') {
-        snprintf(ctx->response, ctx->resp_size,
+        return reply_markdown(ctx,
             "*📜 LOGS MENU*\n\n"
             "`/logs ssh`\n"
             "`/logs mtg`\n"
             "`/logs shadowsocks`\n\n"
             "`/logs <service> <N>`\n"
             "`/logs <service> error`");
-        return 0;
+    }
+
+    // ===== ДЛИНА =====
+    if (strlen(ctx->args) >= 256) {
+        return reply_error(ctx, "Too many arguments");
     }
 
     // ===== 🔒 ВАЛИДАЦИЯ АРГУМЕНТОВ =====
     for (const char *p = ctx->args; *p; p++) {
         if (!isalnum((unsigned char)*p) &&
             *p != ' ' && *p != '_' && *p != '-') {
-            snprintf(ctx->response, ctx->resp_size,
-                     "Invalid arguments");
-            return -1;
+            return reply_error(ctx, "Invalid arguments");
         }
-    }
-
-    // ===== ДЛИНА =====
-    if (strlen(ctx->args) >= 256) {
-        snprintf(ctx->response, ctx->resp_size, "Too many arguments");
-        return -1;
     }
 
     // ===== BACKEND =====
     if (logs_get(ctx->args, ctx->response, ctx->resp_size) != 0) {
-        snprintf(ctx->response, ctx->resp_size,
-                 "⚠️ Failed to get logs");
-        return -1;
+        return reply_error(ctx, "Failed to get logs");
+    }
+
+    // 🔥 ВАЖНО: backend пишет plain → фиксируем тип
+    if (ctx->resp_type) {
+        *(ctx->resp_type) = RESP_PLAIN;
     }
 
     return 0;
