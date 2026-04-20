@@ -437,8 +437,12 @@ int telegram_poll() {
             long cid = (long)chat_id->valuedouble;
             const char *msg_text = text->valuestring;
             LOG_NET(LOG_INFO,
-                    "incoming: chat_id=%ld len=%zu text=%.64s",
-                    cid, strlen(msg_text), msg_text);
+                "req=%04x upd=%ld incoming: chat_id=%ld len=%zu text=%.64s",
+                req_id,
+                update_uid,
+                cid,
+                strlen(msg_text),
+                msg_text);
             LOG_NET(LOG_DEBUG,
                     "user: id=%d username=%s",
                     uid,
@@ -454,8 +458,10 @@ int telegram_poll() {
             if (security_validate_text(msg_text) != 0)
                 continue;
 
+            // 🔥 START TIMER (req_id)
+            struct timespec req_start, req_end;
+            clock_gettime(CLOCK_MONOTONIC, &req_start);
             char response[RESP_MAX];
-
             response_type_t resp_type;
 
             if (commands_handle(msg_text, cid, msg_date,
@@ -472,6 +478,19 @@ int telegram_poll() {
                 } else {
                     telegram_send_message(cid, response);
                 }
+
+                // 🔥 END TIMER (req_id)
+                clock_gettime(CLOCK_MONOTONIC, &req_end);
+
+                long req_ms =
+                    (req_end.tv_sec - req_start.tv_sec) * 1000 +
+                    (req_end.tv_nsec - req_start.tv_nsec) / 1000000;
+
+                LOG_NET(LOG_INFO,
+                    "req=%04x done: %ld ms (resp=%zu)",
+                    req_id,
+                    req_ms,
+                    strlen(response));
             }
         }
     }
