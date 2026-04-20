@@ -56,23 +56,44 @@ int cmd_logs_v2(command_ctx_t *ctx)
 
     // ===== ДЛИНА =====
     if (strlen(ctx->args) >= 256) {
+
+        LOG_CMD(LOG_WARN,
+            "logs: args too long '%s' (chat_id=%ld)",
+            ctx->args,
+            ctx->chat_id);
+
         return reply_error(ctx, "Too many arguments");
     }
 
-    // ===== ВАЛИДАЦИЯ =====
+    // ===== 🔒 ВАЛИДАЦИЯ АРГУМЕНТОВ =====
     for (const char *p = ctx->args; *p; p++) {
         if (!isalnum((unsigned char)*p) &&
             *p != ' ' && *p != '_' && *p != '-') {
+
+            LOG_CMD(LOG_WARN,
+                "logs: invalid args '%s' (chat_id=%ld)",
+                ctx->args,
+                ctx->chat_id);
+
             return reply_error(ctx, "Invalid arguments");
         }
     }
 
     // ===== BACKEND =====
-    char buffer[2048];
+    if (logs_get(ctx->args, ctx->response, ctx->resp_size) != 0) {
 
-    if (logs_get(ctx->args, buffer, sizeof(buffer)) != 0) {
+        LOG_CMD(LOG_ERROR,
+            "logs_get failed: args='%s' (chat_id=%ld)",
+            ctx->args,
+            ctx->chat_id);
+
         return reply_error(ctx, "Failed to get logs");
     }
 
-    return reply_plain(ctx, buffer);
+    // 🔥 backend → plain text
+    if (ctx->resp_type) {
+        *(ctx->resp_type) = RESP_PLAIN;
+    }
+
+    return 0;
 }
