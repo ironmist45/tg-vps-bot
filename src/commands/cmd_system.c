@@ -126,6 +126,21 @@ int cmd_status_mini(int argc, char *argv[],
     return 0;
 }
 
+int cmd_health_v2(command_ctx_t *ctx)
+{
+    char buf[512];
+
+    if (system_get_status_mini(buf, sizeof(buf)) != 0) {
+        return reply_markdown(ctx, "⚠️ Failed to get health status");
+    }
+
+    // лог (в стиле v2)
+    LOG_CTX(LOG_CMD, ctx, LOG_INFO,
+        "health: requested");
+
+    return reply_markdown(ctx, buf);
+}
+
 // ===== System info: /about command =====
 
 int cmd_about(int argc, char *argv[],
