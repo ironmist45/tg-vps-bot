@@ -29,6 +29,12 @@ static int reply_write(command_ctx_t *ctx,
         *(ctx->resp_type) = type;
     }
 
+    // 🔥 LOG RESPONSE (v2 unified)
+    LOG_CTX(LOG_CMD, ctx, LOG_DEBUG,
+        "RES %s (%zu chars)",
+        ctx->raw_text ? ctx->raw_text : "NULL",
+        strlen(ctx->response));
+  
     return 0;
 }
 
