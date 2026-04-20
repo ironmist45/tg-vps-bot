@@ -2,6 +2,7 @@
 #define COMMANDS_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include <time.h>
 
 typedef enum {
@@ -53,6 +54,7 @@ int commands_handle(const char *text,
                     time_t msg_date,
                     int user_id,
                     const char *username,
+                    unsigned short req_id, // 🔥 16-bit req_id field
                     char *response,
                     size_t resp_size,
                     response_type_t *resp_type);
