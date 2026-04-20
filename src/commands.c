@@ -124,12 +124,15 @@ int commands_handle(const char *text,
                 .resp_type = &local_resp_type
 
                 // 🔥 req_id
-                ctx.req_id = req_id;
+                .req_id = req_id
             };
 
-            LOG_NET(LOG_INFO,
-                    "cmd: %.32s [v2] (chat_id=%ld)",
-                    argv[0], chat_id);
+            // 🔥 LOG_NET_CTX
+            LOG_NET_CTX(&ctx, LOG_DEBUG,
+                    "dispatching command: %s", argv[0]);
+                
+            LOG_NET_CTX(&ctx, LOG_INFO,
+                    "cmd: %s [v2]", argv[0]);
 
             int rc = commands[i].handler_v2(&ctx);
 
