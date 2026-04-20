@@ -187,7 +187,7 @@ int cmd_ping_v2(command_ctx_t *ctx)
 
     snprintf(msg, sizeof(msg),
         "🏓 PONG\n\n"
-        "Status: OK\n"
+        "Status: OK ✅\n"
         "Processing: %ld ms\n"
         "Inbound: %s\n"
         "RTT (est): %s\n"
