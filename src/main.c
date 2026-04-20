@@ -451,8 +451,6 @@ int main(int argc, char *argv[]) {
     srand(time(NULL));
     g_start_time = time(NULL);
 
-    LOG_SYS(LOG_INFO, "Process started (PID=%d)", getpid());
-
     struct sigaction sa = {0};
     sa.sa_handler = handle_sighup;
     sa.sa_flags = SA_RESTART;
@@ -494,6 +492,7 @@ int main(int argc, char *argv[]) {
     LOG_SYS(LOG_INFO, "%s v%s (%s)",
             APP_NAME, APP_VERSION, APP_CODENAME);
     fflush(NULL); // 🔥 flush стартовой шапки
+    LOG_SYS(LOG_INFO, "Process started (PID=%d)", getpid());
     log_user_info();
     log_workdir();
     check_journal_access();     // Проверка journalctl
