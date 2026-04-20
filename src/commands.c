@@ -99,7 +99,7 @@ int commands_handle(const char *text,
     }
 
     // 🔒 STRICT ACCESS CONTROL (single-user bot)
-    if (security_check_access(chat_id, argv[0]) != 0) {
+    if (security_check_access(chat_id, argv[0]), req_id != 0) {
         snprintf(response, resp_size, "Access denied");
         return -1;
     }
