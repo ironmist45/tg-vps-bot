@@ -120,6 +120,32 @@ int cmd_about(int argc, char *argv[],
     return 0;
 }
 
+int cmd_about_v2(command_ctx_t *ctx)
+{
+    time_t now = time(NULL);
+    long uptime = now - g_start_time;
+
+    int days = uptime / 86400;
+    int hours = (uptime % 86400) / 3600;
+    int mins = (uptime % 3600) / 60;
+
+    char msg[256];
+
+    snprintf(msg, sizeof(msg),
+        "*ℹ️ ABOUT*\n\n"
+        "%s v%s (%s)\n"
+        "PID: %d\n"
+        "Uptime: %dd %dh %dm",
+        APP_NAME, APP_VERSION, APP_CODENAME,
+        getpid(), days, hours, mins);
+
+    // 🔥 лог в v2 стиле
+    LOG_CTX(LOG_CMD, ctx, LOG_INFO,
+        "about: requested");
+
+    return reply_markdown(ctx, msg);
+}
+
 // ===== System info: /ping command =====
 
 int cmd_ping_v2(command_ctx_t *ctx)
