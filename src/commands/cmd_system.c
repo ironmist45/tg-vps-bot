@@ -42,6 +42,43 @@ int cmd_start(int argc, char *argv[],
     return 0;
 }
 
+int cmd_start_v2(command_ctx_t *ctx)
+{
+    // ===== system summary =====
+    char status[512];
+
+    if (system_get_status_mini(status, sizeof(status)) != 0) {
+        snprintf(status, sizeof(status), "⚠️ System info unavailable");
+    }
+
+    // ===== uptime =====
+    char uptime[64];
+    system_get_uptime_str(uptime, sizeof(uptime));
+
+    // ===== LOG =====
+    LOG_CTX(LOG_CMD, ctx, LOG_INFO,
+        "start: user opened bot");
+
+    // ===== RESPONSE =====
+    char msg[512];
+
+    snprintf(msg, sizeof(msg),
+        "🚀 *%s v%s (%s)*\n\n"
+        "Welcome%s%s!\n\n"
+        "*System:* OK\n"
+        "*Uptime:* %s\n\n"
+        "👉 /help — commands\n"
+        "👉 /status — full status\n"
+        "👉 /health — quick check",
+        APP_NAME, APP_VERSION, APP_CODENAME,
+        ctx->username ? " @" : "",
+        ctx->username ? ctx->username : "",
+        uptime
+    );
+
+    return reply_markdown(ctx, msg);
+}
+
 // ==== System info: /status command ====
 
 int cmd_status(int argc, char *argv[],
