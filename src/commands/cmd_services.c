@@ -1,4 +1,5 @@
 #include "commands.h"
+#include "reply.h"
 #include "services.h"
 #include "users.h"
 #include "logs.h"
@@ -16,36 +17,27 @@
 
 int cmd_services_v2(command_ctx_t *ctx)
 {
-    if (ctx->resp_type) {
-        *(ctx->resp_type) = RESP_MARKDOWN;
+    char buffer[1024];
+
+    if (services_get_status(buffer, sizeof(buffer)) != 0) {
+        return reply_error(ctx, "Failed to get services");
     }
 
-    if (services_get_status(ctx->response, ctx->resp_size) != 0) {
-        snprintf(ctx->response, ctx->resp_size,
-                 "⚠️ Failed to get services");
-        return -1;
-    }
-
-    return 0;
+    return reply_markdown(ctx, buffer);
 }
 
 // ==== /users v2 command ====
 
 int cmd_users_v2(command_ctx_t *ctx)
 {
-    if (ctx->resp_type) {
-        *(ctx->resp_type) = RESP_MARKDOWN;
+    char buffer[512];
+
+    if (users_get(buffer, sizeof(buffer)) != 0) {
+        return reply_error(ctx, "Failed to get users");
     }
 
-    if (users_get(ctx->response, ctx->resp_size) != 0) {
-        snprintf(ctx->response, ctx->resp_size,
-                 "⚠️ Failed to get users");
-        return -1;
-    }
-
-    return 0;
+    return reply_markdown(ctx, buffer);
 }
-
 
 // ==== /logs v2 command ====
 
