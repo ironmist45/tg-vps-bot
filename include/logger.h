@@ -51,4 +51,11 @@ const char *logger_level_to_string(log_level_t level);
 #define LOG_EXEC_CHECK(level, fmt, ...) \
     log_msg(level, "[EXECCHK] " fmt, ##__VA_ARGS__)
 
+// 🔥 НОВЫЙ: CONTEXT LOGGING
+#define LOG_CTX(LOG_MACRO, ctx, level, fmt, ...) \
+    LOG_MACRO(level, fmt " (chat_id=%ld user_id=%ld)", \
+              ##__VA_ARGS__, \
+              (ctx) ? (ctx)->chat_id : -1, \
+              (ctx) ? (ctx)->user_id : -1)
+
 #endif
