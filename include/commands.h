@@ -2,6 +2,7 @@
 #define COMMANDS_H
 
 #include <stddef.h>
+#include <time.h>
 
 typedef enum {
     RESP_MARKDOWN = 0,
@@ -22,6 +23,8 @@ typedef struct {
     const char *username;
     const char *args;
     const char *raw_text;
+
+    time_t msg_date;   // 👈 cmd_ping_v2
 
     // 🔥 bridge to legacy response system
     char *response;
