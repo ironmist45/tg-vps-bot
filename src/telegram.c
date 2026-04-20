@@ -379,6 +379,14 @@ int telegram_poll() {
                 continue;
             }
 
+            cJSON *date = cJSON_GetObjectItem(message, "date");
+
+            time_t msg_date = 0;
+
+            if (date && cJSON_IsNumber(date)) {
+                msg_date = (time_t)date->valuedouble;
+            }
+
             cJSON *chat = cJSON_GetObjectItem(message, "chat");
             if (!chat) {
                 LOG_NET(LOG_DEBUG, "skipping update: no chat");
@@ -413,7 +421,7 @@ int telegram_poll() {
 
             response_type_t resp_type;
 
-            if (commands_handle(msg_text, cid, response, sizeof(response), &resp_type) == 0) {
+            if commands_handle(msg_text, cid, msg_date, response, sizeof(response), &resp_type) == 0) {
                 LOG_NET(LOG_DEBUG,
                         "response ready: %zu bytes",
                         strlen(response));
