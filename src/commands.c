@@ -23,7 +23,7 @@ extern long g_reboot_requested_by;
 // ===== COMMANDS TABLE =====
 
 command_t commands[] = {
-    {"/start", cmd_start, NULL, NULL, "General"},
+    {"/start", NULL, cmd_start_v2, NULL, "General"},
     {"/help", cmd_help, NULL, NULL, "General"},
 
     {"/status", cmd_status, NULL, "System status", "System info"},
