@@ -33,7 +33,7 @@ int cmd_about(int argc, char **argv,
               response_type_t *resp_type);
 
 int cmd_start_v2(command_ctx_t *ctx);
-
+int cmd_health_v2(command_ctx_t *ctx);
 int cmd_ping_v2(command_ctx_t *ctx);
 
 #endif
