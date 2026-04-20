@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 #include <curl/curl.h>
@@ -82,7 +83,7 @@ static void escape_markdown(const char *src, char *dst, size_t size) {
     dst[j] = '\0';
 }
 
-// ===== truncate =====
+// ===== truncate message =====
 
 static void truncate_message(char *text) {
     size_t len = strlen(text);
@@ -93,6 +94,21 @@ static void truncate_message(char *text) {
                  TG_LIMIT - strlen(text),
                  "\n...\n[truncated]");
     }
+}
+
+// ==== generate req_id (16-bit hash) ====
+
+static unsigned short make_req_id(long update_uid)
+{
+    uint32_t x = (uint32_t)update_uid;
+
+    x ^= x >> 16;
+    x *= 0x7feb352d;
+    x ^= x >> 15;
+    x *= 0x846ca68b;
+    x ^= x >> 16;
+
+    return (unsigned short)(x & 0xFFFF);
 }
 
 // ===== curl buffer =====
@@ -359,6 +375,7 @@ int telegram_poll() {
             }
 
             long update_uid = (long)update_id->valuedouble;
+            unsigned short req_id = make_req_id(update_uid);
             LOG_NET(LOG_DEBUG, "update_id=%ld", update_uid);
 
             if (update_uid <= g_last_processed_update)
