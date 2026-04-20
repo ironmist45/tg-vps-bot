@@ -32,11 +32,6 @@ int cmd_about(int argc, char **argv,
               char *resp, size_t size,
               response_type_t *resp_type);
 
-int cmd_ping(int argc, char **argv,
-             long chat_id,
-             char *resp, size_t size,
-             response_type_t *resp_type);
-
 int cmd_ping_v2(command_ctx_t *ctx);
 
 #endif
