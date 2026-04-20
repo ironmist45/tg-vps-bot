@@ -32,8 +32,7 @@ int cmd_start_v2(command_ctx_t *ctx)
     system_get_uptime_str(uptime, sizeof(uptime));
 
     // ===== LOG =====
-    LOG_CTX(LOG_CMD, ctx, LOG_INFO,
-        "start: user opened bot");
+    LOG_CMD_CTX(ctx, LOG_INFO, "start: user opened bot");
 
     // ===== RESPONSE =====
     char msg[512];
@@ -65,8 +64,7 @@ int cmd_status_v2(command_ctx_t *ctx)
         return reply_markdown(ctx, "⚠️ Failed to get system status");
     }
 
-    LOG_CTX(LOG_CMD, ctx, LOG_INFO,
-        "status: requested");
+    LOG_CMD_CTX(ctx, LOG_INFO, "status: requested");
 
     return reply_markdown(ctx, buf);
 }
@@ -82,8 +80,7 @@ int cmd_health_v2(command_ctx_t *ctx)
     }
 
     // лог (в стиле v2)
-    LOG_CTX(LOG_CMD, ctx, LOG_INFO,
-        "health: requested");
+    LOG_CMD_CTX(ctx, LOG_INFO, "health: requested");
 
     return reply_markdown(ctx, buf);
 }
@@ -110,8 +107,7 @@ int cmd_about_v2(command_ctx_t *ctx)
         getpid(), days, hours, mins);
 
     // 🔥 лог в v2 стиле
-    LOG_CTX(LOG_CMD, ctx, LOG_INFO,
-        "about: requested");
+    LOG_CMD_CTX(ctx, LOG_INFO, "about: requested");
 
     return reply_markdown(ctx, msg);
 }
@@ -170,7 +166,7 @@ int cmd_ping_v2(command_ctx_t *ctx)
     }
 
     // ===== LOG =====
-    LOG_CTX(LOG_CMD, ctx, LOG_INFO,
+    LOG_CMD_CTX(ctx, LOG_INFO,
         "ping: inbound=%s processing=%ld ms rtt=%s uptime=%s",
         inbound_str,
         processing_ms,
