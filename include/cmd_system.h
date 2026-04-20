@@ -9,7 +9,7 @@
 // Bot commands: /start, /status, /status_mini,
 // ============  /about and /ping
 
-int cmd_start(int argc, char *argv[],
+int cmd_start(int argc, char *argv[], // TODO: remove legacy cmd_start after full v2 migration
               long chat_id,
               char *response,
               size_t resp_size,
@@ -31,6 +31,8 @@ int cmd_about(int argc, char **argv,
               long chat_id,
               char *resp, size_t size,
               response_type_t *resp_type);
+
+int cmd_start_v2(command_ctx_t *ctx);
 
 int cmd_ping_v2(command_ctx_t *ctx);
 
