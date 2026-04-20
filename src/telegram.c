@@ -464,14 +464,18 @@ int telegram_poll() {
             char response[RESP_MAX];
             response_type_t resp_type;
 
+            LOG_NET(LOG_DEBUG,
+                "req=%04x dispatch → commands_handle",
+                req_id);
+
             if (commands_handle(msg_text, cid, msg_date,
                                 uid, uname,
                                 req_id,
                                 response, sizeof(response), &resp_type) == 0) {
                 
                 LOG_NET(LOG_DEBUG,
-                        "response ready: %zu bytes",
-                        strlen(response));
+                    "req=%04x response ready (%zu bytes)",
+                    req_id, strlen(response));
 
                 if (strncmp(msg_text, "/logs", 5) == 0 ||
                     strncmp(msg_text, "/fail2ban", 9) == 0) {
