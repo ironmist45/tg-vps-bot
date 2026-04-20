@@ -26,7 +26,7 @@ command_t commands[] = {
     {"/start", NULL, cmd_start_v2, NULL, "General"},
     {"/help", cmd_help, NULL, NULL, "General"},
 
-    {"/status", cmd_status, NULL, "System status", "System info"},
+    {"/status", NULL, cmd_status_v2, "System status", "System"},
     {"/health", NULL, cmd_health_v2, "Health check", "System"},
     {"/about", cmd_about, NULL, "About bot", "System info"},
     {"/ping", NULL, cmd_ping_v2, NULL, "System info"},
@@ -102,58 +102,7 @@ int commands_handle(const char *text,
         snprintf(response, resp_size, "Access denied");
         return -1;
     }
-
-    // ===== SUBCOMMAND: /status =====
-  
-    if (strcmp(argv[0], "/status") == 0) {
-
-        if (argc >= 2 && strcmp(argv[1], "mini") == 0) {
-
-            LOG_NET(LOG_INFO,
-                    "cmd: /status mini (chat_id=%ld)",
-                    chat_id);
-
-            int rc = cmd_status_mini(
-                argc, argv, chat_id,
-                response, resp_size,
-                &local_resp_type
-            );
-
-            if (response[0] == '\0') {
-                snprintf(response, resp_size,
-                         (rc == 0) ? "OK" : "Error");
-            }
-
-            if (resp_type) {
-                *resp_type = local_resp_type;
-            }
-
-            return rc;
-        }
-
-        // 👉 ОБЫЧНЫЙ /status (был потерян!)
-        LOG_NET(LOG_INFO,
-                "cmd: /status (chat_id=%ld)",
-                chat_id);
-
-        int rc = cmd_status(
-            argc, argv, chat_id,
-            response, resp_size,
-            &local_resp_type
-        );
-
-        if (response[0] == '\0') {
-            snprintf(response, resp_size,
-                     (rc == 0) ? "OK" : "Error");
-        }
-
-        if (resp_type) {
-            *resp_type = local_resp_type;
-        }
-
-        return rc;
-    }
-
+    
     for (int i = 0; i < commands_count; i++) {
       
          if (strcmp(argv[0], commands[i].name) == 0) {
