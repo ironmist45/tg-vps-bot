@@ -182,12 +182,13 @@ Modular C design:
 /help  - Help
 **System info**
 /status - System status
-/about  - About bot
+/health - Health check
+/about  - About tg-bot
 /ping   - Ping
 **Services**
-/services - Services status (ssh, mtg, shadowsocks)
-/users    - Users
-/logs     - Logs (example commands: /logs ssh, /logs mtg, logs shadowsocks, /logs <service> <N>, /logs <service> error)
+/services - Services statuses (ssh, mtg, shadowsocks)
+/users    - Show users
+/logs     - Services logs (example commands: /logs ssh, /logs mtg, logs shadowsocks, /logs <service> <N>, /logs <service> error)
 **Security**
 /fail2ban status - Fail2Ban (example commands: /fail2ban status, /fail2ban status sshd, /fail2ban ban <ip>, /fail2ban unban <ip>)
 **System**
@@ -263,7 +264,7 @@ Linking model:
 
 ### fail2ban wrapper integration note
 
-The `f2b-wrapper` binary must be built on the target system.
+The `f2b-wrapper` binary **must be** built on the target system.
 
 Using binaries compiled on a different system may result in runtime errors such as:
 
