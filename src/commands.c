@@ -137,6 +137,11 @@ int commands_handle(const char *text,
 
             int rc = commands[i].handler_v2(&ctx);
 
+            LOG_NET_CTX(&ctx, LOG_DEBUG,
+                "handler done rc=%d resp_len=%zu",
+                rc,
+                strlen(response));
+
             // ⚠️ временный fallback (пока нет reply_* системы)
             if (response[0] == '\0') {
                 snprintf(response, resp_size,
