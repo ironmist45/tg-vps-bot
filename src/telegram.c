@@ -78,6 +78,15 @@ static int g_offset_counter = 0;
 
 // счётчик циклов polling для логирования
 static unsigned short g_poll_cycle = 0;
+static unsigned short g_current_poll_id = 0;
+
+/**
+ * Get current poll cycle identifier
+ * Used by other modules to correlate logs with polling cycles
+ */
+unsigned short telegram_get_poll_id(void) {
+    return g_current_poll_id;
+}
 
 // ============================================================================
 // OFFSET PERSISTENCE (CRASH RECOVERY)
@@ -416,6 +425,7 @@ int telegram_poll() {
     // Increment poll cycle counter
     g_poll_cycle++;
     unsigned short poll_id = g_poll_cycle;
+    g_current_poll_id = poll_id;
 
     // Load saved offset on first call
     if (last_update_id == -1) {
@@ -574,8 +584,8 @@ int telegram_poll() {
             const char *msg_text = text->valuestring;
 
             LOG_NET(LOG_INFO,
-                "req=%04x upd=%ld incoming: chat_id=%ld len=%zu text=%.64s",
-                req_id, update_uid, cid, strlen(msg_text), msg_text);
+                "poll=%04x req=%04x upd=%ld incoming: chat_id=%ld len=%zu text=%.64s",
+                g_current_poll_id, req_id, update_uid, cid, strlen(msg_text), msg_text);
             LOG_NET(LOG_DEBUG, "user: id=%d username=%s", uid, uname ? uname : "NULL");
 
             // Security checks
@@ -615,8 +625,8 @@ int telegram_poll() {
                 long req_ms = (req_end.tv_sec - req_start.tv_sec) * 1000 +
                               (req_end.tv_nsec - req_start.tv_nsec) / 1000000;
 
-                LOG_NET(LOG_INFO, "req=%04x done: %ld ms (resp=%zu)",
-                        req_id, req_ms, strlen(response));
+                LOG_NET(LOG_INFO, "poll=%04x req=%04x done: %ld ms (resp=%zu)",
+                        g_current_poll_id, req_id, req_ms, strlen(response));
             }
         }
     }
