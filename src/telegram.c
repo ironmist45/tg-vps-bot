@@ -76,6 +76,9 @@ static long g_last_processed_update = 0;
 // Offset write throttling (save every N updates)
 static int g_offset_counter = 0;
 
+// счётчик циклов polling для логирования
+static unsigned short g_poll_cycle = 0;
+
 // ============================================================================
 // OFFSET PERSISTENCE (CRASH RECOVERY)
 // ============================================================================
@@ -426,7 +429,7 @@ int telegram_poll() {
              "%s/getUpdates?timeout=25&offset=%ld",
              g_base_url, last_update_id);
 
-    LOG_NET(LOG_DEBUG, "poll request (offset=%ld)", last_update_id);
+    LOG_NET(LOG_DEBUG, "poll=%04x request (offset=%ld)", poll_id, last_update_id);
 
     struct memory chunk = {0};
 
@@ -436,7 +439,10 @@ int telegram_poll() {
 
     CURLcode res = curl_easy_perform(curl);
 
-    LOG_NET(LOG_DEBUG, "poll curl result: %d (%s)", res, curl_easy_strerror(res));
+    LOG_NET(LOG_DEBUG,
+            "poll=%04x curl result: %d (%s)",
+            poll_id, res,
+            curl_easy_strerror(res));
 
     // Timeout is normal - just means no new messages
     if (res == CURLE_OPERATION_TIMEDOUT) {
@@ -446,14 +452,14 @@ int telegram_poll() {
     }
 
     if (res != CURLE_OK) {
-        LOG_NET(LOG_ERROR, "curl poll error: %s", curl_easy_strerror(res));
+        LOG_NET(LOG_ERROR, "poll=%04x curl error: %s", poll_id, curl_easy_strerror(res));
         curl_easy_cleanup(curl);
         free(chunk.data);
         return -1;
     }
 
     if (!chunk.data || chunk.size == 0) {
-        LOG_NET(LOG_DEBUG, "Empty response from Telegram");
+        LOG_NET(LOG_DEBUG, "poll=%04x empty response from Telegram", poll_id);
         curl_easy_cleanup(curl);
         free(chunk.data);
         return 0;
@@ -462,7 +468,7 @@ int telegram_poll() {
     // Parse JSON response
     cJSON *json = cJSON_Parse(chunk.data);
     if (!json) {
-        LOG_NET(LOG_ERROR, "JSON parse error, raw=%.512s", chunk.data ? chunk.data : "NULL");
+        LOG_NET(LOG_ERROR, "poll=%04x JSON parse error", poll_id);
         curl_easy_cleanup(curl);
         free(chunk.data);
         return -1;
@@ -470,7 +476,13 @@ int telegram_poll() {
 
     cJSON *ok = cJSON_GetObjectItem(json, "ok");
     if (!cJSON_IsTrue(ok)) {
-        LOG_NET(LOG_ERROR, "Telegram API not ok: %.512s", chunk.data);
+        cJSON *error_code = cJSON_GetObjectItem(json, "error_code");
+        cJSON *description = cJSON_GetObjectItem(json, "description");
+        LOG_NET(LOG_ERROR,
+                "poll=%04x API error %d: %s",
+                poll_id,
+                error_code ? error_code->valueint : 0,
+                description ? description->valuestring : "unknown");
         cJSON_Delete(json);
         curl_easy_cleanup(curl);
         free(chunk.data);
