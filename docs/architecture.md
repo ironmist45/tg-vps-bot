@@ -5,62 +5,109 @@ This document describes the structure and organization of the project tg-bot.
 ## Project Layout
 
 ```
-tg-bot/
-├── README.md                # 📘 project documentation (setup, usage, architecture)
-├── Makefile                 # ⚙️ build system (compile, clean, targets)
-├── .gitignore               # 🚫 ignored files (build artifacts, logs, etc.)
+g-bot/
+├── README.md # 📘 project documentation (setup, usage, architecture)
+├── Makefile # ⚙️ build system (compile, clean, targets)
+├── .gitignore # 🚫 ignored files (build artifacts, logs, etc.)
 │
 ├── config/
-│   └── config.example.conf  # 🔧 example configuration (env template)
+│ └── config.example.conf # 🔧 example configuration (env template)
 │
-├── include/                 # 📂 public headers (module APIs)
-│   ├── config.h             # 🔹 config loader API (parsing + access)
-│   ├── telegram.h           # 🔹 Telegram API client interface
-│   ├── commands.h           # 🔹 command dispatcher interface (v1 + v2 handlers)
-│   ├── logger.h             # 🔹 logging system API (levels, macros, output)
-│   ├── utils.h              # 🔹 shared helpers (parsing, strings, misc)
-│   ├── security.h           # 🔹 security layer (tokens, validation)
-│   ├── system.h             # 🔹 system control (reboot, uptime, host info)
-│   ├── services.h           # 🔹 systemd services management API
-│   ├── users.h              # 🔹 user management / access control
-│   ├── logs.h               # 🔹 logs retrieval API (journalctl integration)
-│   ├── logs_filter.h        # 🔹 log filtering API (semantic parsing + multi-keyword filtering)
-│   └── exec.h               # 🔹 execution API (command runner with timeout & safety)
+├── include/ # 📂 public headers (module APIs)
+│ ├── version.h # 🔹 version and build information
+│ ├── cli.h # 🔹 command-line interface parsing
+│ ├── config.h # 🔹 config loader API (parsing + access)
+│ ├── logger.h # 🔹 logging system API (levels, macros, output)
+│ ├── lifecycle.h # 🔹 process lifecycle (signals, shutdown, reboot)
+│ ├── environment.h # 🔹 runtime environment diagnostics
+│ ├── exec.h # 🔹 execution API (command runner with timeout)
+│ ├── telegram.h # 🔹 Telegram API client interface
+│ ├── commands.h # 🔹 command dispatcher interface (v1 + v2 handlers)
+│ ├── reply.h # 🔹 unified response formatting API
+│ ├── security.h # 🔹 security layer (access control, tokens)
+│ ├── system.h # 🔹 system info (metrics, uptime, host info)
+│ ├── services.h # 🔹 systemd services status API
+│ ├── users.h # 🔹 active user sessions API
+│ ├── logs.h # 🔹 logs retrieval API (journalctl integration)
+│ ├── logs_filter.h # 🔹 log filtering API (semantic + multi-keyword)
+│ └── utils.h # 🔹 shared helpers (strings, parsing, formatting)
 │
-├── src/                     # 📂 implementation (module sources)
-│   ├── main.c               # 🚀 entry point (init, main loop)
-│   ├── config.c             # 🔹 config parser implementation
-│   ├── telegram.c           # 🔹 Telegram polling + request handling
-│   ├── commands.c           # 🔹 command routing and dispatcher (v1 + v2 bridge)
-│   ├── logger.c             # 🔹 logging implementation
-│   ├── utils.c              # 🔹 helper functions implementation
-│   ├── security.c           # 🔹 auth/token validation logic
-│   ├── system.c             # 🔹 system operations (reboot, metrics)
-│   ├── services.c           # 🔹 systemd service control implementation
-│   ├── users.c              # 🔹 user access / permissions logic
-│   ├── logs.c               # 🔹 logs processing (journalctl + formatting)
-│   ├── logs_filter.c        # 🔹 log filtering engine
-│   └── exec.c               # 🔹 centralized command execution
+├── src/ # 📂 implementation (core modules)
+│ ├── main.c # 🚀 entry point (init, orchestration, main loop)
+│ ├── cli.c # 🔹 command-line argument parsing
+│ ├── config.c # 🔹 config parser implementation
+│ ├── logger.c # 🔹 thread-safe logging implementation
+│ ├── lifecycle.c # 🔹 signal handlers, graceful shutdown, reboot/restart
+│ ├── environment.c # 🔹 startup diagnostics and access checks
+│ ├── exec.c # 🔹 external command execution with timeout
+│ ├── telegram.c # 🔹 Telegram polling + message handling
+│ ├── commands.c # 🔹 command routing and dispatcher
+│ ├── reply.c # 🔹 response formatting helpers
+│ ├── security.c # 🔹 access control + token validation
+│ ├── system.c # 🔹 system metrics and information
+│ ├── services.c # 🔹 systemd service status queries
+│ ├── users.c # 🔹 active user session enumeration
+│ ├── logs.c # 🔹 journalctl log retrieval and formatting
+│ ├── logs_filter.c # 🔹 semantic log filtering engine
+│ ├── utils.c # 🔹 helper functions implementation
+│ │
+│ ├── cmd_help.c # 🧩 /help command handler (v2)
+│ ├── cmd_system.c # 🧩 /start, /status, /health, /ping, /about (v2)
+│ ├── cmd_services.c # 🧩 /services, /users, /logs (v2)
+│ ├── cmd_security.c # 🧩 /fail2ban command handler
+│ └── cmd_control.c # 🧩 /reboot, /reboot_confirm
 │
-├── src/commands/            # 🧩 command handlers (modularized)
-│   ├── cmd_system.c         # 🔹 /start, /status, /health, /ping, /about
-│   ├── cmd_services.c       # 🔹 /services, /users, /logs (FULLY v2)
-│   ├── cmd_help.c           # 🔹 /help
-│   ├── cmd_security.c       # 🔹 /fail2ban
-│   └── cmd_control.c        # 🔹 /reboot, /reboot_confirm
+├── tools/ # 🔧 internal utilities
+│ └── f2b-wrapper.c # 🔹 Fail2Ban wrapper (ban/unban/status)
 │
-├── tools/                   # 🔧 internal utilities
-│   └── f2b-wrapper.c        # 🔹 Fail2Ban wrapper
+├── external/ # 📦 third-party dependencies
+│ └── cJSON/
+│ ├── cJSON.c
+│ └── cJSON.h
 │
-├── external/                # 📦 third-party dependencies
-│   ├── cJSON/
-│   │   ├── cJSON.c
-│   │   └── cJSON.h
-│
-└── build/                   # 🏗 build artifacts
-    └── (compiled files)
+└── build/ # 🏗 build artifacts (created by Makefile)
+└── *.o # compiled object files
+
 ```
 
+
+## Module Organization
+
+| Module | Header | Source | Responsibility |
+|--------|--------|--------|----------------|
+| **CLI** | `cli.h` | `cli.c` | Command-line argument parsing, help/version output |
+| **Config** | `config.h` | `config.c` | Configuration file loading and validation |
+| **Logger** | `logger.h` | `logger.c` | Thread-safe logging with levels and timestamps |
+| **Lifecycle** | `lifecycle.h` | `lifecycle.c` | Signal handlers, graceful shutdown, reboot/restart |
+| **Environment** | `environment.h` | `environment.c` | Startup diagnostics, access checks, CI detection |
+| **Exec** | `exec.h` | `exec.c` | External command execution with timeout and capture |
+| **Telegram** | `telegram.h` | `telegram.c` | Bot API communication, long polling, message sending |
+| **Commands** | `commands.h` | `commands.c` | Command routing and dispatching (v1 + v2) |
+| **Reply** | `reply.h` | `reply.c` | Unified response formatting for handlers |
+| **Security** | `security.h` | `security.c` | Access control, input validation, reboot tokens |
+| **System** | `system.h` | `system.c` | System metrics, uptime, OS/hardware info |
+| **Services** | `services.h` | `services.c` | Systemd service status queries |
+| **Users** | `users.h` | `users.c` | Active user session enumeration |
+| **Logs** | `logs.h` | `logs.c` | Journalctl log retrieval and formatting |
+| **Logs Filter** | `logs_filter.h` | `logs_filter.c` | Semantic and multi-keyword log filtering |
+| **Utils** | `utils.h` | `utils.c` | String manipulation, parsing, formatting |
+
+## Command Handlers
+
+| Command | Handler | Source | Style |
+|---------|---------|--------|-------|
+| `/start` | `cmd_start_v2` | `cmd_system.c` | V2 |
+| `/help` | `cmd_help_v2` | `cmd_help.c` | V2 |
+| `/status` | `cmd_status_v2` | `cmd_system.c` | V2 |
+| `/health` | `cmd_health_v2` | `cmd_system.c` | V2 |
+| `/about` | `cmd_about_v2` | `cmd_system.c` | V2 |
+| `/ping` | `cmd_ping_v2` | `cmd_system.c` | V2 |
+| `/services` | `cmd_services_v2` | `cmd_services.c` | V2 |
+| `/users` | `cmd_users_v2` | `cmd_services.c` | V2 |
+| `/logs` | `cmd_logs_v2` | `cmd_services.c` | V2 |
+| `/fail2ban` | `cmd_fail2ban` | `cmd_security.c` | Legacy |
+| `/reboot` | `cmd_reboot` | `cmd_control.c` | Legacy |
+| `/reboot_confirm` | `cmd_reboot_confirm` | `cmd_control.c` | Legacy |
 ---
 
 ## Overview
