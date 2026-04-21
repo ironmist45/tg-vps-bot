@@ -111,9 +111,8 @@ int cmd_logs_v2(command_ctx_t *ctx)
     // ------------------------------------------------------------------------
     if (strlen(ctx->args) >= 256) {
         LOG_CMD(LOG_WARN,
-            "logs: args too long '%s' (chat_id=%ld)",
-            ctx->args,
-            ctx->chat_id);
+            "req=%04x logs: args too long '%s' (chat_id=%ld)",
+            ctx->req_id, ctx->args, ctx->chat_id);
         return reply_error(ctx, "Too many arguments");
     }
 
@@ -125,9 +124,8 @@ int cmd_logs_v2(command_ctx_t *ctx)
             *p != ' ' && *p != '_' && *p != '-') {
 
             LOG_CMD(LOG_WARN,
-                "logs: invalid args '%s' (chat_id=%ld)",
-                ctx->args,
-                ctx->chat_id);
+                "req=%04x logs: invalid args '%s' (chat_id=%ld)",
+                ctx->req_id, ctx->args, ctx->chat_id);
             return reply_error(ctx, "Invalid arguments");
         }
     }
@@ -135,11 +133,10 @@ int cmd_logs_v2(command_ctx_t *ctx)
     // ------------------------------------------------------------------------
     // Fetch and format logs
     // ------------------------------------------------------------------------
-    if (logs_get(ctx->args, ctx->response, ctx->resp_size) != 0) {
+    if (logs_get(ctx->args, ctx->response, ctx->resp_size, ctx->req_id) != 0) {
         LOG_CMD(LOG_ERROR,
-            "logs_get failed: args='%s' (chat_id=%ld)",
-            ctx->args,
-            ctx->chat_id);
+            "req=%04x logs_get failed: args='%s' (chat_id=%ld)",
+            ctx->req_id, ctx->args, ctx->chat_id);
         return reply_error(ctx, "Failed to get logs");
     }
 
