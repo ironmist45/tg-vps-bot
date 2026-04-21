@@ -63,27 +63,13 @@ int main(int argc, char *argv[]) {
     lifecycle_register_handlers();
 
     // -----------------------------------------------------------
-    // 2. Парсинг аргументов командной строки
+    // 2. Обработка аргументов командной строки
     // -----------------------------------------------------------
-    cli_args_t args;
-    if (cli_parse(argc, argv, &args) != 0) {
-        printf("Invalid arguments\n");
-        return 1;
-    }
-
-    if (args.show_help) {
-        cli_print_help();
-        return 0;
-    }
-
-    if (args.show_version) {
-        cli_print_version();
-        return 0;
-    }
-
-    if (args.config_path[0] == '\0') {
-        printf("Config not specified\n");
-        return 1;
+    char config_path[256];
+    int rc = cli_process(argc, argv, config_path);
+    if (rc != 0) {
+        // Help/version printed or error — exit cleanly
+        return (rc == -1 && (argc == 2)) ? 0 : 1;
     }
 
     // -----------------------------------------------------------
