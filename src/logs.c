@@ -317,12 +317,13 @@ static logs_result_t process_logs_output(char *tmp,
  * @param service  Command arguments string
  * @param buffer   Output buffer for Telegram response
  * @param size     Size of output buffer
+ * @param req_id   16-bit request identifier for log correlation
  * @return         0 on success, -1 on error
  */
-int logs_get(const char *service, char *buffer, size_t size) {
+int logs_get(const char *service, char *buffer, size_t size, unsigned short req_id) {
 
-    LOG_STATE(LOG_INFO, "logs_get() called with service='%s'",
-            service ? service : "NULL");
+    LOG_STATE(LOG_INFO, "req=%04x logs_get() called with service='%s'",
+        req_id, service ? service : "NULL");
 
     // ------------------------------------------------------------------------
     // No arguments: list available services
@@ -360,7 +361,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
     const char *real_service = resolve_service(svc);
     if (!real_service) {
         snprintf(buffer, size, "❌ Service not allowed");
-        LOG_SEC(LOG_WARN, "Blocked logs access: %s", svc);
+        LOG_SEC(LOG_WARN, "req=%04x blocked logs access: %s", req_id, svc);
         return -1;
     }
 
@@ -373,6 +374,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
         if (is_number(arg1)) {
             if (parse_int(arg1, &lines) != 0) {
                 snprintf(buffer, size, "❌ Invalid number");
+                LOG_CMD(LOG_WARN, "req=%04x invalid number: %s", req_id, arg1);
                 return -1;
             }
         } else {
@@ -392,13 +394,13 @@ int logs_get(const char *service, char *buffer, size_t size) {
 
         // Length limits
         if (flen > 32) {
-            LOG_CMD(LOG_WARN, "filter too long: %s", filter);
+            LOG_CMD(LOG_WARN, "req=%04x filter too long: %s", req_id, filter);
             snprintf(buffer, size, "❌ Filter too long");
             return -1;
         }
 
         if (flen < 3) {
-            LOG_CMD(LOG_WARN, "filter too short: %s", filter);
+            LOG_CMD(LOG_WARN, "req=%04x filter too short: %s", req_id, filter);
             snprintf(buffer, size, "❌ Filter too short");
             return -1;
         }
@@ -413,15 +415,15 @@ int logs_get(const char *service, char *buffer, size_t size) {
                 c != '.') {
 
                 LOG_CMD(LOG_WARN,
-                        "invalid filter rejected: %s (bad char: %c)",
-                        filter, c);
+                        "req=%04x invalid filter rejected: %s (bad char: %c)",
+                        req_id, filter, c);
 
                 snprintf(buffer, size, "❌ Invalid filter");
                 return -1;
             }
         }
 
-        LOG_CMD(LOG_DEBUG, "filter accepted: %s", filter);
+                LOG_CMD(LOG_DEBUG, "req=%04x filter accepted: %s", req_id, filter);
     }
 
     // Clamp line count to reasonable range
@@ -429,7 +431,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
         lines = 30;
 
     if (lines > 200) {
-        LOG_CMD(LOG_WARN, "lines clamped: %d -> 200", lines);
+        LOG_CMD(LOG_WARN, "req=%04x lines clamped: %d -> 200", req_id, lines);
         lines = 200;
     }
 
@@ -454,8 +456,8 @@ int logs_get(const char *service, char *buffer, size_t size) {
     char tmp[8192] = {0};
 
     if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
-        LOG_EXEC(LOG_DEBUG, "RAW OUTPUT (%s): first 200 chars:\n%.200s", svc, tmp);
-        LOG_EXEC(LOG_ERROR, "journalctl exec failed");
+        LOG_EXEC(LOG_DEBUG, "req=%04x RAW OUTPUT (%s): first 200 chars:\n%.200s", req_id, svc, tmp);
+        LOG_EXEC(LOG_ERROR, "req=%04x journalctl exec failed", req_id);
         snprintf(buffer, size, "❌ Failed to read logs");
         return -1;
     }
@@ -475,7 +477,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
     // Fallback: try global journal if service has no logs
     // ------------------------------------------------------------------------
     if (res.raw == 0) {
-        LOG_CMD(LOG_WARN, "No logs for %s, trying global journal", svc);
+        LOG_CMD(LOG_WARN, "req=%04x no logs for %s, trying global journal", req_id, svc);
 
         char lines_str2[16];
         snprintf(lines_str2, sizeof(lines_str2), "%d", lines);
@@ -491,7 +493,7 @@ int logs_get(const char *service, char *buffer, size_t size) {
         };
 
         if (exec_command_simple(fallback_args, tmp, sizeof(tmp)) != 0) {
-            LOG_EXEC(LOG_ERROR, "fallback exec_command_simple failed");
+            LOG_EXEC(LOG_ERROR, "req=%04x fallback exec_command_simple failed", req_id);
             snprintf(buffer, size, "❌ No logs available");
             return -1;
         }
@@ -507,15 +509,15 @@ int logs_get(const char *service, char *buffer, size_t size) {
         );
 
         LOG_CMD(LOG_INFO,
-                "fallback done: svc=%s matched=%d raw=%d bytes=%zu",
-                svc, res.matched, res.raw, strlen(buffer));
+                "req=%04x fallback done: svc=%s matched=%d raw=%d bytes=%zu",
+                req_id, svc, res.matched, res.raw, strlen(buffer));
     }
 
     // Log when filter matches nothing
     if (res.raw > 0 && res.matched == 0) {
         LOG_CMD(LOG_INFO,
-            "no matches: svc=%s filter=%s",
-            svc,
+            "req=%04x no matches: svc=%s filter=%s",
+            req_id, svc,
             filter ? filter : "NULL");
     }
     
@@ -544,8 +546,8 @@ int logs_get(const char *service, char *buffer, size_t size) {
     }
     
     LOG_CMD(LOG_DEBUG,
-        "response size: %zu bytes",
-        strlen(buffer));
+        "req=%04x response size: %zu bytes",
+        req_id, strlen(buffer));
     
     return 0;
 }
