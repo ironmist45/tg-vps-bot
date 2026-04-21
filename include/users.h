@@ -55,6 +55,6 @@ int users_get_logged(char *buffer, size_t size);
  * @param size    Size of output buffer
  * @return        0 on success, -1 on error
  */
-int users_get(char *buffer, size_t size);
+int users_get(char *buffer, size_t size, unsigned short req_id);
 
 #endif // USERS_H
