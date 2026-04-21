@@ -33,7 +33,7 @@ int cmd_services_v2(command_ctx_t *ctx)
 {
     char buffer[1024];
 
-    if (services_get_status(buffer, sizeof(buffer)) != 0) {
+    if (services_get_status(buffer, sizeof(buffer), ctx->req_id) != 0) {
         return reply_error(ctx, "Failed to get services");
     }
 
