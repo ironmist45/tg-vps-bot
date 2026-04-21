@@ -1,3 +1,9 @@
+/**
+ * tg-bot - Telegram bot for system administration
+ * cmd_services.c - Service-related command handlers (/services, /users, /logs)
+ * MIT License - Copyright (c) 2026
+ */
+
 #include "commands.h"
 #include "reply.h"
 #include "services.h"
@@ -10,12 +16,19 @@
 #include <string.h>
 #include <ctype.h>
 
-// ==== COMMANDS: Services ====
-// Bot commands:  /services,
-// ============   /users, /logs
+// ============================================================================
+// /services COMMAND (V2)
+// ============================================================================
 
-// ==== /services v2 command ====
-
+/**
+ * Display status of all whitelisted systemd services
+ * 
+ * Output format: Markdown table with emoji indicators
+ *   🟢 UP, 🔴 DOWN, 🟡 FAIL/STARTING, ⚪ UNKNOWN
+ * 
+ * @param ctx  Command context
+ * @return     0 on success, -1 on error (triggers reply_error)
+ */
 int cmd_services_v2(command_ctx_t *ctx)
 {
     char buffer[1024];
@@ -27,8 +40,24 @@ int cmd_services_v2(command_ctx_t *ctx)
     return reply_markdown(ctx, buffer);
 }
 
-// ==== /users v2 command ====
+// ============================================================================
+// /users COMMAND (V2)
+// ============================================================================
 
+/**
+ * Display currently logged-in users
+ * 
+ * Output format: Markdown list with user details
+ *   *👤 ACTIVE USERS: N*
+ *   
+ *   • 👤 `username`
+ *     🖥 `tty`
+ *     🌐 host
+ *     ⏱ login_time
+ * 
+ * @param ctx  Command context
+ * @return     0 on success, -1 on error (triggers reply_error)
+ */
 int cmd_users_v2(command_ctx_t *ctx)
 {
     char buffer[512];
@@ -40,11 +69,33 @@ int cmd_users_v2(command_ctx_t *ctx)
     return reply_markdown(ctx, buffer);
 }
 
-// ==== /logs v2 command ====
+// ============================================================================
+// /logs COMMAND (V2)
+// ============================================================================
 
+/**
+ * View systemd journal logs with filtering
+ * 
+ * Usage:
+ *   /logs                       - Show available services menu
+ *   /logs <service>             - Last 30 lines
+ *   /logs <service> <N>         - Last N lines (max 200)
+ *   /logs <service> <filter>    - Filter results (e.g., "error", "auth")
+ * 
+ * Allowed services: ssh, mtg, shadowsocks
+ * 
+ * Input validation:
+ *   - Arguments length < 256 chars
+ *   - Allowed chars: alphanumeric, space, underscore, hyphen
+ * 
+ * @param ctx  Command context
+ * @return     0 on success, response type set to RESP_PLAIN
+ */
 int cmd_logs_v2(command_ctx_t *ctx)
 {
-    // ===== БЕЗ аргументов → меню =====
+    // ------------------------------------------------------------------------
+    // No arguments: show available services menu
+    // ------------------------------------------------------------------------
     if (!ctx->args || ctx->args[0] == '\0') {
         return reply_markdown(ctx,
             "*📜 LOGS MENU*\n\n"
@@ -55,18 +106,20 @@ int cmd_logs_v2(command_ctx_t *ctx)
             "`/logs <service> error`");
     }
 
-    // ===== ДЛИНА =====
+    // ------------------------------------------------------------------------
+    // Length validation
+    // ------------------------------------------------------------------------
     if (strlen(ctx->args) >= 256) {
-
         LOG_CMD(LOG_WARN,
             "logs: args too long '%s' (chat_id=%ld)",
             ctx->args,
             ctx->chat_id);
-
         return reply_error(ctx, "Too many arguments");
     }
 
-    // ===== 🔒 ВАЛИДАЦИЯ АРГУМЕНТОВ =====
+    // ------------------------------------------------------------------------
+    // Character whitelist validation (prevent injection)
+    // ------------------------------------------------------------------------
     for (const char *p = ctx->args; *p; p++) {
         if (!isalnum((unsigned char)*p) &&
             *p != ' ' && *p != '_' && *p != '-') {
@@ -75,23 +128,22 @@ int cmd_logs_v2(command_ctx_t *ctx)
                 "logs: invalid args '%s' (chat_id=%ld)",
                 ctx->args,
                 ctx->chat_id);
-
             return reply_error(ctx, "Invalid arguments");
         }
     }
 
-    // ===== BACKEND =====
+    // ------------------------------------------------------------------------
+    // Fetch and format logs
+    // ------------------------------------------------------------------------
     if (logs_get(ctx->args, ctx->response, ctx->resp_size) != 0) {
-
         LOG_CMD(LOG_ERROR,
             "logs_get failed: args='%s' (chat_id=%ld)",
             ctx->args,
             ctx->chat_id);
-
         return reply_error(ctx, "Failed to get logs");
     }
 
-    // 🔥 backend → plain text
+    // Logs are returned as plain text (may contain raw journal output)
     if (ctx->resp_type) {
         *(ctx->resp_type) = RESP_PLAIN;
     }
