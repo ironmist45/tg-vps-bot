@@ -218,15 +218,16 @@ static const char *format_status(const char *status) {
  * 
  * @param buffer  Output buffer for formatted response
  * @param size    Size of output buffer
+ * @param req_id  16-bit request identifier for log correlation
  * @return        0 on success, -1 on error
  */
-int services_get_status(char *buffer, size_t size) {
+int services_get_status(char *buffer, size_t size, unsigned short req_id) {
 
-    LOG_CMD(LOG_INFO, "services_get_status()");
-    LOG_STATE(LOG_DEBUG, "services count: %d", services_count);
+    LOG_CMD(LOG_INFO, "req=%04x services_get_status()", req_id);
+    LOG_STATE(LOG_DEBUG, "req=%04x services count: %d", req_id, services_count);
 
     if (!buffer || size == 0) {
-        LOG_SYS(LOG_ERROR, "Invalid buffer");
+        LOG_SYS(LOG_ERROR, "req=%04x invalid buffer", req_id);
         return -1;
     }
 
@@ -310,7 +311,10 @@ int services_get_status(char *buffer, size_t size) {
         offset += (size_t)written_end;
     }
     
-    LOG_STATE(LOG_DEBUG, "services response ready: %zu bytes", offset);
+        LOG_STATE(LOG_DEBUG, "req=%04x services response ready: %zu bytes", req_id, offset);
+
+    return 0;
+}
 
     return 0;
 }
