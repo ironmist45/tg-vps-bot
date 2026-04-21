@@ -40,6 +40,18 @@ typedef struct {
 int cli_parse(int argc, char *argv[], cli_args_t *args);
 
 /**
+ * Process command-line arguments and handle help/version
+ * 
+ * Validates arguments and handles --help/--version (prints and exits).
+ * 
+ * @param argc       Argument count
+ * @param argv       Argument vector
+ * @param config_path Output buffer for config file path (size >= 256)
+ * @return           0 on success, -1 on error (already printed)
+ */
+int cli_process(int argc, char *argv[], char *config_path);
+
+/**
  * Display usage information and available options
  */
 void cli_print_help(void);
