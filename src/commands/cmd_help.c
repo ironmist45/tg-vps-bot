@@ -1,11 +1,12 @@
 /**
  * tg-bot - Telegram bot for system administration
- * cmd_help.c - /help command handler
+ * cmd_help.c - /help command handler (V2)
  * MIT License - Copyright (c) 2026
  */
 
 #include "cmd_help.h"
 #include "logger.h"
+#include "reply.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -15,7 +16,7 @@ extern command_t commands[];
 extern const int commands_count;
 
 // ============================================================================
-// /help COMMAND
+// /help COMMAND (V2)
 // ============================================================================
 
 /**
@@ -35,29 +36,19 @@ extern const int commands_count;
  * 
  * Hidden commands (category == NULL) are not displayed.
  * 
- * @param argc       Argument count (unused)
- * @param argv       Argument vector (unused)
- * @param chat_id    Chat ID of requester (unused)
- * @param resp       Response buffer
- * @param size       Size of response buffer
- * @param resp_type  Output: response type (always RESP_MARKDOWN)
- * @return           0 on success, -1 on error
+ * @param ctx  Command context
+ * @return     0 on success
  */
-int cmd_help(int argc, char *argv[],
-             long chat_id,
-             char *resp, size_t size,
-             response_type_t *resp_type) {
-  
-    (void)argc;
-    (void)argv;
-    (void)chat_id;
-
-    if (resp_type) *resp_type = RESP_MARKDOWN;
+int cmd_help_v2(command_ctx_t *ctx)
+{
+    char *resp = ctx->response;
+    size_t size = ctx->resp_size;
 
     // Write header
     int written = snprintf(resp, size, "*📚 COMMANDS*\n\n");
-    if (written < 0 || (size_t)written >= size)
-        return -1;
+    if (written < 0 || (size_t)written >= size) {
+        return reply_error(ctx, "Response too long");
+    }
 
     size_t used = written;
     const char *current_category = NULL;
@@ -76,7 +67,7 @@ int cmd_help(int argc, char *argv[],
         if (!current_category ||
             strcmp(current_category, commands[i].category) != 0) {
 
-            int written = snprintf(resp + used, size - used,
+            written = snprintf(resp + used, size - used,
                 "%s*%s*\n",
                 current_category ? "\n" : "",
                 commands[i].category);
@@ -88,9 +79,16 @@ int cmd_help(int argc, char *argv[],
             current_category = commands[i].category;
         }
 
-        // Write command name
+        // Write command name with description if available
         const char *name = commands[i].name;
-        int written = snprintf(resp + used, size - used, "%s\n", name);
+        const char *desc = commands[i].description;
+        
+        if (desc && *desc) {
+            written = snprintf(resp + used, size - used,
+                "%s — _%s_\n", name, desc);
+        } else {
+            written = snprintf(resp + used, size - used, "%s\n", name);
+        }
 
         if (written < 0 || (size_t)written >= size - used)
             break;
@@ -98,8 +96,7 @@ int cmd_help(int argc, char *argv[],
         used += written;
     }
 
-    LOG_STATE(LOG_DEBUG, "help: building command list");
-    LOG_STATE(LOG_INFO, "help generated (len=%zu)", used);
+    LOG_CMD_CTX(ctx, LOG_INFO, "help: displayed %zu bytes", used);
     
-    return 0;
+    return reply_markdown(ctx, resp);
 }
