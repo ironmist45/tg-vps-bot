@@ -35,6 +35,7 @@
 
 #include "security.h"
 #include "logger.h"
+#include "telegram.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -192,11 +193,12 @@ int security_check_access(long chat_id, const char *cmd, unsigned short req_id) 
     int allowed = security_is_allowed_chat(chat_id);
 
     LOG_SEC(LOG_INFO,
-        "ACCESS CHECK: req=%04x chat_id=%ld cmd=%s result=%s",
-        req_id,
-        chat_id,
-        cmd,
-        allowed ? "ALLOW" : "DENY");
+            "poll=%04x req=%04x ACCESS CHECK: chat_id=%ld cmd=%s result=%s",
+            telegram_get_poll_id(),
+            req_id,
+            chat_id,
+            cmd,
+            allowed ? "ALLOW" : "DENY");
 
     if (!allowed) {
         LOG_STATE(LOG_WARN,
