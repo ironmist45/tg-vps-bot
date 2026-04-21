@@ -201,10 +201,8 @@ int commands_handle(const char *text,
                 .req_id    = req_id
             };
 
-            LOG_NET_CTX(&ctx, LOG_DEBUG, "poll=%04x dispatching command: %s", 
-                        telegram_get_poll_id(), argv[0]);
-            LOG_NET_CTX(&ctx, LOG_INFO, "poll=%04x cmd: %s [v2]", 
-                        telegram_get_poll_id(), argv[0]);
+            LOG_NET_CTX(&ctx, LOG_DEBUG, "dispatching command: %s", argv[0]);
+            LOG_NET_CTX(&ctx, LOG_INFO, "cmd: %s [v2]", argv[0]);
             
             int rc = commands[i].handler_v2(&ctx);
 
