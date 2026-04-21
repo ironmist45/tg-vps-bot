@@ -215,9 +215,8 @@ int users_get_logged(char *buffer, size_t size) {
  * @param size    Size of output buffer
  * @return        0 on success, -1 on error
  */
-int users_get(char *buffer, size_t size) {
-
-    LOG_CMD(LOG_DEBUG, "users_get()");
+int users_get(char *buffer, size_t size, unsigned short req_id) {
+    LOG_CMD(LOG_DEBUG, "req=%04x users_get()", req_id);
     
     char tmp[4096] = {0};
 
@@ -226,7 +225,7 @@ int users_get(char *buffer, size_t size) {
 
     if (count < 0) {
         LOG_CMD(LOG_ERROR,
-            "users_get_logged failed (count=%d)",
+            "req=%04x users_get_logged failed (count=%d)",
             count);
 
         snprintf(buffer, size, "❌ Failed to get users");
@@ -242,13 +241,13 @@ int users_get(char *buffer, size_t size) {
 
     if (written < 0 || (size_t)written >= size) {
         LOG_CMD(LOG_WARN,
-            "users response truncated (written=%d size=%zu)",
+            "req=%04x users response truncated (written=%d size=%zu)",
             written, size);
     }
 
     LOG_CMD(LOG_INFO,
-            "users response: count=%d, bytes=%zu",
-            count, strlen(buffer));
+            "req=%04x users response: count=%d, bytes=%zu",
+            req_id, count, strlen(buffer));
 
     return 0;
 }
