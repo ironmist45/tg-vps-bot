@@ -175,19 +175,15 @@ Routing:
 - Unified logging
 - Response fallback handling
 
- ### Migration Status
- ```
-| Module   | Status     |
-| -------- | ---------  |
-| Services | ✅ FULL v2 |
-| Users    | ✅ FULL v2 |
-| Logs     | ✅ FULL v2 |
-| System   | ⏳ legacy  |
-| Help     | ⏳ legacy  |
-| Security | ⏳ legacy  |
-| Control  | ⏳ legacy  |
+### Migration Status
 
-```
+| Module   | Status     | Commands                                    |
+|----------|------------|---------------------------------------------|
+| Services | ✅ FULL v2 | /services, /users, /logs                    |
+| System   | ✅ FULL v2 | /start, /status, /health, /about, /ping     |
+| Help     | ✅ FULL v2 | /help                                       |
+| Security | ⏳ legacy  | /fail2ban                                   |
+| Control  | ⏳ legacy  | /reboot, /reboot_confirm                    |
 
 ### Services Module (Updated)
 
