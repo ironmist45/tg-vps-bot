@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
     // 6. Загрузка конфигурации
     // -----------------------------------------------------------
     config_t cfg;
-    if (config_load(args.config_path, &cfg) != 0) {
+    if (config_load(config_path, &cfg) != 0) {
         LOG_CFG(LOG_ERROR, "Config load failed");
         logger_close();
         return 1;
