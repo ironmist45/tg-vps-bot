@@ -442,8 +442,8 @@ static void get_host(char *buf, size_t size) {
  * @param size    Buffer size
  * @return        0 on success, -1 on error
  */
-int system_get_status(char *buffer, size_t size) {
-    LOG_STATE(LOG_DEBUG, "system_get_status() called");
+int system_get_status(char *buffer, size_t size, unsigned short req_id) {
+    LOG_STATE(LOG_DEBUG, "req=%04x system_get_status() called", req_id);
     
     if (!buffer || size == 0) {
         return -1;
@@ -526,15 +526,15 @@ int system_get_status(char *buffer, size_t size) {
     );
 
     if (written < 0) {
-        LOG_STATE(LOG_ERROR, "system_get_status failed");
+        LOG_STATE(LOG_ERROR, "req=%04x system_get_status failed");
         return -1;
     }
 
     if ((size_t)written >= size) {
-        LOG_STATE(LOG_WARN, "system_get_status truncated");
+        LOG_STATE(LOG_WARN, "req=%04x system_get_status truncated");
     }
 
-    LOG_STATE(LOG_INFO, "system status built successfully (len=%d)", written);
+        LOG_STATE(LOG_INFO, "req=%04x system status built (len=%d)", req_id, written);
     return 0;
 }
 
@@ -562,8 +562,8 @@ int system_get_status(char *buffer, size_t size) {
  * @param size    Buffer size
  * @return        0 on success, -1 on error
  */
-int system_get_status_mini(char *buffer, size_t size) {
-    LOG_STATE(LOG_DEBUG, "system_get_status_mini() called");
+int system_get_status_mini(char *buffer, size_t size, unsigned short req_id) {
+    LOG_STATE(LOG_DEBUG, "req=%04x system_get_status_mini() called", req_id);
 
     if (!buffer || size == 0) {
         return -1;
@@ -617,14 +617,14 @@ int system_get_status_mini(char *buffer, size_t size) {
     );
 
     if (written < 0) {
-        LOG_STATE(LOG_ERROR, "system_get_status_mini failed");
+        LOG_STATE(LOG_ERROR, "req=%04x system_get_status_mini failed");
         return -1;
     }
 
     if ((size_t)written >= size) {
-        LOG_STATE(LOG_WARN, "system_get_status_mini truncated");
+        LOG_STATE(LOG_WARN, "req=%04x system_get_status_mini truncated");
     }
 
-    LOG_STATE(LOG_INFO, "system status built (len=%d)", written);
+        LOG_STATE(LOG_INFO, "req=%04x system health status built (len=%d)", req_id, written);
     return 0;
 }
