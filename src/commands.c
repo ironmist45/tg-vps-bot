@@ -77,7 +77,7 @@ extern time_t g_start_time;
 command_t commands[] = {
     // General commands
     {"/start", NULL, cmd_start_v2, NULL, "General"},
-    {"/help",  cmd_help, NULL, NULL, "General"},
+    {"/help", NULL, cmd_help_v2, "Show this help", "General"},
 
     // System status commands
     {"/status", NULL, cmd_status_v2, "System status", "System"},
