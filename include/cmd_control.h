@@ -7,11 +7,10 @@
 #ifndef CMD_CONTROL_H
 #define CMD_CONTROL_H
 
-#include <stddef.h>
 #include "commands.h"
 
 // ============================================================================
-// PUBLIC API
+// PUBLIC API (V2 HANDLERS)
 // ============================================================================
 
 /**
@@ -24,19 +23,10 @@
  * Tokens are stateless, derived from chat_id and current time.
  * TTL is configurable via security_set_token_ttl().
  * 
- * @param argc       Argument count
- * @param argv       Argument vector
- * @param chat_id    Chat ID of requester
- * @param response   Response buffer
- * @param resp_size  Size of response buffer
- * @param resp_type  Output: response type (always RESP_MARKDOWN)
- * @return           0 on success, -1 on error
+ * @param ctx  Command context
+ * @return     0 on success, -1 on error
  */
-int cmd_reboot(int argc, char *argv[],
-               long chat_id,
-               char *response,
-               size_t resp_size,
-               response_type_t *resp_type);
+int cmd_reboot_v2(command_ctx_t *ctx);
 
 /**
  * Confirm and execute system reboot
@@ -50,18 +40,9 @@ int cmd_reboot(int argc, char *argv[],
  *   - Bruteforce protection (blocks after 5 failures)
  *   - Replay protection (single-use)
  * 
- * @param argc       Argument count (must be >= 2)
- * @param argv       Argument vector (argv[1] = token)
- * @param chat_id    Chat ID of requester
- * @param response   Response buffer
- * @param resp_size  Size of response buffer
- * @param resp_type  Output: response type (always RESP_MARKDOWN)
- * @return           0 on success, -1 on error
+ * @param ctx  Command context (args contains token)
+ * @return     0 on success, -1 on error
  */
-int cmd_reboot_confirm(int argc, char *argv[],
-                       long chat_id,
-                       char *response,
-                       size_t resp_size,
-                       response_type_t *resp_type);
+int cmd_reboot_confirm_v2(command_ctx_t *ctx);
 
 #endif // CMD_CONTROL_H
