@@ -312,9 +312,6 @@ int telegram_send_message(long chat_id, const char *text) {
     CURL *curl = curl_easy_init();
     if (!curl) return -1;
 
-    g_poll_cycle++;
-    unsigned short poll_id = g_poll_cycle;
-
     setup_curl(curl);
 
     char url[URL_MAX];
@@ -415,6 +412,10 @@ int telegram_send_plain(long chat_id, const char *text) {
  */
 int telegram_poll() {
     static long last_update_id = -1;
+
+    // Increment poll cycle counter
+    g_poll_cycle++;
+    unsigned short poll_id = g_poll_cycle;
 
     // Load saved offset on first call
     if (last_update_id == -1) {
