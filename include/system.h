@@ -31,7 +31,7 @@
  * @param size  Buffer size
  * @return      0 on success, -1 on error
  */
-int system_get_status(char *buf, size_t size);
+int system_get_status(char *buf, size_t size, unsigned short req_id);
 
 /**
  * Get compact system status with emoji heat indicators
@@ -52,7 +52,7 @@ int system_get_status(char *buf, size_t size);
  * @param size  Buffer size
  * @return      0 on success, -1 on error
  */
-int system_get_status_mini(char *buf, size_t size);
+int system_get_status_mini(char *buf, size_t size, unsigned short req_id);
 
 /**
  * Get bot process uptime as formatted string
