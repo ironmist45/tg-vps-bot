@@ -168,9 +168,9 @@ void log_msg(log_level_t level, const char *fmt, ...);
  * Used by LOG_*_CTX macros below.
  */
 #define LOG_CTX(LOG_MACRO, ctx, level, fmt, ...) \
-    LOG_MACRO(level, fmt " (req=%04x chat_id=%ld user_id=%ld%s%s)", \
-        ##__VA_ARGS__, \
+    LOG_MACRO(level, "req=%04x " fmt " (chat_id=%ld user_id=%ld%s%s)", \
         (ctx)->req_id, \
+        ##__VA_ARGS__, \
         (ctx)->chat_id, \
         (long)(ctx)->user_id, \
         ((ctx)->username) ? " user=@" : "", \
