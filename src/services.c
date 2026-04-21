@@ -315,6 +315,3 @@ int services_get_status(char *buffer, size_t size, unsigned short req_id) {
 
     return 0;
 }
-
-    return 0;
-}
