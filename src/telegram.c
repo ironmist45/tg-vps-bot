@@ -312,6 +312,9 @@ int telegram_send_message(long chat_id, const char *text) {
     CURL *curl = curl_easy_init();
     if (!curl) return -1;
 
+    g_poll_cycle++;
+    unsigned short poll_id = g_poll_cycle;
+
     setup_curl(curl);
 
     char url[URL_MAX];
