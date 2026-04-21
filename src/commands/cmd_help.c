@@ -68,12 +68,13 @@ int cmd_help_v2(command_ctx_t *ctx)
             current_category = commands[i].category;
         }
 
+        // Write command name with description if available
         const char *name = commands[i].name;
         const char *desc = commands[i].description;
         
         if (desc && *desc) {
             written = snprintf(buffer + used, size - used,
-                "%s — _%s_\n", name, desc);
+                "%s — %s\n", name, desc); // ← без подчёркиваний
         } else {
             written = snprintf(buffer + used, size - used, "%s\n", name);
         }
