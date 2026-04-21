@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
             LOG_STATE(LOG_INFO, "Reload config");
 
             config_t new_cfg;
-            if (config_load(args.config_path, &new_cfg) == 0) {
+            if (config_load(config_path, &new_cfg) == 0) {
                 // Если изменился путь к лог-файлу — переоткрываем
                 if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
                     try_reopen_logger(new_cfg.log_file);
