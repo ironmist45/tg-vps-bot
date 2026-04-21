@@ -1,3 +1,39 @@
+/**
+ * tg-bot - Telegram bot for system administration
+ * 
+ * cli.c - Command-line interface parsing
+ * 
+ * Handles command-line argument parsing, help text display,
+ * and version information output.
+ * 
+ * Supports:
+ *   -c, --config <path>   Specify configuration file path
+ *   -h, --help            Show usage information
+ *   -v, --version         Show program version
+ * 
+ * MIT License
+ * 
+ * Copyright (c) 2026
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #include "cli.h"
 #include "version.h"
 
@@ -6,31 +42,46 @@
 #include <unistd.h>
 #include <getopt.h>
 
+// ============================================================================
+// COMMAND-LINE PARSING
+// ============================================================================
+
+/**
+ * Parse command-line arguments into cli_args_t structure
+ * 
+ * @param argc  Argument count (from main)
+ * @param argv  Argument vector (from main)
+ * @param args  Pointer to cli_args_t structure to populate
+ * @return      0 on success, -1 on error
+ */
 int cli_parse(int argc, char *argv[], cli_args_t *args) {
 
-    // 🔥 защита от NULL
+    // Protect against NULL pointer dereference
     if (!args) {
         return -1;
     }
 
+    // Initialize args structure to zero
     memset(args, 0, sizeof(cli_args_t));
 
     int opt;
 
+    // Long option definitions (GNU getopt_long style)
     static struct option long_options[] = {
         {"config",  required_argument, 0, 'c'},
         {"help",    no_argument,       0, 'h'},
         {"version", no_argument,       0, 'v'},
-        {0, 0, 0, 0}
+        {0, 0, 0, 0}  // Terminator
     };
 
+    // Suppress automatic error messages from getopt
     opterr = 0;
 
+    // Parse options
     while ((opt = getopt_long(argc, argv, "c:hv", long_options, NULL)) != -1) {
         switch (opt) {
-
             case 'c':
-                // 🔥 безопаснее и чище чем strncpy
+                // Safely copy config path (prevents buffer overflow)
                 snprintf(args->config_path,
                          sizeof(args->config_path),
                          "%s", optarg);
@@ -45,12 +96,13 @@ int cli_parse(int argc, char *argv[], cli_args_t *args) {
                 break;
 
             case '?':
+                // Unknown option encountered
                 fprintf(stderr, "Unknown option\n");
                 return -1;
         }
     }
 
-    // 🔥 лишние аргументы (например: ./bot foo)
+    // Check for unexpected positional arguments (e.g., "./bot foo")
     if (optind < argc) {
         fprintf(stderr, "Unexpected arguments\n");
         return -1;
@@ -59,8 +111,13 @@ int cli_parse(int argc, char *argv[], cli_args_t *args) {
     return 0;
 }
 
-// ===== HELP =====
+// ============================================================================
+// HELP OUTPUT
+// ============================================================================
 
+/**
+ * Display usage information and available options
+ */
 void cli_print_help() {
     printf("%s v%s\n\n", APP_NAME, APP_VERSION);
 
@@ -77,8 +134,13 @@ void cli_print_help() {
     printf("  %s --config=/etc/tg-bot/config.conf\n", APP_NAME);
 }
 
-// ===== VERSION =====
+// ============================================================================
+// VERSION OUTPUT
+// ============================================================================
 
+/**
+ * Display program version and copyright information
+ */
 void cli_print_version(void) {
     printf("%s v%s (%s)\n", APP_NAME, APP_VERSION, APP_CODENAME);
     printf("(c) %s %s\n", APP_YEAR, APP_AUTHOR);
