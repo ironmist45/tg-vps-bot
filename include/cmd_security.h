@@ -14,7 +14,7 @@
 // ============================================================================
 
 /**
- * Manage Fail2Ban via f2b-wrapper
+ * Manage Fail2Ban via f2b-wrapper (V2 handler)
  * 
  * Subcommands:
  *   /fail2ban status [jail]  - Show ban status (optionally for specific jail)
@@ -25,18 +25,9 @@
  * IP addresses are validated using is_safe_ip() before processing.
  * Status output is returned in a plain text code block.
  * 
- * @param argc       Argument count
- * @param argv       Argument vector
- * @param chat_id    Chat ID of requester (unused)
- * @param response   Response buffer
- * @param resp_size  Size of response buffer
- * @param resp_type  Output: response type (always RESP_PLAIN)
- * @return           0 on success, -1 on error
+ * @param ctx  Command context
+ * @return     0 on success, -1 on error
  */
-int cmd_fail2ban(int argc, char *argv[],
-                 long chat_id,
-                 char *response,
-                 size_t resp_size,
-                 response_type_t *resp_type);
+int cmd_fail2ban_v2(command_ctx_t *ctx);
 
 #endif // CMD_SECURITY_H
