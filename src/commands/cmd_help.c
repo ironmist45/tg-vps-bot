@@ -41,11 +41,11 @@ extern const int commands_count;
  */
 int cmd_help_v2(command_ctx_t *ctx)
 {
-    char *resp = ctx->response;
-    size_t size = ctx->resp_size;
-
+    char buffer[2048];
+    size_t size = sizeof(buffer);
+    
     // Write header
-    int written = snprintf(resp, size, "*📚 COMMANDS*\n\n");
+    int written = snprintf(buffer, size, "*📚 COMMANDS*\n\n");
     if (written < 0 || (size_t)written >= size) {
         return reply_error(ctx, "Response too long");
     }
@@ -53,50 +53,36 @@ int cmd_help_v2(command_ctx_t *ctx)
     size_t used = written;
     const char *current_category = NULL;
 
-    // Iterate through command table
     for (int i = 0; i < commands_count; i++) {
-        // Prevent buffer overflow
-        if (used >= size - 1)
-            break;
+        if (used >= size - 1) break;
+        if (!commands[i].category) continue;
 
-        // Skip hidden commands
-        if (!commands[i].category)
-            continue;
-
-        // New category header
         if (!current_category ||
             strcmp(current_category, commands[i].category) != 0) {
-
-            written = snprintf(resp + used, size - used,
+            written = snprintf(buffer + used, size - used,
                 "%s*%s*\n",
                 current_category ? "\n" : "",
                 commands[i].category);
-
-            if (written < 0 || (size_t)written >= size - used)
-                break;
-
+            if (written < 0 || (size_t)written >= size - used) break;
             used += written;
             current_category = commands[i].category;
         }
 
-        // Write command name with description if available
         const char *name = commands[i].name;
         const char *desc = commands[i].description;
         
         if (desc && *desc) {
-            written = snprintf(resp + used, size - used,
+            written = snprintf(buffer + used, size - used,
                 "%s — _%s_\n", name, desc);
         } else {
-            written = snprintf(resp + used, size - used, "%s\n", name);
+            written = snprintf(buffer + used, size - used, "%s\n", name);
         }
-
-        if (written < 0 || (size_t)written >= size - used)
-            break;
-
+        if (written < 0 || (size_t)written >= size - used) break;
         used += written;
     }
 
     LOG_CMD_CTX(ctx, LOG_INFO, "help: displayed %zu bytes", used);
     
-    return reply_markdown(ctx, resp);
+    // ✅ Теперь можно использовать reply_markdown
+    return reply_markdown(ctx, buffer);
 }
