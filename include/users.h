@@ -53,6 +53,7 @@ int users_get_logged(char *buffer, size_t size);
  * 
  * @param buffer  Output buffer for complete response
  * @param size    Size of output buffer
+ * @param req_id  16-bit request identifier for log correlation
  * @return        0 on success, -1 on error
  */
 int users_get(char *buffer, size_t size, unsigned short req_id);
