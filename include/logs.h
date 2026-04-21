@@ -48,8 +48,9 @@ typedef struct {
  * @param service  Command arguments string (may be empty for service list)
  * @param buffer   Output buffer for formatted response
  * @param size     Size of output buffer
+ * @param req_id   16-bit request identifier for log correlation
  * @return         0 on success, -1 on error
  */
-int logs_get(const char *service, char *buffer, size_t size);
+int logs_get(const char *service, char *buffer, size_t size, unsigned short req_id);
 
 #endif // LOGS_H
