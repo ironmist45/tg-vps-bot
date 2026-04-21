@@ -92,7 +92,7 @@ command_t commands[] = {
     {"/logs",     NULL, cmd_logs_v2,     NULL, "Services"},
 
     // Security commands
-    {"/fail2ban", cmd_fail2ban, NULL, NULL, "Security"},
+    {"/fail2ban", NULL, cmd_fail2ban_v2, "Manage Fail2Ban", "Security"},
 
     // System control commands (require token confirmation)
     {"/reboot",         cmd_reboot,         NULL, NULL, "System"},
