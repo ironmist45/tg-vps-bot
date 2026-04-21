@@ -1,3 +1,41 @@
+/**
+ * tg-bot - Telegram bot for system administration
+ * 
+ * services.c - Systemd service status monitoring
+ * 
+ * Provides the /services command for checking the status of
+ * whitelisted systemd services.
+ * 
+ * Features:
+ *   - Whitelist-based access control (only predefined services)
+ *   - Service name validation (prevents injection)
+ *   - Status detection: active, inactive, failed, activating
+ *   - Emoji indicators: 🟢 UP, 🔴 DOWN, 🟡 FAIL/STARTING, ⚪ UNKNOWN
+ *   - Formatted output in Markdown code block
+ * 
+ * MIT License
+ * 
+ * Copyright (c) 2026
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #include "exec.h"
 #include "services.h"
 #include "logger.h"
@@ -6,22 +44,39 @@
 #include <string.h>
 #include <ctype.h>
 
-// ===== whitelist сервисов =====
+// ============================================================================
+// SERVICE WHITELIST
+// ============================================================================
 
 typedef struct {
-    const char *name;
-    const char *display;
+    const char *name;     // Systemd unit name
+    const char *display;  // User-friendly display name
 } service_t;
 
+/**
+ * Whitelist of allowed services.
+ * Only services listed here can be queried.
+ */
 static service_t services[] = {
-    {"ssh", "SSH"},
+    {"ssh",               "SSH"},
     {"shadowsocks-libev", "Shadowsocks"},
-    {"mtg", "MTG"},
+    {"mtg",               "MTG"},
 };
 
-static const int services_count =
-    sizeof(services) / sizeof(services[0]);
+static const int services_count = sizeof(services) / sizeof(services[0]);
 
+// ============================================================================
+// SERVICE NAME VALIDATION
+// ============================================================================
+
+/**
+ * Validate service name format (prevent command injection)
+ * 
+ * Allowed characters: alphanumeric, hyphen, underscore.
+ * 
+ * @param s  Service name to validate
+ * @return   1 if valid, 0 otherwise
+ */
 static int is_valid_service_name(const char *s) {
     if (!s || *s == '\0') return 0;
 
@@ -29,7 +84,7 @@ static int is_valid_service_name(const char *s) {
         char c = s[i];
 
         if (!(isalnum((unsigned char)c) ||
-              c == '-' || c == '_' )) {
+              c == '-' || c == '_')) {
             return 0;
         }
     }
@@ -37,16 +92,28 @@ static int is_valid_service_name(const char *s) {
     return 1;
 }
 
-// ===== получение статуса =====
+// ============================================================================
+// SERVICE STATUS QUERY
+// ============================================================================
 
+/**
+ * Get current status of a single service via systemctl
+ * 
+ * Executes: sudo systemctl is-active <service>
+ * 
+ * @param service  Systemd unit name (must be validated)
+ * @param out      Output buffer for status string
+ * @param size     Size of output buffer
+ * @return         0 on success, -1 on error
+ */
 static int get_service_status(const char *service, char *out, size_t size) {
 
+    // Validate service name before passing to shell
     if (!is_valid_service_name(service)) {
         LOG_SYS(LOG_ERROR, "Invalid service name: %s", service);
         if (size > 0) {
             snprintf(out, size, "invalid");
         }
-        
         return -1;
     }
 
@@ -60,11 +127,9 @@ static int get_service_status(const char *service, char *out, size_t size) {
     };
 
     exec_result_t res;
-
     int rc = exec_command(args, out, size, NULL, &res);
 
     if (rc != 0) {
-
         if (res.status == EXEC_TIMEOUT) {
             LOG_SYS(LOG_ERROR, "service %s: timeout", service);
         } else {
@@ -77,7 +142,6 @@ static int get_service_status(const char *service, char *out, size_t size) {
         if (size > 0) {
             snprintf(out, size, "unknown");
         }
-
         return -1;
     }
 
@@ -88,14 +152,15 @@ static int get_service_status(const char *service, char *out, size_t size) {
             res.exit_code);
     }
 
-    // убрать \n
+    // Remove trailing newline from systemctl output
     out[strcspn(out, "\n")] = 0;
 
+    // Handle empty output
     if (out[0] == '\0') {
         snprintf(out, size, "unknown");
     }
 
-    // 🔥 убрать ведущие пробелы (на всякий случай)
+    // Trim leading spaces (defensive)
     char *p = out;
     while (*p == ' ') p++;
 
@@ -103,15 +168,21 @@ static int get_service_status(const char *service, char *out, size_t size) {
         memmove(out, p, strlen(p) + 1);
     }
 
-    LOG_SYS(LOG_DEBUG,
-            "service=%s status=%s",
-            service, out);
+    LOG_SYS(LOG_DEBUG, "service=%s status=%s", service, out);
 
     return 0;
 }
 
-// ===== emoji + формат =====
+// ============================================================================
+// STATUS FORMATTING
+// ============================================================================
 
+/**
+ * Convert systemctl status to user-friendly emoji indicator
+ * 
+ * @param status  Raw status string from systemctl
+ * @return        Formatted status with emoji
+ */
 static const char *format_status(const char *status) {
 
     if (strcmp(status, "active") == 0)
@@ -129,8 +200,26 @@ static const char *format_status(const char *status) {
     return "⚪ UNKNOWN";
 }
 
-// ===== основной API =====
+// ============================================================================
+// PUBLIC API
+// ============================================================================
 
+/**
+ * Get formatted status of all whitelisted services
+ * 
+ * Output format (Markdown):
+ *   *🧩 SERVICES*
+ *   
+ *   ```
+ *   SSH             : 🟢 UP
+ *   Shadowsocks     : 🔴 DOWN
+ *   MTG             : 🟢 UP
+ *   ```
+ * 
+ * @param buffer  Output buffer for formatted response
+ * @param size    Size of output buffer
+ * @return        0 on success, -1 on error
+ */
 int services_get_status(char *buffer, size_t size) {
 
     LOG_CMD(LOG_INFO, "services_get_status()");
@@ -144,7 +233,9 @@ int services_get_status(char *buffer, size_t size) {
     buffer[0] = '\0';
     size_t offset = 0;
 
-    // ===== заголовок =====
+    // ------------------------------------------------------------------------
+    // Format header
+    // ------------------------------------------------------------------------
     int written = snprintf(buffer + offset,
                            size - offset,
                            "*🧩 SERVICES*\n\n```\n");
@@ -161,9 +252,10 @@ int services_get_status(char *buffer, size_t size) {
 
     offset += (size_t)written;
 
-    // ===== сервисы =====
+    // ------------------------------------------------------------------------
+    // Query and format each service
+    // ------------------------------------------------------------------------
     for (int i = 0; i < services_count; i++) {
-
         char status[64] = {0};
 
         if (get_service_status(services[i].name,
@@ -174,16 +266,15 @@ int services_get_status(char *buffer, size_t size) {
                     services[i].name);
         }
 
-    const char *status_fmt = format_status(status);
+        const char *status_fmt = format_status(status);
 
-        // 🔍 подробный debug
         LOG_SYS(LOG_DEBUG,
                 "service=%s display=%s status=%s",
                 services[i].name,
                 services[i].display,
                 status_fmt);
 
-         int written = snprintf(buffer + offset,
+        int written = snprintf(buffer + offset,
                                size - offset,
                                "%-16s : %s\n",
                                services[i].display,
@@ -202,8 +293,11 @@ int services_get_status(char *buffer, size_t size) {
         }
 
         offset += (size_t)written;
-}
-    // 🔥 ВОТ СЮДА ВСТАВЛЯЕМ FOOTER
+    }
+
+    // ------------------------------------------------------------------------
+    // Format footer (close code block)
+    // ------------------------------------------------------------------------
     int written_end = snprintf(buffer + offset,
                                size - offset,
                                "\n```");
