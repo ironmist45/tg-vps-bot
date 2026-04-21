@@ -1,82 +1,64 @@
 /**
  * tg-bot - Telegram bot for system administration
- * 
- * cmd_control.c - System control commands (/reboot)
- * 
+ * cmd_control.c - System control commands (/reboot, /reboot_confirm) (V2)
  * MIT License - Copyright (c) 2026
  */
 
-#include "commands.h"
-#include "utils.h"
+#include "cmd_control.h"
+#include "logger.h"
 #include "security.h"
 #include "lifecycle.h"
+#include "reply.h"
+#include "utils.h"
 
 #include <stdio.h>
-#include <signal.h>
+#include <string.h>
 
 // ============================================================================
-// REBOOT COMMANDS
+// /reboot COMMAND (V2)
 // ============================================================================
 
-/**
- * /reboot - Request system reboot (generates confirmation token)
- */
-int cmd_reboot(int argc, char *argv[],
-               long chat_id,
-               char *resp, size_t size,
-               response_type_t *resp_type) {
-    (void)argc;
+int cmd_reboot_v2(command_ctx_t *ctx)
+{
+    int token = security_generate_reboot_token(ctx->chat_id);
 
-    if (resp_type) *resp_type = RESP_MARKDOWN;
-    
-    if (validate_command(argv, resp, size) != 0)
-        return -1;
+    char msg[128];
+    snprintf(msg, sizeof(msg),
+        "⚠️ *Confirm reboot*\n\n"
+        "`/reboot_confirm %d`\n\n"
+        "Token valid for %d seconds",
+        token, 60);  // TODO: get TTL from security config
 
-    int token = security_generate_reboot_token(chat_id);
+    LOG_CMD_CTX(ctx, LOG_INFO, "reboot token generated: %06d", token);
 
-    int written = snprintf(resp, size,
-        "⚠️ Confirm reboot:\n`/reboot_confirm %d`",
-        token);
-    if (written < 0 || (size_t)written >= size)
-        return -1;
-
-    return 0;
+    return reply_markdown(ctx, msg);
 }
 
-/**
- * /reboot_confirm <token> - Confirm and execute reboot
- */
-int cmd_reboot_confirm(int argc, char *argv[],
-                       long chat_id,
-                       char *resp, size_t size,
-                       response_type_t *resp_type) {
-    
-    if (resp_type) *resp_type = RESP_MARKDOWN;
-  
-    if (validate_command(argv, resp, size) != 0)
-        return -1;
-    
-    if (argc < 2) {
-        snprintf(resp, size, "Usage: /reboot_confirm <token>");
-        return -1;
-    }
-   
-    int token;
-    if (parse_int(argv[1], &token) != 0) {
-        snprintf(resp, size, "Invalid token format");
-        return -1;
+// ============================================================================
+// /reboot_confirm COMMAND (V2)
+// ============================================================================
+
+int cmd_reboot_confirm_v2(command_ctx_t *ctx)
+{
+    if (!ctx->args || ctx->args[0] == '\0') {
+        return reply_error(ctx, "Usage: /reboot_confirm <token>");
     }
 
-    if (security_validate_reboot_token(chat_id, token) != 0) {
-        snprintf(resp, size, "❌ Invalid or expired token");
-        return -1;
+    int token;
+    if (parse_int(ctx->args, &token) != 0) {
+        LOG_CMD_CTX(ctx, LOG_WARN, "reboot_confirm: invalid token format '%s'", ctx->args);
+        return reply_error(ctx, "Invalid token format");
     }
+
+    if (security_validate_reboot_token(ctx->chat_id, token) != 0) {
+        LOG_CMD_CTX(ctx, LOG_WARN, "reboot_confirm: invalid or expired token");
+        return reply_error(ctx, "Invalid or expired token");
+    }
+
+    LOG_CMD_CTX(ctx, LOG_INFO, "reboot confirmed and executing");
 
     // Request reboot via lifecycle module
-    lifecycle_request_shutdown(2, chat_id);
+    lifecycle_request_shutdown(2, ctx->chat_id);
 
-    if (snprintf(resp, size, "♻️ Rebooting...") >= (int)size)
-        return -1;
-  
-    return 0;
+    return reply_markdown(ctx, "♻️ Rebooting system...");
 }
