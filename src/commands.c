@@ -95,8 +95,8 @@ command_t commands[] = {
     {"/fail2ban", NULL, cmd_fail2ban_v2, "Manage Fail2Ban", "Security"},
 
     // System control commands (require token confirmation)
-    {"/reboot",         cmd_reboot,         NULL, NULL, "System"},
-    {"/reboot_confirm", cmd_reboot_confirm, NULL, NULL, NULL},  // hidden
+    {"/reboot",         NULL, cmd_reboot_v2,         "Reboot system", "System"},
+    {"/reboot_confirm", NULL, cmd_reboot_confirm_v2, NULL,            NULL},    // hidden
 };
 
 // Number of commands in the table
