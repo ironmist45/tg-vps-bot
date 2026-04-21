@@ -37,8 +37,9 @@
  * 
  * @param buffer  Output buffer for formatted response
  * @param size    Size of output buffer
+ * @param req_id  16-bit request identifier for log correlation
  * @return        0 on success, -1 on error
  */
-int services_get_status(char *buffer, size_t size);
+int services_get_status(char *buffer, size_t size, unsigned short req_id);
 
 #endif // SERVICES_H
