@@ -62,7 +62,7 @@ int cmd_users_v2(command_ctx_t *ctx)
 {
     char buffer[512];
 
-    if (users_get(buffer, sizeof(buffer)) != 0) {
+    if (users_get(buffer, sizeof(buffer), ctx->req_id) != 0) {
         return reply_error(ctx, "Failed to get users");
     }
 
