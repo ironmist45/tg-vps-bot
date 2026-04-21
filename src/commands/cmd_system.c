@@ -39,7 +39,7 @@ int cmd_start_v2(command_ctx_t *ctx)
 {
     // Get compact system status
     char status[512];
-    if (system_get_status_mini(status, sizeof(status)) != 0) {
+    if (system_get_status_mini(status, sizeof(status), ctx->req_id) != 0) {
         snprintf(status, sizeof(status), "⚠️ System info unavailable");
     }
 
@@ -92,7 +92,7 @@ int cmd_status_v2(command_ctx_t *ctx)
 {
     char buf[1024];
 
-    if (system_get_status(buf, sizeof(buf)) != 0) {
+    if (system_get_status(buf, sizeof(buf), ctx->req_id) != 0) {
         return reply_markdown(ctx, "⚠️ Failed to get system status");
     }
 
@@ -121,7 +121,7 @@ int cmd_health_v2(command_ctx_t *ctx)
 {
     char buf[512];
 
-    if (system_get_status_mini(buf, sizeof(buf)) != 0) {
+    if (system_get_status_mini(buf, sizeof(buf), ctx->req_id) != 0) {
         return reply_markdown(ctx, "⚠️ Failed to get health status");
     }
 
