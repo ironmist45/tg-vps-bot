@@ -83,4 +83,15 @@ int telegram_send_plain(long chat_id, const char *text);
  */
 int telegram_poll(void);
 
+// ============================================================================
+// UTILITIES
+// ============================================================================
+
+/**
+ * Get current poll cycle identifier
+ * 
+ * @return 16-bit poll_id (0000-FFFF), or 0 if not polling yet
+ */
+unsigned short telegram_get_poll_id(void);
+
 #endif // TELEGRAM_H
