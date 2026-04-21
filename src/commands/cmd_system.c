@@ -1,3 +1,9 @@
+/**
+ * tg-bot - Telegram bot for system administration
+ * cmd_system.c - System information command handlers (/start, /status, /health, /about, /ping)
+ * MIT License - Copyright (c) 2026
+ */
+
 #include "commands.h"
 #include "logger.h"
 #include "reply.h"
@@ -9,34 +15,42 @@
 #include <time.h>
 #include <unistd.h>
 
-// extern globals
+// Bot process start time (defined in lifecycle.c)
 extern time_t g_start_time;
 
-// ==== COMMANDS: General + System info ====
-// Bot commands: /start, /status,
-// ===========  /health, /about, /ping)
+// ============================================================================
+// /start COMMAND (V2)
+// ============================================================================
 
-// ==== General: /start v2 command ====
-
+/**
+ * Bot introduction and welcome message
+ * 
+ * Displays:
+ *   - Bot name, version, codename
+ *   - Personalized greeting (if username known)
+ *   - System status summary (mini)
+ *   - Bot uptime
+ *   - Quick navigation hints
+ * 
+ * @param ctx  Command context
+ * @return     0 on success
+ */
 int cmd_start_v2(command_ctx_t *ctx)
 {
-    // ===== system summary =====
+    // Get compact system status
     char status[512];
-
     if (system_get_status_mini(status, sizeof(status)) != 0) {
         snprintf(status, sizeof(status), "⚠️ System info unavailable");
     }
 
-    // ===== uptime =====
+    // Get bot uptime
     char uptime[64];
     system_get_uptime_str(uptime, sizeof(uptime));
 
-    // ===== LOG =====
     LOG_CMD_CTX(ctx, LOG_INFO, "start: user opened bot");
 
-    // ===== RESPONSE =====
+    // Format welcome message
     char msg[512];
-
     snprintf(msg, sizeof(msg),
         "🚀 *%s v%s (%s)*\n\n"
         "Welcome%s%s!\n\n"
@@ -54,8 +68,26 @@ int cmd_start_v2(command_ctx_t *ctx)
     return reply_markdown(ctx, msg);
 }
 
-// ==== System info: /status v2 command ====
+// ============================================================================
+// /status COMMAND (V2)
+// ============================================================================
 
+/**
+ * Display detailed system status
+ * 
+ * Shows comprehensive system information including:
+ *   - OS and hardware info
+ *   - CPU load averages (1m, 5m, 15m)
+ *   - Memory usage with progress bar
+ *   - Disk usage with progress bar
+ *   - System uptime
+ *   - Active user count
+ * 
+ * Output format: Markdown code block with ASCII progress bars
+ * 
+ * @param ctx  Command context
+ * @return     0 on success, error reply on failure
+ */
 int cmd_status_v2(command_ctx_t *ctx)
 {
     char buf[1024];
@@ -69,8 +101,22 @@ int cmd_status_v2(command_ctx_t *ctx)
     return reply_markdown(ctx, buf);
 }
 
-// ==== General: /health v2 command ====
+// ============================================================================
+// /health COMMAND (V2)
+// ============================================================================
 
+/**
+ * Quick system health check (compact format)
+ * 
+ * Shows essential metrics with emoji heat indicators:
+ *   - CPU load (🟢 normal, 🟡 warning, 🔴 critical)
+ *   - Memory usage percentage
+ *   - Disk usage percentage
+ *   - System uptime
+ * 
+ * @param ctx  Command context
+ * @return     0 on success, error reply on failure
+ */
 int cmd_health_v2(command_ctx_t *ctx)
 {
     char buf[512];
@@ -79,14 +125,26 @@ int cmd_health_v2(command_ctx_t *ctx)
         return reply_markdown(ctx, "⚠️ Failed to get health status");
     }
 
-    // лог (в стиле v2)
     LOG_CMD_CTX(ctx, LOG_INFO, "health: requested");
 
     return reply_markdown(ctx, buf);
 }
 
-// ===== System info: /about v2 command =====
+// ============================================================================
+// /about COMMAND (V2)
+// ============================================================================
 
+/**
+ * Display bot version and runtime information
+ * 
+ * Shows:
+ *   - Application name, version, codename
+ *   - Process ID (PID)
+ *   - Bot uptime (since process start)
+ * 
+ * @param ctx  Command context
+ * @return     0 on success
+ */
 int cmd_about_v2(command_ctx_t *ctx)
 {
     time_t now = time(NULL);
@@ -97,7 +155,6 @@ int cmd_about_v2(command_ctx_t *ctx)
     int mins = (uptime % 3600) / 60;
 
     char msg[256];
-
     snprintf(msg, sizeof(msg),
         "*ℹ️ ABOUT*\n\n"
         "%s v%s (%s)\n"
@@ -106,48 +163,69 @@ int cmd_about_v2(command_ctx_t *ctx)
         APP_NAME, APP_VERSION, APP_CODENAME,
         getpid(), days, hours, mins);
 
-    // 🔥 лог в v2 стиле
     LOG_CMD_CTX(ctx, LOG_INFO, "about: requested");
 
     return reply_markdown(ctx, msg);
 }
 
-// ===== System info: /ping v2 command =====
+// ============================================================================
+// /ping COMMAND (V2)
+// ============================================================================
 
+/**
+ * Network and processing latency test
+ * 
+ * Measures and reports:
+ *   - Processing time: command handler execution time
+ *   - Inbound latency: Telegram → Bot (estimated from message timestamp)
+ *   - RTT (estimated): round-trip time Telegram → Bot → Telegram
+ *   - Bot uptime
+ * 
+ * Note: Latency measurements are estimates due to clock skew.
+ * 
+ * @param ctx  Command context (uses msg_date for latency calculation)
+ * @return     0 on success
+ */
 int cmd_ping_v2(command_ctx_t *ctx)
 {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    // ===== inbound latency =====
+    // ------------------------------------------------------------------------
+    // Calculate inbound latency (Telegram → Bot)
+    // ------------------------------------------------------------------------
     long inbound_ms = -1;
-
     if (ctx->msg_date > 0) {
         time_t now = time(NULL);
         inbound_ms = (now - ctx->msg_date) * 1000;
     }
 
-    // ===== uptime =====
+    // ------------------------------------------------------------------------
+    // Get bot uptime
+    // ------------------------------------------------------------------------
     char uptime[64];
     system_get_uptime_str(uptime, sizeof(uptime));
 
-    // ===== processing time =====
+    // ------------------------------------------------------------------------
+    // Calculate processing time
+    // ------------------------------------------------------------------------
     clock_gettime(CLOCK_MONOTONIC, &end);
+    long processing_ms = (end.tv_sec - start.tv_sec) * 1000 +
+                         (end.tv_nsec - start.tv_nsec) / 1000000;
 
-    long processing_ms =
-        (end.tv_sec - start.tv_sec) * 1000 +
-        (end.tv_nsec - start.tv_nsec) / 1000000;
-
-    // ===== RTT (estimated) =====
+    // ------------------------------------------------------------------------
+    // Estimate round-trip time
+    // ------------------------------------------------------------------------
     long rtt_ms = -1;
     if (inbound_ms >= 0)
         rtt_ms = inbound_ms + processing_ms;
 
-    // ===== format strings =====
+    // ------------------------------------------------------------------------
+    // Format latency strings
+    // ------------------------------------------------------------------------
     char inbound_str[32];
     char rtt_str[32];
 
-    // inbound
     if (inbound_ms < 0) {
         snprintf(inbound_str, sizeof(inbound_str), "N/A");
     } else if (inbound_ms == 0) {
@@ -156,7 +234,6 @@ int cmd_ping_v2(command_ctx_t *ctx)
         snprintf(inbound_str, sizeof(inbound_str), "%ld ms", inbound_ms);
     }
 
-    // rtt
     if (rtt_ms < 0) {
         snprintf(rtt_str, sizeof(rtt_str), "N/A");
     } else if (rtt_ms == 0) {
@@ -165,17 +242,14 @@ int cmd_ping_v2(command_ctx_t *ctx)
         snprintf(rtt_str, sizeof(rtt_str), "%ld ms", rtt_ms);
     }
 
-    // ===== LOG =====
     LOG_CMD_CTX(ctx, LOG_INFO,
         "ping: inbound=%s processing=%ld ms rtt=%s uptime=%s",
-        inbound_str,
-        processing_ms,
-        rtt_str,
-        uptime);
+        inbound_str, processing_ms, rtt_str, uptime);
 
-    // ===== RESPONSE =====
+    // ------------------------------------------------------------------------
+    // Format response
+    // ------------------------------------------------------------------------
     char msg[256];
-
     snprintf(msg, sizeof(msg),
         "🏓 PONG\n\n"
         "Status: OK ✅\n"
@@ -183,10 +257,7 @@ int cmd_ping_v2(command_ctx_t *ctx)
         "Inbound: %s\n"
         "RTT (est): %s\n"
         "Uptime: %s",
-        processing_ms,
-        inbound_str,
-        rtt_str,
-        uptime);
+        processing_ms, inbound_str, rtt_str, uptime);
 
     return reply_markdown(ctx, msg);
 }
