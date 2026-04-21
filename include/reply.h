@@ -1,13 +1,8 @@
-// ==== Core reply API for tg-bot ====
-// reply_plain:
-// writes plain text response into ctx->response
-// sets response type to RESP_PLAIN
-// reply_markdown:
-// writes markdown-formatted response
-// sets response type to RESP_MARKDOWN
-// reply_error:
-// helper for error responses (adds ⚠️ prefix)
-// ==================================
+/**
+ * tg-bot - Telegram bot for system administration
+ * reply.h - Unified response formatting for command handlers
+ * MIT License - Copyright (c) 2026
+ */
 
 #ifndef REPLY_H
 #define REPLY_H
@@ -15,20 +10,59 @@
 #include <stddef.h>
 #include "commands.h"
 
-// ===== Core reply API =====
+// ============================================================================
+// CORE REPLY API
+// ============================================================================
 
-// plain text response
+/**
+ * Send plain text response (no Markdown formatting)
+ * 
+ * Sets ctx->response_type to RESP_PLAIN.
+ * 
+ * @param ctx   Command context
+ * @param text  Plain text response
+ * @return      0 on success, -1 on error (buffer overflow, etc.)
+ */
 int reply_plain(command_ctx_t *ctx, const char *text);
 
-// markdown response
+/**
+ * Send Markdown-formatted response
+ * 
+ * Text may contain Telegram MarkdownV2 formatting.
+ * Caller is responsible for proper escaping of special characters.
+ * Sets ctx->response_type to RESP_MARKDOWN.
+ * 
+ * @param ctx   Command context
+ * @param text  Markdown-formatted response
+ * @return      0 on success, -1 on error (buffer overflow, etc.)
+ */
 int reply_markdown(command_ctx_t *ctx, const char *text);
 
-// ===== Convenience helpers =====
+// ============================================================================
+// CONVENIENCE HELPERS
+// ============================================================================
 
-// success response (markdown by default)
+/**
+ * Send success response with optional custom text
+ * 
+ * Uses Markdown formatting. Defaults to "OK" if text is NULL.
+ * 
+ * @param ctx   Command context
+ * @param text  Optional success message (NULL for "OK")
+ * @return      0 on success, -1 on error
+ */
 int reply_ok(command_ctx_t *ctx, const char *text);
 
-// error response (markdown with ⚠️ prefix)
+/**
+ * Send error response with warning emoji prefix
+ * 
+ * Automatically prepends "⚠️ " to the error message.
+ * Uses Markdown formatting.
+ * 
+ * @param ctx   Command context
+ * @param text  Error message (NULL for generic "Error")
+ * @return      0 on success, -1 on error
+ */
 int reply_error(command_ctx_t *ctx, const char *text);
 
-#endif
+#endif // REPLY_H
