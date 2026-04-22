@@ -76,7 +76,7 @@ jobs:
 
             # 👇 Статическая линковка curl и cjson
             make LDFLAGS='-Wl,-Bstatic -lcjson -lcurl -Wl,-Bdynamic -lssl -lcrypto -lz -lpthread' \
-                 CFLAGS='-I/usr/local/curl-static/include' \
+                 CFLAGS='-Iinclude -I/usr/local/curl-static/include' \
                  LDFLAGS_EXTRA='-L/usr/local/curl-static/lib'
 
             chmod +x tg-bot || true
