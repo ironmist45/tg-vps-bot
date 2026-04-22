@@ -75,12 +75,12 @@ void lifecycle_init(void) {
 void lifecycle_register_handlers(void) {
     struct sigaction sa = {0};
     sa.sa_handler = handle_sighup;
-    sa_term.sa_flags = 0;
+    sa.sa_flags = SA_RESTART;
     sigaction(SIGHUP, &sa, NULL);
 
     struct sigaction sa_term = {0};
     sa_term.sa_handler = handle_sigterm;
-    sa_term.sa_flags = SA_RESTART;
+    sa_term.sa_flags = 0;
     sigaction(SIGTERM, &sa_term, NULL);
     sigaction(SIGINT, &sa_term, NULL);
 }
