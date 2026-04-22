@@ -37,6 +37,7 @@
  * SOFTWARE.
  */
 
+#include "lifecycle.h"
 #include "telegram.h"
 #include "logger.h"
 #include "commands.h"
