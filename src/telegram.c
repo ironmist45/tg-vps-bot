@@ -103,15 +103,15 @@ unsigned short telegram_get_poll_id(void) {
     return g_current_poll_id;
 }
 
+// Last saved offset (for shutdown logging)
+static long g_last_saved_offset = 0;
+
 /**
  * Get last saved offset (for shutdown logging)
  */
 long telegram_get_last_offset(void) {
     return g_last_saved_offset;
 }
-
-// Last saved offset (for shutdown logging)
-static long g_last_saved_offset = 0;
 
 // ============================================================================
 // OFFSET PERSISTENCE (CRASH RECOVERY)
