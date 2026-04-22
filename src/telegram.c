@@ -591,8 +591,8 @@ int telegram_poll() {
             // Security checks
             if (!security_is_allowed_chat(cid)) {
                 LOG_NET(LOG_WARN,
-                    "ACCESS DENIED: req=%04x chat_id=%ld len=%zu text=%.32s",
-                    req_id, cid, strlen(msg_text), msg_text);
+                    "poll=%04x req=%04x ACCESS CHECK: chat_id=%ld cmd=%s result=DENIED",
+                    g_current_poll_id, req_id, cid, msg_text);
                 continue;
             }
 
