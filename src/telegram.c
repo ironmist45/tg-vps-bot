@@ -414,7 +414,7 @@ int telegram_send_plain(long chat_id, const char *text) {
 }
 
 // ============================================================================
-// LONG POLLING (Fork + Alarm Strategy with Debug Logging)
+// LONG POLLING (Fork + Alarm Strategy with Full Debug Logging)
 // ============================================================================
 
 /**
@@ -566,9 +566,12 @@ int telegram_poll() {
         // Sleep 100ms but allow signal interruption
         int poll_rc = poll(NULL, 0, 100);
         if (poll_rc == -1 && errno == EINTR) {
-            LOG_NET(LOG_DEBUG, "poll=%04x interrupted by signal, checking flag next iteration", poll_id);
-            // Flag will be checked at the top of the next iteration
+            LOG_NET(LOG_DEBUG, "poll=%04x interrupted by signal", poll_id);
         }
+        
+        // Дополнительный лог для отладки
+        LOG_NET(LOG_DEBUG, "poll=%04x loop: shutdown_flag=%d, child_alive=%d", 
+                poll_id, lifecycle_shutdown_requested(), (kill(pid, 0) == 0));
     }
 
     close(pipefd[0]); // Close read end of pipe
@@ -702,7 +705,7 @@ int telegram_poll() {
             // Security checks
             if (!security_is_allowed_chat(cid)) {
                 LOG_NET(LOG_WARN,
-                    "poll=%04x req=%04x ACCESS CHECK: chat_id=%ld cmd=%s result=DENIED",
+                    "poll=%04x req=%04x ACCESS CHECK: chat_id=%04x cmd=%s result=DENIED",
                     g_current_poll_id, req_id, cid, msg_text);
                 continue;
             }
