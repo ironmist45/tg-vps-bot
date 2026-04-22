@@ -54,8 +54,8 @@ volatile sig_atomic_t g_shutdown_requested = 0;
 volatile sig_atomic_t g_reload_config = 0;
 long g_reboot_requested_by = 0;
 
-// ===== Внутренние статические переменные =====
-static volatile sig_atomic_t g_signal_received = 0;
+// ===== Внутренние статические переменные (убрана static - экспортируем в telegram.c)=====
+volatile sig_atomic_t g_signal_received = 0;
 
 // ===== Прототипы внутренних функций =====
 static void handle_sighup(int sig);
