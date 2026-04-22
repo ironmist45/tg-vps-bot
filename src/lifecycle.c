@@ -169,7 +169,12 @@ static void graceful_shutdown(void) {
 
     LOG_SYS(LOG_INFO, "Graceful shutdown: stopping services...");
 
+    // Сохраняем оффсет
+    long offset = telegram_get_last_offset();
+    LOG_STATE(LOG_INFO, "Saving offset: %ld", offset);
+
     telegram_shutdown();
+    LOG_STATE(LOG_INFO, "Exiting main loop");
     usleep(200000);
 
     LOG_SYS(LOG_INFO, "Flushing logs...");
