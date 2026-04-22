@@ -50,6 +50,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <poll.h>
 
 #include <curl/curl.h>
 #include <cjson/cJSON.h>
@@ -80,7 +81,7 @@ static long g_last_processed_update = 0;
 // Offset write throttling (save every N updates)
 static int g_offset_counter = 0;
 
-// счётчик циклов polling для логирования
+// Poll cycle counter for logging
 static unsigned short g_poll_cycle = 0;
 static unsigned short g_current_poll_id = 0;
 
@@ -558,8 +559,8 @@ int telegram_poll() {
             return -1;
         }
 
-        // Sleep 100ms and check again
-        usleep(100000);
+        // Sleep 100ms but allow signal interruption
+        poll(NULL, 0, 100);
     }
 
     close(pipefd[0]); // Close read end of pipe
