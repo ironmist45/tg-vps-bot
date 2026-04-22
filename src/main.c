@@ -48,6 +48,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <poll.h>
+#include <signal.h>
 
 // ===== Прототипы вспомогательных функций =====
 static int try_reopen_logger(const char *path);
