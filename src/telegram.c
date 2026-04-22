@@ -57,6 +57,13 @@
 #include <cjson/cJSON.h>
 
 // ============================================================================
+// EXTERNAL GLOBAL VARIABLES
+// ============================================================================
+
+// Shutdown flag from lifecycle.c (checked directly for cross-process visibility)
+extern volatile sig_atomic_t g_shutdown_requested;
+
+// ============================================================================
 // CONSTANTS
 // ============================================================================
 
@@ -414,7 +421,7 @@ int telegram_send_plain(long chat_id, const char *text) {
 }
 
 // ============================================================================
-// LONG POLLING (Fork + Alarm Strategy with Full Debug Logging)
+// LONG POLLING (Fork + Alarm Strategy with Direct Flag Check)
 // ============================================================================
 
 /**
@@ -545,9 +552,10 @@ int telegram_poll() {
             break; // Exit wait loop
         }
 
-        // 🔥 Check shutdown flag while waiting for child
-        if (lifecycle_shutdown_requested()) {
-            LOG_NET(LOG_WARN, "poll=%04x aborting child process due to shutdown flag", poll_id);
+        // 🔥 DIRECT CHECK of global shutdown flag
+        if (g_shutdown_requested != 0) {
+            LOG_NET(LOG_WARN, "poll=%04x aborting child process (g_shutdown_requested=%d)", 
+                    poll_id, g_shutdown_requested);
             kill(pid, SIGKILL);
             waitpid(pid, NULL, 0);
             close(pipefd[0]);
@@ -569,9 +577,9 @@ int telegram_poll() {
             LOG_NET(LOG_DEBUG, "poll=%04x interrupted by signal", poll_id);
         }
         
-        // Дополнительный лог для отладки
-        LOG_NET(LOG_DEBUG, "poll=%04x loop: shutdown_flag=%d, child_alive=%d", 
-                poll_id, lifecycle_shutdown_requested(), (kill(pid, 0) == 0));
+        // Debug log
+        LOG_NET(LOG_DEBUG, "poll=%04x loop: g_shutdown_requested=%d, child_alive=%d", 
+                poll_id, g_shutdown_requested, (kill(pid, 0) == 0));
     }
 
     close(pipefd[0]); // Close read end of pipe
@@ -698,14 +706,14 @@ int telegram_poll() {
             const char *msg_text = text->valuestring;
 
             LOG_NET(LOG_INFO,
-                "poll=%04x req=%04x upd=%ld incoming: chat_id=%ld len=%zu text=%.64s",
+                "poll=%04x req=%04x upd=%ld incoming: chat_id=%ld len=%04x text=%.64s",
                 g_current_poll_id, req_id, update_uid, cid, strlen(msg_text), msg_text);
             LOG_NET(LOG_DEBUG, "user: id=%d username=%s", uid, uname ? uname : "NULL");
 
             // Security checks
             if (!security_is_allowed_chat(cid)) {
                 LOG_NET(LOG_WARN,
-                    "poll=%04x req=%04x ACCESS CHECK: chat_id=%04x cmd=%s result=DENIED",
+                    "poll=%04x req=%04x ACCESS CHECK: chat_id=%ld cmd=%s result=DENIED",
                     g_current_poll_id, req_id, cid, msg_text);
                 continue;
             }
@@ -725,7 +733,7 @@ int telegram_poll() {
                                 uid, uname, req_id,
                                 response, sizeof(response), &resp_type) == 0) {
                 
-                LOG_NET(LOG_DEBUG, "req=%04x response ready (%zu bytes)", req_id, strlen(response));
+                LOG_NET(LOG_DEBUG, "req=%04x response ready (%04x bytes)", req_id, strlen(response));
 
                 // Use plain text for commands with raw output
                 if (strncmp(msg_text, "/logs", 5) == 0 ||
@@ -739,7 +747,7 @@ int telegram_poll() {
                 long req_ms = (req_end.tv_sec - req_start.tv_sec) * 1000 +
                               (req_end.tv_nsec - req_start.tv_nsec) / 1000000;
 
-                LOG_NET(LOG_INFO, "poll=%04x req=%04x done: %ld ms (resp=%zu)",
+                LOG_NET(LOG_INFO, "poll=%04x req=%04x done: %ld ms (resp=%04x)",
                         g_current_poll_id, req_id, req_ms, strlen(response));
             }
         }
