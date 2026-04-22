@@ -269,5 +269,7 @@ void lifecycle_handle_shutdown(void) {
                 errno, strerror(errno));
     }
 
+    // Если не reboot и не restart — просто выходим (SIGTERM)
     LOG_STATE(LOG_INFO, "Bot stopped");
+    exit(0);  // Явный успешный код возврата
 }
