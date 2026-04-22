@@ -41,11 +41,15 @@
 #include "logger.h"
 #include "commands.h"
 #include "security.h"
+#include "lifecycle.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <signal.h>
 
 #include <curl/curl.h>
 #include <cjson/cJSON.h>
@@ -408,16 +412,17 @@ int telegram_send_plain(long chat_id, const char *text) {
 }
 
 // ============================================================================
-// LONG POLLING
+// LONG POLLING (Fork + Alarm Strategy)
 // ============================================================================
 
 /**
- * Poll Telegram API for new messages (blocking)
+ * Poll Telegram API for new messages (non-blocking with shutdown check)
  * 
- * Uses long polling with 25-second timeout.
- * Processes all pending updates and dispatches to commands_handle().
+ * Uses a child process to isolate the blocking curl_easy_perform call.
+ * This guarantees that the main process can respond to SIGTERM immediately
+ * and never hangs indefinitely on network issues.
  * 
- * @return  0 on success, -1 on error
+ * @return  0 on success, -1 on error or aborted by shutdown
  */
 int telegram_poll() {
     static long last_update_id = -1;
@@ -433,11 +438,7 @@ int telegram_poll() {
         LOG_NET(LOG_INFO, "Starting poll from offset: %ld", last_update_id);
     }
 
-    CURL *curl = curl_easy_init();
-    if (!curl) return -1;
-
-    setup_curl(curl);
-
+    // Prepare URL for the child process
     char url[URL_MAX];
     snprintf(url, sizeof(url),
              "%s/getUpdates?timeout=25&offset=%ld",
@@ -445,14 +446,125 @@ int telegram_poll() {
 
     LOG_NET(LOG_DEBUG, "poll=%04x request (offset=%ld)", poll_id, last_update_id);
 
-    struct memory chunk = {0};
+    // Create pipe for IPC (child -> parent)
+    int pipefd[2];
+    if (pipe(pipefd) == -1) {
+        LOG_NET(LOG_ERROR, "poll=%04x pipe failed", poll_id);
+        return -1;
+    }
 
-    curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
+    pid_t pid = fork();
+    if (pid == -1) {
+        LOG_NET(LOG_ERROR, "poll=%04x fork failed", poll_id);
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return -1;
+    }
 
-    CURLcode res = curl_easy_perform(curl);
+    // ===== CHILD PROCESS (executes the dangerous network call) =====
+    if (pid == 0) {
+        close(pipefd[0]); // Child does not read from pipe
+        
+        CURL *curl = curl_easy_init();
+        if (!curl) {
+            _exit(1);
+        }
 
+        setup_curl(curl);
+
+        struct memory chunk = {0};
+
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
+
+        CURLcode res = curl_easy_perform(curl);
+        
+        // Send result back to parent via pipe
+        FILE *pipe_write = fdopen(pipefd[1], "w");
+        if (pipe_write) {
+            // Protocol: [RESULT_CODE]\n[DATA_SIZE]\n[DATA]
+            fprintf(pipe_write, "%d\n", res);
+            if (chunk.data) {
+                fprintf(pipe_write, "%zu\n", chunk.size);
+                fwrite(chunk.data, 1, chunk.size, pipe_write);
+            } else {
+                fprintf(pipe_write, "0\n");
+            }
+            fflush(pipe_write);
+            fclose(pipe_write);
+        }
+
+        curl_easy_cleanup(curl);
+        free(chunk.data);
+        _exit(0);
+    }
+
+    // ===== PARENT PROCESS (main bot, monitors the child) =====
+    close(pipefd[1]); // Parent does not write to pipe
+
+    char chunk_data[RESP_MAX];
+    memset(chunk_data, 0, sizeof(chunk_data));
+    CURLcode res = CURLE_OK;
+    int data_received = 0;
+    
+    // Set a 35-second timeout for the child
+    time_t start_wait = time(NULL);
+    int wait_timeout = 35;
+
+    while (1) {
+        // Check if child has exited
+        int status;
+        pid_t result = waitpid(pid, &status, WNOHANG);
+        
+        if (result == pid) {
+            // Child finished!
+            if (WIFEXITED(status)) {
+                // Read data from pipe
+                if (!data_received) {
+                    FILE *pipe_read = fdopen(pipefd[0], "r");
+                    if (pipe_read) {
+                        int res_code;
+                        size_t data_len;
+                        if (fscanf(pipe_read, "%d\n%zu\n", &res_code, &data_len) == 2) {
+                            res = (CURLcode)res_code;
+                            if (data_len > 0 && data_len < RESP_MAX) {
+                                fread(chunk_data, 1, data_len, pipe_read);
+                            }
+                        }
+                        fclose(pipe_read);
+                        data_received = 1;
+                    }
+                }
+            }
+            break; // Exit wait loop
+        }
+
+        // 🔥 Check shutdown flag while waiting for child
+        if (lifecycle_shutdown_requested()) {
+            LOG_NET(LOG_WARN, "poll=%04x aborting child process due to shutdown flag", poll_id);
+            kill(pid, SIGKILL);
+            waitpid(pid, NULL, 0);
+            close(pipefd[0]);
+            return -1;
+        }
+
+        // Check our own timeout (35 seconds)
+        if (time(NULL) - start_wait > wait_timeout) {
+            LOG_NET(LOG_ERROR, "poll=%04x child process timed out after %d seconds. Killing.", poll_id, wait_timeout);
+            kill(pid, SIGKILL);
+            waitpid(pid, NULL, 0);
+            close(pipefd[0]);
+            return -1;
+        }
+
+        // Sleep 100ms and check again
+        usleep(100000);
+    }
+
+    close(pipefd[0]); // Close read end of pipe
+
+    // ===== PROCESS RESULT (same as before) =====
     LOG_NET(LOG_DEBUG,
             "poll=%04x curl result: %d (%s)",
             poll_id, res,
@@ -460,31 +572,23 @@ int telegram_poll() {
 
     // Timeout is normal - just means no new messages
     if (res == CURLE_OPERATION_TIMEDOUT) {
-        curl_easy_cleanup(curl);
-        free(chunk.data);
         return 0;
     }
 
     if (res != CURLE_OK) {
         LOG_NET(LOG_ERROR, "poll=%04x curl error: %s", poll_id, curl_easy_strerror(res));
-        curl_easy_cleanup(curl);
-        free(chunk.data);
         return -1;
     }
 
-    if (!chunk.data || chunk.size == 0) {
+    if (strlen(chunk_data) == 0) {
         LOG_NET(LOG_DEBUG, "poll=%04x empty response from Telegram", poll_id);
-        curl_easy_cleanup(curl);
-        free(chunk.data);
         return 0;
     }
 
     // Parse JSON response
-    cJSON *json = cJSON_Parse(chunk.data);
+    cJSON *json = cJSON_Parse(chunk_data);
     if (!json) {
         LOG_NET(LOG_ERROR, "poll=%04x JSON parse error", poll_id);
-        curl_easy_cleanup(curl);
-        free(chunk.data);
         return -1;
     }
 
@@ -498,8 +602,6 @@ int telegram_poll() {
                 error_code ? error_code->valueint : 0,
                 description ? description->valuestring : "unknown");
         cJSON_Delete(json);
-        curl_easy_cleanup(curl);
-        free(chunk.data);
         return -1;
     }
 
@@ -632,8 +734,5 @@ int telegram_poll() {
     }
 
     cJSON_Delete(json);
-    free(chunk.data);
-    curl_easy_cleanup(curl);
-
     return 0;
 }
