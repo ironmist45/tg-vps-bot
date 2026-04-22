@@ -48,6 +48,7 @@
 #include <string.h>
 
 #include <curl/curl.h>
+#include <curl/multi.h>  // для CURLM, curl_multi_*
 #include <cjson/cJSON.h>
 
 // ============================================================================
@@ -412,12 +413,12 @@ int telegram_send_plain(long chat_id, const char *text) {
 // ============================================================================
 
 /**
- * Poll Telegram API for new messages (blocking)
+ * Poll Telegram API for new messages (non-blocking with shutdown check)
  * 
- * Uses long polling with 25-second timeout.
- * Processes all pending updates and dispatches to commands_handle().
+ * Uses long polling with 25-second timeout but checks for shutdown flag
+ * every 100ms, allowing immediate response to SIGTERM.
  * 
- * @return  0 on success, -1 on error
+ * @return  0 on success, -1 on error or aborted by shutdown
  */
 int telegram_poll() {
     static long last_update_id = -1;
@@ -451,8 +452,61 @@ int telegram_poll() {
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
 
-    CURLcode res = curl_easy_perform(curl);
+    // ===== NON-BLOCKING EXECUTION WITH SHUTDOWN CHECK =====
+    CURLM *multi = curl_multi_init();
+    if (!multi) {
+        curl_easy_cleanup(curl);
+        free(chunk.data);
+        return -1;
+    }
 
+    curl_multi_add_handle(multi, curl);
+
+    int still_running = 1;
+    CURLcode res = CURLE_OK;
+
+    while (still_running) {
+        // Check shutdown flag every iteration (~100ms)
+        if (lifecycle_shutdown_requested()) {
+            LOG_NET(LOG_DEBUG, "poll=%04x aborted by shutdown flag", poll_id);
+            curl_multi_remove_handle(multi, curl);
+            curl_multi_cleanup(multi);
+            curl_easy_cleanup(curl);
+            free(chunk.data);
+            return -1;  // Aborted
+        }
+
+        CURLMcode mc = curl_multi_perform(multi, &still_running);
+        if (mc != CURLM_OK) {
+            LOG_NET(LOG_ERROR, "poll=%04x curl_multi_perform failed: %d", poll_id, mc);
+            break;
+        }
+
+        // Wait for activity, but not more than 100ms (allows fast shutdown check)
+        if (still_running) {
+            int fd_count;
+            mc = curl_multi_wait(multi, NULL, 0, 100, &fd_count);
+            if (mc != CURLM_OK) {
+                LOG_NET(LOG_ERROR, "poll=%04x curl_multi_wait failed: %d", poll_id, mc);
+                break;
+            }
+        }
+    }
+
+    // Get the result
+    CURLMsg *msg;
+    int msgs_left;
+    while ((msg = curl_multi_info_read(multi, &msgs_left))) {
+        if (msg->msg == CURLMSG_DONE) {
+            res = msg->data.result;
+        }
+    }
+
+    curl_multi_remove_handle(multi, curl);
+    curl_multi_cleanup(multi);
+    curl_easy_cleanup(curl);
+
+    // ===== PROCESS RESULT (same as before) =====
     LOG_NET(LOG_DEBUG,
             "poll=%04x curl result: %d (%s)",
             poll_id, res,
@@ -460,21 +514,18 @@ int telegram_poll() {
 
     // Timeout is normal - just means no new messages
     if (res == CURLE_OPERATION_TIMEDOUT) {
-        curl_easy_cleanup(curl);
         free(chunk.data);
         return 0;
     }
 
     if (res != CURLE_OK) {
         LOG_NET(LOG_ERROR, "poll=%04x curl error: %s", poll_id, curl_easy_strerror(res));
-        curl_easy_cleanup(curl);
         free(chunk.data);
         return -1;
     }
 
     if (!chunk.data || chunk.size == 0) {
         LOG_NET(LOG_DEBUG, "poll=%04x empty response from Telegram", poll_id);
-        curl_easy_cleanup(curl);
         free(chunk.data);
         return 0;
     }
@@ -483,7 +534,6 @@ int telegram_poll() {
     cJSON *json = cJSON_Parse(chunk.data);
     if (!json) {
         LOG_NET(LOG_ERROR, "poll=%04x JSON parse error", poll_id);
-        curl_easy_cleanup(curl);
         free(chunk.data);
         return -1;
     }
@@ -498,7 +548,6 @@ int telegram_poll() {
                 error_code ? error_code->valueint : 0,
                 description ? description->valuestring : "unknown");
         cJSON_Delete(json);
-        curl_easy_cleanup(curl);
         free(chunk.data);
         return -1;
     }
@@ -633,7 +682,6 @@ int telegram_poll() {
 
     cJSON_Delete(json);
     free(chunk.data);
-    curl_easy_cleanup(curl);
 
     return 0;
 }
