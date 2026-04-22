@@ -37,7 +37,6 @@
  * SOFTWARE.
  */
 
-#include "lifecycle.h"
 #include "telegram.h"
 #include "logger.h"
 #include "commands.h"
@@ -179,25 +178,6 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 }
 
 // ============================================================================
-// CURL INTERRUPT (graceful shutdown support)
-// ============================================================================
-
-static int progress_cb(void *clientp,
-                       curl_off_t dltotal, curl_off_t dlnow,
-                       curl_off_t ultotal, curl_off_t ulnow)
-{
-    (void)clientp;
-    (void)dltotal; (void)dlnow;
-    (void)ultotal; (void)ulnow;
-
-    if (lifecycle_shutdown_requested()) {
-        return 1; // ❗ прерываем curl
-    }
-
-    return 0;
-}
-
-// ============================================================================
 // MARKDOWN ESCAPING
 // ============================================================================
 
@@ -280,18 +260,9 @@ static unsigned short make_req_id(long update_uid) {
  * @param curl  Curl handle to configure
  */
 static void setup_curl(CURL *curl) {
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 35L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-
-    // ✅ Разрешаем progress callback (по умолчанию выключен)
-    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-
-    // ✅ Устанавливаем callback для прерывания
-    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_cb);
-    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1L);
-    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 1L);
-
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 30L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 15L);
@@ -469,7 +440,7 @@ int telegram_poll() {
 
     char url[URL_MAX];
     snprintf(url, sizeof(url),
-             "%s/getUpdates?timeout=5&offset=%ld",
+             "%s/getUpdates?timeout=25&offset=%ld",
              g_base_url, last_update_id);
 
     LOG_NET(LOG_DEBUG, "poll=%04x request (offset=%ld)", poll_id, last_update_id);
@@ -489,18 +460,6 @@ int telegram_poll() {
 
     // Timeout is normal - just means no new messages
     if (res == CURLE_OPERATION_TIMEDOUT) {
-        curl_easy_cleanup(curl);
-        free(chunk.data);
-        return 0;
-    }
-
-    if (res == CURLE_ABORTED_BY_CALLBACK) {
-        if (lifecycle_shutdown_requested()) {
-            LOG_NET(LOG_INFO, "poll=%04x aborted (shutdown)", poll_id);
-        } else {
-            LOG_NET(LOG_WARN, "poll=%04x aborted (unexpected)", poll_id);
-        }
-
         curl_easy_cleanup(curl);
         free(chunk.data);
         return 0;
