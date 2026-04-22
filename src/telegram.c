@@ -290,6 +290,29 @@ int telegram_init(const char *token) {
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
+    // Verify token validity
+    LOG_NET(LOG_INFO, "Validating Telegram token...");
+    
+    CURL *curl = curl_easy_init();
+    if (curl) {
+        char url[URL_MAX];
+        snprintf(url, sizeof(url), "%s/getMe", g_base_url);
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+        
+        CURLcode res = curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+        
+        if (res != CURLE_OK) {
+            LOG_NET(LOG_ERROR, "Telegram token validation failed: %s", 
+                    curl_easy_strerror(res));
+            return -1;
+        }
+        
+        LOG_NET(LOG_INFO, "Telegram token is valid");
+    }
+
     LOG_NET(LOG_INFO, "Telegram initialized");
     return 0;
 }
