@@ -34,8 +34,6 @@
  * SOFTWARE.
  */
 
-#define _GNU_SOURCE
-
 #include "version.h"
 #include "logger.h"
 #include "config.h"
@@ -50,8 +48,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <poll.h>
-#include <signal.h>
 
 // ===== Прототипы вспомогательных функций =====
 static int try_reopen_logger(const char *path);
@@ -146,10 +142,6 @@ int main(int argc, char *argv[]) {
     int consecutive_errors = 0;
     const int max_consecutive_errors = 5;
     
-    // Настраиваем ppoll для прерывания по сигналу
-    sigset_t empty_mask;
-    sigemptyset(&empty_mask);
-    
     while (1) {
         // -------------------------------------------------------
         // Проверка запроса на shutdown (от сигнала или команды)
@@ -188,6 +180,7 @@ int main(int argc, char *argv[]) {
         // -------------------------------------------------------
         int poll_rc = telegram_poll();
         if (poll_rc != 0) {
+           
             consecutive_errors++;
             LOG_NET(LOG_WARN, "Polling error (rc=%d, attempt=%d/%d)",
                     poll_rc, consecutive_errors, max_consecutive_errors);
@@ -197,18 +190,14 @@ int main(int argc, char *argv[]) {
                 break;
             }
 
-            // Вместо sleep(5) — спим 5 секунд, но просыпаемся по сигналу
-            struct timespec timeout = {5, 0};
-            ppoll(NULL, 0, &timeout, &empty_mask);
+            sleep(5);
         } else {
             consecutive_errors = 0;
         }
                     
-        // Вместо usleep(200000) — спим 200 мс, но просыпаемся по сигналу
-        struct timespec pause_time = {0, 200000000}; // 200 млн наносекунд = 200 мс
-        ppoll(NULL, 0, &pause_time, &empty_mask);
+        usleep(200000);  // небольшая пауза между циклами
     }
-    
+
     // -----------------------------------------------------------
     // 11. Завершение работы
     // -----------------------------------------------------------
