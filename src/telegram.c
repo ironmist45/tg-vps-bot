@@ -280,7 +280,7 @@ static unsigned short make_req_id(long update_uid) {
  * @param curl  Curl handle to configure
  */
 static void setup_curl(CURL *curl) {
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 35L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
@@ -469,7 +469,7 @@ int telegram_poll() {
 
     char url[URL_MAX];
     snprintf(url, sizeof(url),
-             "%s/getUpdates?timeout=25&offset=%ld",
+             "%s/getUpdates?timeout=5&offset=%ld",
              g_base_url, last_update_id);
 
     LOG_NET(LOG_DEBUG, "poll=%04x request (offset=%ld)", poll_id, last_update_id);
