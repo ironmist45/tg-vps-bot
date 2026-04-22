@@ -201,7 +201,7 @@ void lifecycle_handle_shutdown(void) {
         long ms = (end.tv_sec - start.tv_sec) * 1000 +
                   (end.tv_nsec - start.tv_nsec) / 1000000;
 
-        LOG_SYS(LOG_INFO, "Shutdown took %ld ms", ms);
+        LOG_SYS(LOG_INFO, "Reboot took %ld ms", ms);
         LOG_SYS(LOG_WARN, "Rebooting via reboot(RB_AUTOBOOT)...");
         
         logger_close();
@@ -241,7 +241,7 @@ void lifecycle_handle_shutdown(void) {
         long ms = (end.tv_sec - start.tv_sec) * 1000 +
                   (end.tv_nsec - start.tv_nsec) / 1000000;
 
-        LOG_SYS(LOG_INFO, "Shutdown took %ld ms", ms);
+        LOG_SYS(LOG_INFO, "Restart took %ld ms", ms);
         
         logger_close();
         fflush(NULL);
@@ -259,6 +259,14 @@ void lifecycle_handle_shutdown(void) {
     }
 
     // ===== STOP (SIGTERM от systemd) =====
+    lifecycle_log_uptime();
+    graceful_shutdown();
+    
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    long ms = (end.tv_sec - start.tv_sec) * 1000 +
+              (end.tv_nsec - start.tv_nsec) / 1000000;
+
+    LOG_SYS(LOG_INFO, "Shutdown took %ld ms", ms);
     LOG_SYS(LOG_INFO, "Bot stopped by signal");
     fflush(NULL);
     exit(0);
