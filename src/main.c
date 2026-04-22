@@ -34,6 +34,8 @@
  * SOFTWARE.
  */
 
+#define _GNU_SOURCE
+
 #include "version.h"
 #include "logger.h"
 #include "config.h"
@@ -138,7 +140,7 @@ int main(int argc, char *argv[]) {
     LOG_STATE(LOG_INFO, "Bot started");
     LOG_STATE(LOG_INFO, "Entering main loop");
 
-        // ===========================================================
+    // ===========================================================
     // 10. ГЛАВНЫЙ ЦИКЛ
     // ===========================================================
     int consecutive_errors = 0;
