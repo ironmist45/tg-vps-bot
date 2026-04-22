@@ -54,8 +54,25 @@ volatile sig_atomic_t g_shutdown_requested = 0;
 volatile sig_atomic_t g_reload_config = 0;
 long g_reboot_requested_by = 0;
 
-// ===== Внутренние статические переменные (убрана static - экспортируем в telegram.c)=====
+// ===== Внутренние статические переменные (ранее - static - экспортируем в telegram.c)=====
 volatile sig_atomic_t g_signal_received = 0;
+// ===== Глобальные переменные (экспортируем для main.c и telegram.c) =====
+
+/** Process start time (used for uptime calculation) */
+extern time_t g_start_time;
+
+/** Shutdown mode: 0 = stop (SIGTERM), 1 = restart, 2 = reboot */
+extern volatile sig_atomic_t g_shutdown_requested;
+
+/** Config reload flag (set by SIGHUP) */
+extern volatile sig_atomic_t g_reload_config;
+
+/** Chat ID that requested reboot/restart (0 if triggered by signal) */
+extern long g_reboot_requested_by;
+
+/** Signal received flag (set to 1 when SIGTERM/SIGINT is caught) */
+extern volatile sig_atomic_t g_signal_received;
+// ==== конец экспорта ====
 
 // ===== Прототипы внутренних функций =====
 static void handle_sighup(int sig);
