@@ -38,12 +38,17 @@
 #include <time.h>
 #include <signal.h>
 
+// ==== Shutdown modes ====
+#define SHUTDOWN_STOP    0  // SIGTERM from systemd (clean exit)
+#define SHUTDOWN_RESTART 1  // /restart command (exec restart)
+#define SHUTDOWN_REBOOT  2  // /reboot command (system reboot)
+
 // ===== Глобальные переменные (экспортируем для main.c) =====
 
 /** Process start time (used for uptime calculation) */
 extern time_t g_start_time;
 
-/** Shutdown mode: 0 = none, 1 = restart, 2 = reboot */
+/** Shutdown mode: 0 = stop (SIGTERM), 1 = restart, 2 = reboot */
 extern volatile sig_atomic_t g_shutdown_requested;
 
 /** Config reload flag (set by SIGHUP) */
