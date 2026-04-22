@@ -194,6 +194,11 @@ int main(int argc, char *argv[]) {
                 LOG_SYS(LOG_ERROR, "Too many consecutive polling errors, exiting");
                 break;
             }
+
+            if (lifecycle_shutdown_requested()) {
+                lifecycle_handle_shutdown();
+                break;
+            }
             sleep(5);
         } else {
             consecutive_errors = 0;
