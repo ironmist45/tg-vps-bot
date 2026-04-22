@@ -440,7 +440,7 @@ int telegram_poll() {
 
     char url[URL_MAX];
     snprintf(url, sizeof(url),
-             "%s/getUpdates?timeout=5&offset=%ld",
+             "%s/getUpdates?timeout=25&offset=%ld",
              g_base_url, last_update_id);
 
     LOG_NET(LOG_DEBUG, "poll=%04x request (offset=%ld)", poll_id, last_update_id);
