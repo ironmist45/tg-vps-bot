@@ -35,6 +35,7 @@
  * SOFTWARE.
  */
 
+#include "environment.h"
 #include "lifecycle.h"
 #include "logger.h"
 #include "telegram.h"
@@ -60,7 +61,6 @@ static volatile sig_atomic_t g_signal_received = 0;
 static void handle_sighup(int sig);
 static void handle_sigterm(int sig);
 static void graceful_shutdown(void);
-static int is_ci(void);
 
 // ===== Реализация =====
 
@@ -134,12 +134,6 @@ static void handle_sigterm(int sig) {
 
     LOG_SYS(LOG_WARN, "Received SIGTERM, shutting down...");
     g_shutdown_requested = SHUTDOWN_STOP;  // ← 0 = обычный выход
-}
-
-// ===== Вспомогательные функции =====
-
-static int is_ci(void) {
-    return getenv("CI") != NULL;
 }
 
 // ===== Graceful shutdown =====
