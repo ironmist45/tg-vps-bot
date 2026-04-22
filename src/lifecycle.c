@@ -103,7 +103,7 @@ void lifecycle_register_handlers(void) {
 }
 
 int lifecycle_shutdown_requested(void) {
-    return g_shutdown_requested != 0;
+    return g_shutdown_requested != 0 || g_signal_received != 0;
 }
 
 int lifecycle_reload_requested(void) {
