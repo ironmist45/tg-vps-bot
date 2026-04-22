@@ -75,7 +75,7 @@ void lifecycle_init(void) {
 void lifecycle_register_handlers(void) {
     struct sigaction sa = {0};
     sa.sa_handler = handle_sighup;
-    sa.sa_flags = SA_RESTART;
+    sa_term.sa_flags = 0;
     sigaction(SIGHUP, &sa, NULL);
 
     struct sigaction sa_term = {0};
