@@ -262,7 +262,7 @@ static unsigned short make_req_id(long update_uid) {
 static void setup_curl(CURL *curl) {
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 35L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
- //   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 30L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 15L);
