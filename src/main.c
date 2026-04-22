@@ -180,7 +180,12 @@ int main(int argc, char *argv[]) {
         // -------------------------------------------------------
         int poll_rc = telegram_poll();
         if (poll_rc != 0) {
-           
+            // 🔥 CHECK SHUTDOWN FLAG IMMEDIATELY!
+            if (lifecycle_shutdown_requested()) {
+                lifecycle_handle_shutdown();
+                break;
+            }
+            
             consecutive_errors++;
             LOG_NET(LOG_WARN, "Polling error (rc=%d, attempt=%d/%d)",
                     poll_rc, consecutive_errors, max_consecutive_errors);
@@ -189,7 +194,6 @@ int main(int argc, char *argv[]) {
                 LOG_SYS(LOG_ERROR, "Too many consecutive polling errors, exiting");
                 break;
             }
-
             sleep(5);
         } else {
             consecutive_errors = 0;
