@@ -103,6 +103,16 @@ unsigned short telegram_get_poll_id(void) {
     return g_current_poll_id;
 }
 
+/**
+ * Get last saved offset (for shutdown logging)
+ */
+long telegram_get_last_offset(void) {
+    return g_last_saved_offset;
+}
+
+// Last saved offset (for shutdown logging)
+static long g_last_saved_offset = 0;
+
 // ============================================================================
 // OFFSET PERSISTENCE (CRASH RECOVERY)
 // ============================================================================
@@ -653,6 +663,7 @@ int telegram_poll() {
 
             g_last_processed_update = update_uid;
             last_update_id = update_uid + 1;
+            g_last_saved_offset = last_update_id;
 
             // Throttle offset writes (every 5 updates)
             if (++g_offset_counter >= 5) {
