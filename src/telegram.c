@@ -51,6 +51,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <poll.h>
+#include <errno.h>
 
 #include <curl/curl.h>
 #include <cjson/cJSON.h>
@@ -413,7 +414,7 @@ int telegram_send_plain(long chat_id, const char *text) {
 }
 
 // ============================================================================
-// LONG POLLING (Fork + Alarm Strategy)
+// LONG POLLING (Fork + Alarm Strategy with Debug Logging)
 // ============================================================================
 
 /**
@@ -513,6 +514,8 @@ int telegram_poll() {
     time_t start_wait = time(NULL);
     int wait_timeout = 35;
 
+    LOG_NET(LOG_DEBUG, "poll=%04x parent waiting for child (PID=%d)", poll_id, pid);
+
     while (1) {
         // Check if child has exited
         int status;
@@ -520,6 +523,7 @@ int telegram_poll() {
         
         if (result == pid) {
             // Child finished!
+            LOG_NET(LOG_DEBUG, "poll=%04x child process exited", poll_id);
             if (WIFEXITED(status)) {
                 // Read data from pipe
                 if (!data_received) {
@@ -560,7 +564,11 @@ int telegram_poll() {
         }
 
         // Sleep 100ms but allow signal interruption
-        poll(NULL, 0, 100);
+        int poll_rc = poll(NULL, 0, 100);
+        if (poll_rc == -1 && errno == EINTR) {
+            LOG_NET(LOG_DEBUG, "poll=%04x interrupted by signal, checking flag next iteration", poll_id);
+            // Flag will be checked at the top of the next iteration
+        }
     }
 
     close(pipefd[0]); // Close read end of pipe
