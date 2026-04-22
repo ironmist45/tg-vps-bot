@@ -133,7 +133,7 @@ static void handle_sigterm(int sig) {
     g_signal_received = 1;
 
     LOG_SYS(LOG_WARN, "Received SIGTERM, shutting down...");
-    g_shutdown_requested = 1;
+    g_shutdown_requested = SHUTDOWN_STOP;  // ← 0 = обычный выход
 }
 
 // ===== Вспомогательные функции =====
@@ -175,27 +175,25 @@ static void graceful_shutdown(void) {
 
 void lifecycle_handle_shutdown(void) {
     const char *mode =
-        (g_shutdown_requested == 2) ? "reboot" :
-        (g_shutdown_requested == 1) ? "restart" :
-        "unknown";
+        (g_shutdown_requested == SHUTDOWN_REBOOT)  ? "reboot" :
+        (g_shutdown_requested == SHUTDOWN_RESTART) ? "restart" :
+        "stop";  // SHUTDOWN_STOP
 
     LOG_SYS(LOG_INFO, "Shutdown handler entered (%s)", mode);
     LOG_SYS(LOG_DEBUG, "shutdown mode raw=%d", g_shutdown_requested);
 
     static int handled = 0;
-    
     if (handled) {
         LOG_SYS(LOG_DEBUG, "handle_shutdown already executed");
         return;
     }
-    
     handled = 1;
 
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
     // ===== REBOOT =====
-    if (g_shutdown_requested == 2) {
+    if (g_shutdown_requested == SHUTDOWN_REBOOT) {
         LOG_SYS(LOG_WARN, "Reboot requested");
 
         if (g_reboot_requested_by != 0) {
@@ -206,7 +204,6 @@ void lifecycle_handle_shutdown(void) {
         graceful_shutdown();
 
         clock_gettime(CLOCK_MONOTONIC, &end);
-
         long ms = (end.tv_sec - start.tv_sec) * 1000 +
                   (end.tv_nsec - start.tv_nsec) / 1000000;
 
@@ -221,7 +218,7 @@ void lifecycle_handle_shutdown(void) {
             LOG_SYS(LOG_ERROR, "reboot() failed: errno=%d (%s)", 
                     errno, strerror(errno));
 
-            if (is_ci()) {
+            if (env_is_ci()) {
                 LOG_SYS(LOG_INFO, "Skipping systemctl reboot (CI environment)");
                 return;
             }
@@ -229,7 +226,6 @@ void lifecycle_handle_shutdown(void) {
             LOG_SYS(LOG_WARN, "Fallback: systemctl reboot");
             fflush(NULL);
             execl("/bin/systemctl", "systemctl", "reboot", NULL);
-
             LOG_SYS(LOG_ERROR, "fallback exec failed: errno=%d (%s)", 
                     errno, strerror(errno));
         }
@@ -237,7 +233,7 @@ void lifecycle_handle_shutdown(void) {
     }
 
     // ===== RESTART =====
-    if (g_shutdown_requested == 1) {
+    if (g_shutdown_requested == SHUTDOWN_RESTART) {
         LOG_SYS(LOG_WARN, "Restart requested");
 
         if (g_reboot_requested_by != 0) {
@@ -248,7 +244,6 @@ void lifecycle_handle_shutdown(void) {
         graceful_shutdown();
 
         clock_gettime(CLOCK_MONOTONIC, &end);
-
         long ms = (end.tv_sec - start.tv_sec) * 1000 +
                   (end.tv_nsec - start.tv_nsec) / 1000000;
 
@@ -258,18 +253,19 @@ void lifecycle_handle_shutdown(void) {
         fflush(NULL);
         sync();
 
-        if (is_ci()) {
+        if (env_is_ci()) {
             LOG_SYS(LOG_INFO, "Skipping systemctl restart (CI environment)");
             return;
         }
 
         execl("/bin/systemctl", "systemctl", "restart", "tg-bot", NULL);
-
         LOG_SYS(LOG_ERROR, "exec restart failed: errno=%d (%s)", 
                 errno, strerror(errno));
+        return;
     }
 
-    // Если не reboot и не restart — просто выходим (SIGTERM)
-    LOG_STATE(LOG_INFO, "Bot stopped");
-    exit(0);  // Явный успешный код возврата
+    // ===== STOP (SIGTERM от systemd) =====
+    LOG_SYS(LOG_INFO, "Bot stopped by signal");
+    fflush(NULL);
+    exit(0);
 }
