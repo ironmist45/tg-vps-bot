@@ -180,12 +180,7 @@ int main(int argc, char *argv[]) {
         // -------------------------------------------------------
         int poll_rc = telegram_poll();
         if (poll_rc != 0) {
-
-            if (lifecycle_shutdown_requested()) {
-                lifecycle_handle_shutdown();
-                break;
-            }
-            
+           
             consecutive_errors++;
             LOG_NET(LOG_WARN, "Polling error (rc=%d, attempt=%d/%d)",
                     poll_rc, consecutive_errors, max_consecutive_errors);
@@ -195,10 +190,6 @@ int main(int argc, char *argv[]) {
                 break;
             }
 
-            if (lifecycle_shutdown_requested()) {
-                lifecycle_handle_shutdown();
-                break;
-            }
             sleep(5);
         } else {
             consecutive_errors = 0;
