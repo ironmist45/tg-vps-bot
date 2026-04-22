@@ -94,4 +94,10 @@ int telegram_poll(void);
  */
 unsigned short telegram_get_poll_id(void);
 
+/**
+ * Get last saved update offset
+ * @return Last offset value
+ */
+long telegram_get_last_offset(void);
+
 #endif // TELEGRAM_H
