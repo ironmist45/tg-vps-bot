@@ -566,8 +566,8 @@ int telegram_poll() {
 
         // 🔥 Check BOTH global flags from lifecycle.c
         if (g_signal_received != 0 || g_shutdown_requested != 0) {
-            LOG_NET(LOG_WARN, "poll=%04x aborting child (shutdown=%d, signal=%d)", 
-                    poll_id, g_shutdown_requested, g_signal_received);
+            LOG_NET(LOG_WARN, "poll=%04x aborting child process (parent_pid=%d, child_pid=%d, shutdown=%d, signal=%d)", 
+                    poll_id, getpid(), pid, g_shutdown_requested, g_signal_received);
             kill(pid, SIGKILL);
             waitpid(pid, NULL, 0);
             close(pipefd[0]);
