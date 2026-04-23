@@ -21,6 +21,11 @@ typedef struct {
 } telegram_update_t;
 
 /**
+ * Initialize parser module
+ */
+void telegram_parser_init(void);
+
+/**
  * Parse getUpdates response and extract updates
  * @param raw_data Raw JSON response
  * @param data_size Size of raw_data
