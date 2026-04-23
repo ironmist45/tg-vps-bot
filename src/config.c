@@ -238,3 +238,29 @@ void config_log(const config_t *cfg) {
     LOG_CFG(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
     LOG_CFG(LOG_INFO, "LOG_LEVEL: %s", logger_level_to_string(cfg->log_level));
 }
+
+// ============================================================================
+// CONFIGURATION RELOAD
+// ============================================================================
+
+int config_reload(const char *path, config_t *cfg) {
+    LOG_STATE(LOG_INFO, "Reload config");
+    
+    config_t new_cfg;
+    if (config_load(path, &new_cfg) != 0) {
+        return -1;
+    }
+    
+    if (strcmp(cfg->log_file, new_cfg.log_file) != 0) {
+        logger_reopen(new_cfg.log_file);
+    }
+    
+    logger_set_level(new_cfg.log_level);
+    security_set_allowed_chat(new_cfg.chat_id);
+    security_set_token_ttl(new_cfg.token_ttl);
+    
+    *cfg = new_cfg;
+    config_log(cfg);
+    
+    return 0;
+}
