@@ -41,17 +41,29 @@ void telegram_shutdown(void) {
 int telegram_send_message(long chat_id, const char *text) {
     if (!text) return -1;
     
+    LOG_NET(LOG_INFO, "telegram_send_message: START");
+    
     char tmp[RESP_MAX];
     strncpy(tmp, text, sizeof(tmp) - 1);
+    tmp[sizeof(tmp) - 1] = '\0';
+    LOG_NET(LOG_INFO, "telegram_send_message: after strncpy, len=%zu", strlen(tmp));
+    
     telegram_truncate_message(tmp);
+    LOG_NET(LOG_INFO, "telegram_send_message: after truncate, len=%zu", strlen(tmp));
     
     char escaped[RESP_MAX];
     telegram_escape_markdown(tmp, escaped, sizeof(escaped));
+    LOG_NET(LOG_INFO, "telegram_send_message: after escape, len=%zu", strlen(escaped));
     
     char post_fields[RESP_MAX];
     snprintf(post_fields, sizeof(post_fields), "chat_id=%ld&text=%s&parse_mode=MarkdownV2", chat_id, escaped);
+    LOG_NET(LOG_INFO, "telegram_send_message: after snprintf, post_fields len=%zu", strlen(post_fields));
     
-    return telegram_http_request("sendMessage", post_fields, 0, NULL, NULL);
+    LOG_NET(LOG_INFO, "telegram_send_message: calling telegram_http_request");
+    int rc = telegram_http_request("sendMessage", post_fields, 0, NULL, NULL);
+    LOG_NET(LOG_INFO, "telegram_send_message: rc=%d", rc);
+    
+    return rc;
 }
 
 int telegram_send_plain(long chat_id, const char *text) {
@@ -59,6 +71,7 @@ int telegram_send_plain(long chat_id, const char *text) {
     
     char tmp[RESP_MAX];
     strncpy(tmp, text, sizeof(tmp) - 1);
+    tmp[sizeof(tmp) - 1] = '\0';
     telegram_truncate_message(tmp);
     
     char post_fields[RESP_MAX];
