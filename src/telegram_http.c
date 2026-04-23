@@ -22,9 +22,9 @@ struct memory {
 };
 
 static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
+    // libcurl может вызвать callback с userp=NULL при завершении запроса
     if (!userp) {
-        LOG_NET(LOG_ERROR, "write_callback: userp is NULL");
-        return 0;
+        return size * nmemb;  // просто игнорируем данные
     }
     
     size_t real_size = size * nmemb;
