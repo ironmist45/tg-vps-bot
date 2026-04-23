@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     // 7. Переключение на лог-файл из конфига (если указан)
     // -----------------------------------------------------------
-    if (try_reopen_logger(cfg.log_file) == 0) {
+    if (logger_reopen(cfg.log_file) == 0) {
         LOG_CFG(LOG_INFO, "Logger switched: %s", cfg.log_file);
     }
 
@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
             if (config_load(config_path, &new_cfg) == 0) {
                 // Если изменился путь к лог-файлу — переоткрываем
                 if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
-                    try_reopen_logger(new_cfg.log_file);
+                    logger_reopen(new_cfg.log_file);
                 }
 
                 logger_set_level(new_cfg.log_level);
