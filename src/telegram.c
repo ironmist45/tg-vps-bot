@@ -16,7 +16,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define RESP_MAX 32768
+#define RESP_MAX 4096
 
 static char g_token[128];
 
