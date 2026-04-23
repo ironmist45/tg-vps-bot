@@ -4,6 +4,7 @@
  * MIT License - Copyright (c) 2026
  */
 
+#include "telegram.h"
 #include "telegram_poll.h"
 #include "telegram_http.h"
 #include "telegram_parser.h"
