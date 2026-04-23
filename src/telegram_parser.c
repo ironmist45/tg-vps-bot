@@ -90,14 +90,14 @@ int telegram_parse_updates(const char *raw_data, size_t data_size, unsigned shor
         if (!chat_id) continue;
 
         parsed[parsed_count].chat_id = (long)chat_id->valuedouble;
-        parsed[parsed_count].text = text->valuestring;
+        parsed[parsed_count].text = strdup(text->valuestring);
 
         cJSON *from = cJSON_GetObjectItem(message, "from");
         if (from) {
             cJSON *user_id = cJSON_GetObjectItem(from, "id");
             cJSON *username = cJSON_GetObjectItem(from, "username");
             if (user_id) parsed[parsed_count].user_id = (int)user_id->valuedouble;
-            if (username && cJSON_IsString(username)) parsed[parsed_count].username = username->valuestring;
+            if (username && cJSON_IsString(username)) parsed[parsed_count].username = strdup(username->valuestring);
         }
 
         cJSON *date = cJSON_GetObjectItem(message, "date");
