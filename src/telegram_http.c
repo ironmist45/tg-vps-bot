@@ -22,6 +22,11 @@ struct memory {
 };
 
 static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
+    if (!userp) {
+        LOG_NET(LOG_ERROR, "write_callback: userp is NULL");
+        return 0;
+    }
+    
     size_t real_size = size * nmemb;
     struct memory *mem = (struct memory *)userp;
 
@@ -89,7 +94,10 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
     if (res != CURLE_OK) {
         LOG_NET(LOG_ERROR, "curl error on %s: %s", method, curl_easy_strerror(res));
         curl_easy_cleanup(curl);
-        if (chunk.data) free(chunk.data);
+        if (chunk.data) {
+            free(chunk.data);
+            chunk.data = NULL;
+        }
         return -1;
     }
 
