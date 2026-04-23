@@ -1,110 +1,118 @@
 /**
  * tg-bot - Telegram bot for system administration
- * telegram.c - Public Telegram API and orchestration
+ * telegram_http.c - Low-level HTTP communication implementation
  * MIT License - Copyright (c) 2026
  */
 
-#include "lifecycle.h"
-#include "telegram.h"
 #include "telegram_http.h"
-#include "telegram_parser.h"
-#include "telegram_poll.h"
-#include "telegram_offset.h"
 #include "logger.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <curl/curl.h>
 
-#define RESP_MAX 32768
+#define URL_MAX 1024
 
-static char g_token[128];
+static char g_base_url[512];
 
-int telegram_init(const char *token) {
+struct memory {
+    char *data;
+    size_t size;
+};
+
+static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
+    size_t real_size = size * nmemb;
+    struct memory *mem = (struct memory *)userp;
+
+    char *ptr = realloc(mem->data, mem->size + real_size + 1);
+    if (!ptr) {
+        LOG_NET(LOG_ERROR, "realloc failed");
+        free(mem->data);
+        mem->data = NULL;
+        mem->size = 0;
+        return 0;
+    }
+
+    mem->data = ptr;
+    memcpy(&(mem->data[mem->size]), contents, real_size);
+    mem->size += real_size;
+    mem->data[mem->size] = '\0';
+    return real_size;
+}
+
+static void setup_curl(CURL *curl) {
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 35L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 30L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 15L);
+}
+
+int telegram_http_init(const char *token) {
     if (!token || strlen(token) == 0) return -1;
-    strncpy(g_token, token, sizeof(g_token) - 1);
-    g_token[sizeof(g_token) - 1] = '\0';
-    
-    if (telegram_http_init(token) != 0) return -1;
-    telegram_parser_init();
-    telegram_offset_init();
-    telegram_poll_init();
-    
-    LOG_NET(LOG_INFO, "Telegram main module initialized");
+    snprintf(g_base_url, sizeof(g_base_url), "https://api.telegram.org/bot%s", token);
+    LOG_NET(LOG_INFO, "Telegram HTTP module initialized");
     return 0;
 }
 
-void telegram_shutdown(void) {
-    telegram_http_shutdown();
+void telegram_http_shutdown(void) {
+    LOG_NET(LOG_INFO, "Telegram HTTP module shutdown");
 }
 
-int telegram_send_message(long chat_id, const char *text) {
-    if (!text) return -1;
+int telegram_http_request(const char *method, const char *post_fields, int need_response,
+                          char **out_data, size_t *out_size) {
+    LOG_NET(LOG_INFO, "telegram_http_request: ENTRY, method=%s", method);
     
-    LOG_NET(LOG_INFO, "telegram_send_message: START");
+    CURL *curl = curl_easy_init();
+    LOG_NET(LOG_INFO, "telegram_http_request: after curl_easy_init, curl=%p", (void*)curl);
     
-    char tmp[RESP_MAX];
-    strncpy(tmp, text, sizeof(tmp) - 1);
-    tmp[sizeof(tmp) - 1] = '\0';
-    LOG_NET(LOG_INFO, "telegram_send_message: after strncpy, len=%zu", strlen(tmp));
-    
-    telegram_truncate_message(tmp);
-    LOG_NET(LOG_INFO, "telegram_send_message: after truncate, len=%zu", strlen(tmp));
-    
-    char escaped[RESP_MAX];
-    telegram_escape_markdown(tmp, escaped, sizeof(escaped));
-    LOG_NET(LOG_INFO, "telegram_send_message: after escape, len=%zu", strlen(escaped));
-    
-    char post_fields[RESP_MAX];
-    snprintf(post_fields, sizeof(post_fields), "chat_id=%ld&text=%s&parse_mode=MarkdownV2", chat_id, escaped);
-    LOG_NET(LOG_INFO, "telegram_send_message: after snprintf, post_fields len=%zu", strlen(post_fields));
-    
-    LOG_NET(LOG_INFO, "telegram_send_message: calling telegram_http_request");
-    int rc = telegram_http_request("sendMessage", post_fields, 0, NULL, NULL);
-    LOG_NET(LOG_INFO, "telegram_send_message: rc=%d", rc);
-    
-    return rc;
-}
-
-int telegram_send_plain(long chat_id, const char *text) {
-    if (!text) return -1;
-    
-    char tmp[RESP_MAX];
-    strncpy(tmp, text, sizeof(tmp) - 1);
-    tmp[sizeof(tmp) - 1] = '\0';
-    telegram_truncate_message(tmp);
-    
-    char post_fields[RESP_MAX];
-    snprintf(post_fields, sizeof(post_fields), "chat_id=%ld&text=%s", chat_id, tmp);
-    
-    return telegram_http_request("sendMessage", post_fields, 0, NULL, NULL);
-}
-
-long telegram_get_last_offset(void) {
-    return telegram_offset_get_last();
-}
-
-int telegram_poll_safe(int max_errors) {
-    static int consecutive_errors = 0;
-    
-    int rc = telegram_poll();
-    if (rc != 0) {
-        if (lifecycle_shutdown_requested()) {
-            return -1;
-        }
-        
-        consecutive_errors++;
-        LOG_NET(LOG_WARN, "Polling error (rc=%d, attempt=%d/%d)", 
-                rc, consecutive_errors, max_errors);
-        
-        if (consecutive_errors >= max_errors) {
-            LOG_SYS(LOG_ERROR, "Too many consecutive polling errors, exiting");
-            return -1;
-        }
-        sleep(5);
-        return 0;
+    if (!curl) {
+        LOG_NET(LOG_ERROR, "curl_easy_init failed");
+        return -1;
     }
+
+    setup_curl(curl);
+
+    char url[URL_MAX];
+    snprintf(url, sizeof(url), "%s/%s", g_base_url, method);
+    LOG_NET(LOG_INFO, "telegram_http_request: url=%.100s", url);
+
+    struct memory chunk;
+    chunk.data = NULL;
+    chunk.size = 0;
     
-    consecutive_errors = 0;
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
+
+    LOG_NET(LOG_DEBUG, "telegram_http_request: calling curl_easy_perform");
+    CURLcode res = curl_easy_perform(curl);
+    LOG_NET(LOG_DEBUG, "telegram_http_request: curl_easy_perform done, res=%d", res);
+    
+    if (res != CURLE_OK) {
+        LOG_NET(LOG_ERROR, "curl error on %s: %s", method, curl_easy_strerror(res));
+        curl_easy_cleanup(curl);
+        if (chunk.data) free(chunk.data);
+        return -1;
+    }
+
+    if (need_response) {
+        *out_data = chunk.data;
+        *out_size = chunk.size;
+        LOG_NET(LOG_DEBUG, "telegram_http_request: returning data, size=%zu", chunk.size);
+    } else {
+        LOG_NET(LOG_DEBUG, "telegram_http_request: discarding data, size=%zu", chunk.size);
+        if (chunk.data) {
+            free(chunk.data);
+            chunk.data = NULL;
+        }
+        *out_data = NULL;
+        *out_size = 0;
+    }
+
+    curl_easy_cleanup(curl);
+    LOG_NET(LOG_DEBUG, "telegram_http_request: success");
     return 0;
 }
