@@ -13,7 +13,6 @@
 #include "logger.h"
 #include "commands.h"
 #include "security.h"
-#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
