@@ -16,6 +16,10 @@
 // Last saved offset (for shutdown logging)
 static long g_last_saved_offset = 0;
 
+void telegram_offset_init(void) {
+    LOG_NET(LOG_INFO, "Telegram offset module initialized");
+}
+
 long telegram_offset_load(void) {
     FILE *f = fopen(OFFSET_FILE, "r");
     if (!f) return 0;
