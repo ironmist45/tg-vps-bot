@@ -166,4 +166,16 @@ int is_safe_ip(const char *ip);
  */
 int validate_command(char *argv[], char *resp, size_t size);
 
+// ============================================================================
+// TIME UTILITIES
+// ============================================================================
+
+/**
+ * Calculate elapsed milliseconds between two timestamps
+ * @param start Start time from clock_gettime(CLOCK_MONOTONIC, ...)
+ * @param end   End time from clock_gettime(CLOCK_MONOTONIC, ...)
+ * @return Elapsed milliseconds
+ */
+long elapsed_ms(struct timespec start, struct timespec end);
+
 #endif // UTILS_H
