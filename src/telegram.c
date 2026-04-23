@@ -16,7 +16,7 @@
 #include <string.h>
 #include <unistd.h>   // для sleep()
 
-#define RESP_MAX 8192
+#define RESP_MAX 32768
 
 static char g_token[128];
 
