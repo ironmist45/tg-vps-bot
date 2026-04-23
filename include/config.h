@@ -67,21 +67,6 @@ int config_load(const char *path, config_t *cfg);
 // UTILITIES
 // ============================================================================
 
-void config_log(const config_t *cfg) {
-    LOG_CFG(LOG_INFO, "===== CONFIG =====");
-    LOG_CFG(LOG_INFO, "CHAT_ID: %ld", cfg->chat_id);
-    LOG_CFG(LOG_INFO, "TOKEN_TTL: %d", cfg->token_ttl);
-    LOG_CFG(LOG_INFO, "POLL_TIMEOUT: %d", cfg->poll_timeout);
-    LOG_CFG(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
-    LOG_CFG(LOG_INFO, "LOG_LEVEL: %s", logger_level_to_string(cfg->log_level));
-}
-
-/**
- * Reload configuration file (for SIGHUP)
- * @param path Path to config file
- * @param cfg Pointer to config structure (updated in-place)
- * @return 0 on success, -1 on error
- */
-int config_reload(const char *path, config_t *cfg);
+void config_log(const config_t *cfg);
 
 #endif // CONFIG_H
