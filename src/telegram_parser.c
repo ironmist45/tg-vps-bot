@@ -4,6 +4,8 @@
  * MIT License - Copyright (c) 2026
  */
 
+#define _GNU_SOURCE
+
 #include "telegram_parser.h"
 #include "logger.h"
 
