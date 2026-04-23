@@ -71,8 +71,13 @@ void telegram_http_shutdown(void) {
 
 int telegram_http_request(const char *method, const char *post_fields, int need_response,
                           char **out_data, size_t *out_size) {
+    LOG_NET(LOG_DEBUG, "telegram_http_request: method=%s", method);
+    
     CURL *curl = curl_easy_init();
-    if (!curl) return -1;
+    if (!curl) {
+        LOG_NET(LOG_ERROR, "curl_easy_init failed");
+        return -1;
+    }
 
     setup_curl(curl);
 
@@ -90,7 +95,9 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback);
     }
 
+    LOG_NET(LOG_DEBUG, "telegram_http_request: calling curl_easy_perform");
     CURLcode res = curl_easy_perform(curl);
+    LOG_NET(LOG_DEBUG, "telegram_http_request: curl_easy_perform done, res=%d", res);
     
     if (res != CURLE_OK) {
         LOG_NET(LOG_ERROR, "curl error on %s: %s", method, curl_easy_strerror(res));
@@ -102,12 +109,12 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
     if (need_response) {
         *out_data = chunk.data;
         *out_size = chunk.size;
-        LOG_NET(LOG_DEBUG, "HTTP response: size=%zu, data=%.100s", chunk.size, chunk.data);
     } else {
         *out_data = NULL;
         *out_size = 0;
     }
 
     curl_easy_cleanup(curl);
+    LOG_NET(LOG_DEBUG, "telegram_http_request: success");
     return 0;
 }
