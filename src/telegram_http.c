@@ -109,7 +109,10 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
     if (need_response) {
         *out_data = chunk.data;
         *out_size = chunk.size;
+        LOG_NET(LOG_DEBUG, "telegram_http_request: returning data, size=%zu", chunk.size);
     } else {
+        LOG_NET(LOG_DEBUG, "telegram_http_request: discarding data, size=%zu", chunk.size);
+        free(chunk.data);
         *out_data = NULL;
         *out_size = 0;
     }
