@@ -22,7 +22,7 @@ CFLAGS := -Wall -Wextra -std=c11 -O2 -I$(INC_DIR) -D_DEFAULT_SOURCE
 LDFLAGS ?=
 
 # 🔥 статические библиотеки (ВАЖНО: порядок!)
-LDLIBS := -lcurl -lssl -lcrypto -lz -lpthread
+# LDLIBS := -lcurl -lssl -lcrypto -lz -lpthread
 
 # ===== Default =====
 
