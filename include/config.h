@@ -63,10 +63,10 @@ typedef struct {
  */
 int config_load(const char *path, config_t *cfg);
 
-// ============================================================================
-// UTILITIES
-// ============================================================================
-
+/**
+ * Log current configuration (for debugging)
+ * @param cfg Pointer to config structure
+ */
 void config_log(const config_t *cfg);
 
 #endif // CONFIG_H
