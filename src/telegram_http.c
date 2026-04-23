@@ -102,15 +102,15 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
     }
 
     if (need_response) {
-        *out_data = chunk.data;
-        *out_size = chunk.size;
+        if (out_data) *out_data = chunk.data;
+        if (out_size) *out_size = chunk.size;
     } else {
         if (chunk.data) {
             free(chunk.data);
             chunk.data = NULL;
         }
-        *out_data = NULL;
-        *out_size = 0;
+        if (out_data) *out_data = NULL;
+        if (out_size) *out_size = 0;
     }
 
     curl_easy_cleanup(curl);
