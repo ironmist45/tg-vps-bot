@@ -62,9 +62,11 @@ void telegram_http_shutdown(void) {
 
 int telegram_http_request(const char *method, const char *post_fields, int need_response,
                           char **out_data, size_t *out_size) {
-    LOG_NET(LOG_DEBUG, "telegram_http_request: method=%s", method);
+    LOG_NET(LOG_INFO, "telegram_http_request: ENTRY, method=%s", method);
     
     CURL *curl = curl_easy_init();
+    LOG_NET(LOG_INFO, "telegram_http_request: after curl_easy_init, curl=%p", (void*)curl);
+    
     if (!curl) {
         LOG_NET(LOG_ERROR, "curl_easy_init failed");
         return -1;
@@ -74,6 +76,7 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
 
     char url[URL_MAX];
     snprintf(url, sizeof(url), "%s/%s", g_base_url, method);
+    LOG_NET(LOG_INFO, "telegram_http_request: url=%.100s", url);
 
     struct memory chunk;
     chunk.data = NULL;
