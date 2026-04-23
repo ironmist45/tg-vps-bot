@@ -294,3 +294,17 @@ void log_msg(log_level_t level, const char *fmt, ...) {
 
     pthread_mutex_unlock(&log_mutex);
 }
+
+// ============================================================================
+// UTILITIES
+// ============================================================================
+
+int logger_reopen(const char *path) {
+    FILE *f = fopen(path, "a");
+    if (!f) return -1;
+    fclose(f);
+
+    fflush(NULL);
+    logger_close();
+    return logger_init(path);
+}
