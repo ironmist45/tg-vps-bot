@@ -139,9 +139,6 @@ int main(int argc, char *argv[]) {
     // ===========================================================
     // 10. ГЛАВНЫЙ ЦИКЛ
     // ===========================================================
-    int consecutive_errors = 0;
-    const int max_consecutive_errors = 5;
-    
     while (1) {
         // -------------------------------------------------------
         // Проверка запроса на shutdown (от сигнала или команды)
@@ -162,25 +159,11 @@ int main(int argc, char *argv[]) {
         // -------------------------------------------------------
         // Polling Telegram API
         // -------------------------------------------------------
-        int poll_rc = telegram_poll();
-        if (poll_rc != 0) {
-            // 🔥 CHECK SHUTDOWN FLAG IMMEDIATELY!
+        if (telegram_poll_safe(5) != 0) {
             if (lifecycle_shutdown_requested()) {
                 lifecycle_handle_shutdown();
-                break;
             }
-            
-            consecutive_errors++;
-            LOG_NET(LOG_WARN, "Polling error (rc=%d, attempt=%d/%d)",
-                    poll_rc, consecutive_errors, max_consecutive_errors);
-
-            if (consecutive_errors >= max_consecutive_errors) {
-                LOG_SYS(LOG_ERROR, "Too many consecutive polling errors, exiting");
-                break;
-            }
-            sleep(5);
-        } else {
-            consecutive_errors = 0;
+            break;
         }
                     
         usleep(200000);  // небольшая пауза между циклами
