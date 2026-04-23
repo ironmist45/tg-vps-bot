@@ -41,16 +41,9 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     return real_size;
 }
 
-static size_t discard_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
-    (void)ptr;
-    (void)userdata;
-    return size * nmemb;
-}
-
 static void setup_curl(CURL *curl) {
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 35L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
-    // curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 30L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 15L);
@@ -90,14 +83,8 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
     
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
-    
-    if (need_response) {
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
-    } else {
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
-    }
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
 
     LOG_NET(LOG_DEBUG, "telegram_http_request: calling curl_easy_perform");
     CURLcode res = curl_easy_perform(curl);
@@ -116,15 +103,11 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
         LOG_NET(LOG_DEBUG, "telegram_http_request: returning data, size=%zu", chunk.size);
     } else {
         LOG_NET(LOG_DEBUG, "telegram_http_request: discarding data, size=%zu", chunk.size);
-        if (chunk.data) {
-            free(chunk.data);
-            LOG_NET(LOG_DEBUG, "telegram_http_request: free done");
-        }
+        if (chunk.data) free(chunk.data);
         *out_data = NULL;
         *out_size = 0;
     }
 
-    LOG_NET(LOG_DEBUG, "telegram_http_request: before curl_easy_cleanup");
     curl_easy_cleanup(curl);
     LOG_NET(LOG_DEBUG, "telegram_http_request: success");
     return 0;
