@@ -203,6 +203,8 @@ int telegram_poll() {
         if (commands_handle(u->text, u->chat_id, u->msg_date, u->user_id, u->username, u->req_id,
                             response, sizeof(response), &resp_type) == 0) {
 
+            LOG_NET(LOG_DEBUG, "req=%04x sending response...", u->req_id);
+
             // Отправка ответа пользователю
             if (strncmp(u->text, "/logs", 5) == 0 || strncmp(u->text, "/fail2ban", 9) == 0) {
                 telegram_send_plain(u->chat_id, response);
