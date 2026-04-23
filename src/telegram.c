@@ -40,6 +40,8 @@ void telegram_shutdown(void) {
 
 int telegram_send_message(long chat_id, const char *text) {
     if (!text) return -1;
+
+    LOG_NET(LOG_DEBUG, "telegram_send_message: chat_id=%ld, text=%.50s", chat_id, text);
     
     char tmp[RESP_MAX];
     strncpy(tmp, text, sizeof(tmp) - 1);
@@ -51,7 +53,11 @@ int telegram_send_message(long chat_id, const char *text) {
     char post_fields[RESP_MAX];
     snprintf(post_fields, sizeof(post_fields), "chat_id=%ld&text=%s&parse_mode=MarkdownV2", chat_id, escaped);
     
-    return telegram_http_request("sendMessage", post_fields, 0, NULL, NULL);
+    LOG_NET(LOG_DEBUG, "telegram_send_message: calling telegram_http_request");
+    int rc = telegram_http_request("sendMessage", post_fields, 0, NULL, NULL);
+    LOG_NET(LOG_DEBUG, "telegram_send_message: rc=%d", rc);
+    
+    return rc;
 }
 
 int telegram_send_plain(long chat_id, const char *text) {
