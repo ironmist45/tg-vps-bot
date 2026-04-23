@@ -122,6 +122,8 @@ int telegram_poll() {
                         if (data_len > 0 && data_len < RESP_MAX) {
                             size_t bytes_read = fread(chunk_data, 1, data_len, pipe_read);
                             chunk_data[bytes_read] = '\0';  // ← ДОБАВИТЬ
+                            LOG_NET(LOG_DEBUG, "poll=%04x raw data (first 100 chars): %.100s",
+                                    poll_id, chunk_data);
                         }
                     }
                     fclose(pipe_read);
