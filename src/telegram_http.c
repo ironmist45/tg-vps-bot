@@ -112,11 +112,15 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
         LOG_NET(LOG_DEBUG, "telegram_http_request: returning data, size=%zu", chunk.size);
     } else {
         LOG_NET(LOG_DEBUG, "telegram_http_request: discarding data, size=%zu", chunk.size);
-        free(chunk.data);
-        *out_data = NULL;
-        *out_size = 0;
+        if (chunk.data) {
+            free(chunk.data);
+            LOG_NET(LOG_DEBUG, "telegram_http_request: free done");
+        }
+            *out_data = NULL;
+            *out_size = 0;
     }
 
+    LOG_NET(LOG_DEBUG, "telegram_http_request: before curl_easy_cleanup");
     curl_easy_cleanup(curl);
     LOG_NET(LOG_DEBUG, "telegram_http_request: success");
     return 0;
