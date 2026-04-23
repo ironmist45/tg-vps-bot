@@ -9,6 +9,7 @@
 #include "telegram_http.h"
 #include "telegram_parser.h"
 #include "telegram_offset.h"
+#include "lifecycle.h"
 #include "logger.h"
 #include "commands.h"
 #include "security.h"
@@ -23,10 +24,6 @@
 #include <errno.h>
 #include <time.h>
 #include <curl/curl.h>
-
-// External flags from lifecycle.c
-extern volatile sig_atomic_t g_shutdown_requested;
-extern volatile sig_atomic_t g_signal_received;
 
 #define URL_MAX   1024
 #define RESP_MAX  8192
