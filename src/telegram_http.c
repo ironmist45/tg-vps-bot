@@ -59,7 +59,7 @@ static void setup_curl(CURL *curl) {
 int telegram_http_init(const char *token) {
     if (!token || strlen(token) == 0) return -1;
     snprintf(g_base_url, sizeof(g_base_url), "https://api.telegram.org/bot%s", token);
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl_global_init(CURL_GLOBAL_ALL);
     LOG_NET(LOG_INFO, "Telegram HTTP module initialized");
     return 0;
 }
