@@ -51,6 +51,7 @@ int telegram_poll() {
 
     if (last_update_id == -1) {
         last_update_id = telegram_offset_load();
+        telegram_offset_save(last_update_id);
         LOG_NET(LOG_INFO, "Starting poll from offset: %ld", last_update_id);
     }
 
