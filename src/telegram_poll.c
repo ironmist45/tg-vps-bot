@@ -34,6 +34,10 @@ static int g_offset_counter = 0;
 static unsigned short g_poll_cycle = 0;
 static unsigned short g_current_poll_id = 0;
 
+void telegram_poll_init(void) {
+    LOG_NET(LOG_INFO, "Telegram poll module initialized");
+}
+
 unsigned short telegram_get_poll_id(void) {
     return g_current_poll_id;
 }
