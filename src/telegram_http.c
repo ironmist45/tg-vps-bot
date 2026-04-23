@@ -84,7 +84,10 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
     char url[URL_MAX];
     snprintf(url, sizeof(url), "%s/%s", g_base_url, method);
 
-    struct memory chunk = {0};
+    struct memory chunk;
+    chunk.data = NULL;
+    chunk.size = 0;
+    
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
     
@@ -93,6 +96,7 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
     } else {
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
     }
 
     LOG_NET(LOG_DEBUG, "telegram_http_request: calling curl_easy_perform");
@@ -102,7 +106,7 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
     if (res != CURLE_OK) {
         LOG_NET(LOG_ERROR, "curl error on %s: %s", method, curl_easy_strerror(res));
         curl_easy_cleanup(curl);
-        free(chunk.data);
+        if (chunk.data) free(chunk.data);
         return -1;
     }
 
@@ -116,8 +120,8 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
             free(chunk.data);
             LOG_NET(LOG_DEBUG, "telegram_http_request: free done");
         }
-            *out_data = NULL;
-            *out_size = 0;
+        *out_data = NULL;
+        *out_size = 0;
     }
 
     LOG_NET(LOG_DEBUG, "telegram_http_request: before curl_easy_cleanup");
