@@ -8,6 +8,11 @@
 #define TELEGRAM_POLL_H
 
 /**
+ * Initialize poll module
+ */
+void telegram_poll_init(void);
+
+/**
  * Poll Telegram API for new messages (non-blocking with shutdown check)
  * @return 0 on success, -1 on error or aborted by shutdown
  */
