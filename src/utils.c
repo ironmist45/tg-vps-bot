@@ -393,3 +393,18 @@ int validate_command(char *argv[], char *resp, size_t size) {
     }
     return 0;
 }
+
+// ============================================================================
+// TIME UTILITIES
+// ============================================================================
+
+/**
+ * Calculate elapsed milliseconds between two timestamps
+ * @param start Start time from clock_gettime(CLOCK_MONOTONIC, ...)
+ * @param end   End time from clock_gettime(CLOCK_MONOTONIC, ...)
+ * @return Elapsed milliseconds
+ */
+long elapsed_ms(struct timespec start, struct timespec end) {
+    return (end.tv_sec - start.tv_sec) * 1000 +
+           (end.tv_nsec - start.tv_nsec) / 1000000;
+}
