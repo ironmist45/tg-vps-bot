@@ -52,6 +52,7 @@ int telegram_send_message(long chat_id, const char *text) {
     
     char post_fields[RESP_MAX];
     snprintf(post_fields, sizeof(post_fields), "chat_id=%ld&text=%s&parse_mode=MarkdownV2", chat_id, escaped);
+    LOG_NET(LOG_INFO, "telegram_send_message: post_fields len=%zu", strlen(post_fields));
     
     LOG_NET(LOG_DEBUG, "telegram_send_message: calling telegram_http_request");
     int rc = telegram_http_request("sendMessage", post_fields, 0, NULL, NULL);
