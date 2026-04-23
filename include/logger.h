@@ -211,4 +211,15 @@ void log_msg(log_level_t level, const char *fmt, ...);
 #define LOG_SYS_CTX(ctx, level, fmt, ...) \
     LOG_CTX(LOG_SYS, ctx, level, fmt, ##__VA_ARGS__)
 
+// ============================================================================
+// UTILITIES
+// ============================================================================
+
+/**
+ * Reopen log file (e.g., after rotation or config change)
+ * @param path Path to new log file
+ * @return 0 on success, -1 on error
+ */
+int logger_reopen(const char *path);
+
 #endif // LOGGER_H
