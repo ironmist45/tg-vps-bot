@@ -47,6 +47,7 @@
 #include <sys/reboot.h>
 #include <time.h>
 #include <stdlib.h>   // ← используется для getenv()
+#include "utils.h"
 
 // ===== Глобальные переменные =====
 time_t g_start_time;
