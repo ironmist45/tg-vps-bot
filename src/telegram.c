@@ -13,7 +13,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <curl/curl.h>
 
 #define RESP_MAX 8192
 
@@ -58,3 +57,9 @@ int telegram_send_plain(long chat_id, const char *text) {
     
     return telegram_http_request("sendMessage", post_fields, 0, NULL, NULL);
 }
+
+// Эти функции просто проксируют вызовы в соответствующие модули
+long telegram_get_last_offset(void) {
+    return telegram_offset_get_last();
+}
+// telegram_get_poll_id() уже реализована в telegram_poll.c
