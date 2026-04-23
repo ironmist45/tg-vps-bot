@@ -16,9 +16,6 @@
 
 static char g_base_url[512];
 
-// Глобальный curl handle для отправки сообщений (переиспользуется)
-static CURL *g_send_curl = NULL;
-
 struct memory {
     char *data;
     size_t size;
@@ -57,39 +54,24 @@ int telegram_http_init(const char *token) {
     if (!token || strlen(token) == 0) return -1;
     snprintf(g_base_url, sizeof(g_base_url), "https://api.telegram.org/bot%s", token);
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    
-    // Создаём глобальный curl handle для отправки сообщений
-    g_send_curl = curl_easy_init();
-    if (g_send_curl) {
-        setup_curl(g_send_curl);
-    }
-    
     LOG_NET(LOG_INFO, "Telegram HTTP module initialized");
     return 0;
 }
 
 void telegram_http_shutdown(void) {
-    if (g_send_curl) {
-        curl_easy_cleanup(g_send_curl);
-        g_send_curl = NULL;
-    }
     curl_global_cleanup();
     LOG_NET(LOG_INFO, "Telegram HTTP module shutdown");
 }
 
 int telegram_http_request(const char *method, const char *post_fields, int need_response,
                           char **out_data, size_t *out_size) {
-    CURL *curl;
-    
-    // Для sendMessage используем глобальный handle, для getUpdates — новый
-    if (strcmp(method, "sendMessage") == 0) {
-        curl = g_send_curl;
-        if (!curl) return -1;
-    } else {
-        curl = curl_easy_init();
-        if (!curl) return -1;
-        setup_curl(curl);
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        LOG_NET(LOG_ERROR, "curl_easy_init failed for %s", method);
+        return -1;
     }
+    
+    setup_curl(curl);
 
     char url[URL_MAX];
     snprintf(url, sizeof(url), "%s/%s", g_base_url, method);
@@ -98,8 +80,6 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
     
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
-    
-    // ВСЕГДА используем write_callback
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
 
@@ -107,9 +87,7 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
     
     if (res != CURLE_OK) {
         LOG_NET(LOG_ERROR, "curl error on %s: %s", method, curl_easy_strerror(res));
-        if (strcmp(method, "sendMessage") != 0) {
-            curl_easy_cleanup(curl);
-        }
+        curl_easy_cleanup(curl);
         if (chunk.data) free(chunk.data);
         return -1;
     }
@@ -118,7 +96,6 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
         *out_data = chunk.data;
         *out_size = chunk.size;
     } else {
-        // Всегда освобождаем, если ответ не нужен
         if (chunk.data) {
             free(chunk.data);
             chunk.data = NULL;
@@ -127,8 +104,6 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
         *out_size = 0;
     }
 
-    if (strcmp(method, "sendMessage") != 0) {
-        curl_easy_cleanup(curl);
-    }
+    curl_easy_cleanup(curl);
     return 0;
 }
