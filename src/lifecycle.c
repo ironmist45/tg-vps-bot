@@ -204,8 +204,7 @@ void lifecycle_handle_shutdown(void) {
         graceful_shutdown();
 
         clock_gettime(CLOCK_MONOTONIC, &end);
-        long ms = (end.tv_sec - start.tv_sec) * 1000 +
-                  (end.tv_nsec - start.tv_nsec) / 1000000;
+        long ms = elapsed_ms(start, end);
 
         LOG_SYS(LOG_INFO, "Reboot took %ld ms", ms);
         LOG_SYS(LOG_WARN, "Rebooting via reboot(RB_AUTOBOOT)...");
@@ -244,8 +243,7 @@ void lifecycle_handle_shutdown(void) {
         graceful_shutdown();
 
         clock_gettime(CLOCK_MONOTONIC, &end);
-        long ms = (end.tv_sec - start.tv_sec) * 1000 +
-                  (end.tv_nsec - start.tv_nsec) / 1000000;
+        long ms = elapsed_ms(start, end);
 
         LOG_SYS(LOG_INFO, "Restart took %ld ms", ms);
         
@@ -269,8 +267,7 @@ void lifecycle_handle_shutdown(void) {
     graceful_shutdown();
     
     clock_gettime(CLOCK_MONOTONIC, &end);
-    long ms = (end.tv_sec - start.tv_sec) * 1000 +
-              (end.tv_nsec - start.tv_nsec) / 1000000;
+    long ms = elapsed_ms(start, end);
 
     LOG_SYS(LOG_INFO, "Shutdown took %ld ms", ms);
     LOG_SYS(LOG_INFO, "Bot stopped by signal");
