@@ -59,13 +59,13 @@ static void setup_curl(CURL *curl) {
 int telegram_http_init(const char *token) {
     if (!token || strlen(token) == 0) return -1;
     snprintf(g_base_url, sizeof(g_base_url), "https://api.telegram.org/bot%s", token);
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    // curl_global_init УБРАН — вызывается в telegram.c
     LOG_NET(LOG_INFO, "Telegram HTTP module initialized");
     return 0;
 }
 
 void telegram_http_shutdown(void) {
-    curl_global_cleanup();
+    // curl_global_cleanup УБРАН — вызывается в telegram.c
     LOG_NET(LOG_INFO, "Telegram HTTP module shutdown");
 }
 
@@ -106,7 +106,6 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
     } else {
         *out_data = NULL;
         *out_size = 0;
-        // ВАЖНО: не трогаем chunk.data, он NULL
     }
 
     curl_easy_cleanup(curl);
