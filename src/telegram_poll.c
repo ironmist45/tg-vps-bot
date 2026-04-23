@@ -218,7 +218,7 @@ int telegram_poll() {
     }
     
     for (int i = 0; i < count; i++) {
-        free((void*)updates[i].text);
+        if (updates[i].text) free((void*)updates[i].text);
         if (updates[i].username) free((void*)updates[i].username);
     }
     free(updates);
