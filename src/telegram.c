@@ -27,6 +27,20 @@ int telegram_init(const char *token) {
     return telegram_http_init(token);
 }
 
+int telegram_init(const char *token) {
+    if (!token || strlen(token) == 0) return -1;
+    strncpy(g_token, token, sizeof(g_token) - 1);
+    g_token[sizeof(g_token) - 1] = '\0';
+    
+    if (telegram_http_init(token) != 0) return -1;
+    telegram_parser_init();
+    telegram_offset_init();
+    telegram_poll_init();
+    
+    LOG_NET(LOG_INFO, "Telegram main module initialized");
+    return 0;
+}
+
 void telegram_shutdown(void) {
     telegram_http_shutdown();
 }
