@@ -69,4 +69,12 @@ int config_load(const char *path, config_t *cfg);
  */
 void config_log(const config_t *cfg);
 
+/**
+ * Reload configuration file (for SIGHUP)
+ * @param path Path to config file
+ * @param cfg Pointer to config structure (updated in-place)
+ * @return 0 on success, -1 on error
+ */
+int config_reload(const char *path, config_t *cfg);
+
 #endif // CONFIG_H
