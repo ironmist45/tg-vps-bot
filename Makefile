@@ -17,7 +17,7 @@ OBJS := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # ===== Flags =====
 
-CFLAGS := -Wall -Wextra -std=c11 -O2 -I$(INC_DIR) -D_DEFAULT_SOURCE
+CFLAGS := -Wall -Wextra -std=c11 -g -I$(INC_DIR) -D_DEFAULT_SOURCE
 
 LDFLAGS ?=
 
