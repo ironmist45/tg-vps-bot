@@ -29,7 +29,6 @@ jobs:
             
             apt-get update -qq || (sleep 2 && apt-get update -qq)
 
-            # 👇 Убираем libcurl4-gnutls-dev, он нам больше не нужен
             apt-get install -y --no-install-recommends --fix-missing \
               build-essential \
               ca-certificates \
@@ -42,11 +41,11 @@ jobs:
 
             update-ca-certificates
 
-            # ===== build static curl 8.7.1 =====
+            # ===== build static curl 7.84.0 =====
             cd /tmp
-            wget https://curl.se/download/curl-8.7.1.tar.xz
-            tar -xf curl-8.7.1.tar.xz
-            cd curl-8.7.1
+            wget https://curl.se/download/curl-7.84.0.tar.xz
+            tar -xf curl-7.84.0.tar.xz
+            cd curl-7.84.0
             
             ./configure \
               --disable-shared \
@@ -107,7 +106,6 @@ jobs:
             export DEBIAN_FRONTEND=noninteractive
 
             apt-get update -qq
-            # 👇 libcurl больше не нужен в рантайме, он внутри бинарника
             apt-get install -y libssl1.1 zlib1g
 
             echo '=== ldd ==='
