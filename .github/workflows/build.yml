@@ -32,13 +32,29 @@ jobs:
             apt-get install -y --no-install-recommends --fix-missing \
               build-essential \
               ca-certificates \
-              libcurl4-gnutls-dev \
               libssl-dev \
               zlib1g-dev \
               git \
-              cmake
+              cmake \
+              wget \
+              xz-utils
 
             update-ca-certificates
+
+            # ===== build static curl 8.7.1 =====
+            cd /tmp
+            wget https://curl.se/download/curl-8.7.1.tar.xz
+            tar -xf curl-8.7.1.tar.xz
+            cd curl-8.7.1
+            
+            ./configure \
+              --disable-shared \
+              --enable-static \
+              --with-openssl \
+              --prefix=/usr/local/curl-static
+            
+            make -j$(nproc)
+            make install
 
             # ===== build cJSON (STATIC) =====
             cd /tmp
@@ -57,9 +73,9 @@ jobs:
             # ===== build tg-bot =====
             cd /app
 
-            # 👇 cjson статически, curl динамически
-            make LDFLAGS='-Wl,-Bstatic -lcjson -Wl,-Bdynamic -lcurl -lssl -lcrypto -lz -lpthread' \
-                 CFLAGS='-Iinclude'
+            # 👇 Статическая линковка curl и cjson
+            make LDFLAGS='-L/usr/local/curl-static/lib -Wl,-Bstatic -lcjson -lcurl -Wl,-Bdynamic -lssl -lcrypto -lz -lpthread' \
+                 CFLAGS='-Iinclude -I/usr/local/curl-static/include'
 
             chmod +x tg-bot || true
 
@@ -90,7 +106,8 @@ jobs:
             export DEBIAN_FRONTEND=noninteractive
 
             apt-get update -qq
-            apt-get install -y libcurl3-gnutls libssl1.1 zlib1g
+            # 👇 libcurl не нужен — он внутри бинарника
+            apt-get install -y libssl1.1 zlib1g
 
             echo '=== ldd ==='
             ldd ./tg-bot
