@@ -13,6 +13,7 @@
 #include "logger.h"
 #include "commands.h"
 #include "security.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -196,7 +197,7 @@ int telegram_poll() {
                             response, sizeof(response), &resp_type) == 0) {
             
             clock_gettime(CLOCK_MONOTONIC, &req_end);
-            long req_ms = (req_end.tv_sec - req_start.tv_sec) * 1000 + (req_end.tv_nsec - req_start.tv_nsec) / 1000000;
+            long req_ms = elapsed_ms(req_start, req_end);
             LOG_NET(LOG_INFO, "poll=%04x req=%04x done: %ld ms (resp=%zu)",
                     g_current_poll_id, u->req_id, req_ms, strlen(response));
         }
