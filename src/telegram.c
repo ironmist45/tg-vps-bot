@@ -80,6 +80,7 @@ int telegram_poll_safe(int max_errors) {
     static int consecutive_errors = 0;
     
     int rc = telegram_poll();
+    LOG_NET(LOG_DEBUG, "telegram_poll_safe: rc=%d", rc);
     if (rc != 0) {
         if (lifecycle_shutdown_requested()) {
             return -1;
