@@ -10,6 +10,7 @@
 #include "security.h"
 #include <stdio.h>
 #include <stddef.h>
+#include <time.h>   // для struct timespec
 
 // ============================================================================
 // CONSTANTS
