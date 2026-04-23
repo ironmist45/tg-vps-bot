@@ -210,8 +210,7 @@ int cmd_ping_v2(command_ctx_t *ctx)
     // Calculate processing time
     // ------------------------------------------------------------------------
     clock_gettime(CLOCK_MONOTONIC, &end);
-    long processing_ms = (end.tv_sec - start.tv_sec) * 1000 +
-                         (end.tv_nsec - start.tv_nsec) / 1000000;
+    long processing_ms = elapsed_ms(start, end);
 
     // ------------------------------------------------------------------------
     // Estimate round-trip time
