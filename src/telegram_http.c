@@ -102,6 +102,7 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
     if (need_response) {
         *out_data = chunk.data;
         *out_size = chunk.size;
+        LOG_NET(LOG_DEBUG, "HTTP response: size=%zu, data=%.100s", chunk.size, chunk.data);
     } else {
         *out_data = NULL;
         *out_size = 0;
