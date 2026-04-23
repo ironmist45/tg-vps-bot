@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
     LOG_SYS(LOG_INFO, "Logger level applied: %s", 
             logger_level_to_string(cfg.log_level));
     
-    log_config(&cfg);
+    config_log(&cfg);
 
     // -----------------------------------------------------------
     // 8. Инициализация модулей безопасности
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
                 security_set_token_ttl(new_cfg.token_ttl);
 
                 cfg = new_cfg;
-                log_config(&cfg);
+                config_log(&cfg);
             }
 
             lifecycle_clear_reload();
@@ -230,18 +230,4 @@ static int try_reopen_logger(const char *path) {
     logger_close();
     
     return logger_init(path);
-}
-
-/**
- * Логирование текущей конфигурации (для отладки)
- * 
- * @param cfg  указатель на структуру конфигурации
- */
-static void log_config(const config_t *cfg) {
-    LOG_CFG(LOG_INFO, "===== CONFIG =====");
-    LOG_CFG(LOG_INFO, "CHAT_ID: %ld", cfg->chat_id);
-    LOG_CFG(LOG_INFO, "TOKEN_TTL: %d", cfg->token_ttl);
-    LOG_CFG(LOG_INFO, "POLL_TIMEOUT: %d", cfg->poll_timeout);
-    LOG_CFG(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
-    LOG_CFG(LOG_INFO, "LOG_LEVEL: %s", logger_level_to_string(cfg->log_level));
 }
