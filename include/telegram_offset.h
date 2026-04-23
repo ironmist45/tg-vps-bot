@@ -8,6 +8,11 @@
 #define TELEGRAM_OFFSET_H
 
 /**
+ * Initialize offset module
+ */
+void telegram_offset_init(void);
+
+/**
  * Load last processed update_id from disk
  * @return Last processed update_id, or 0 if no saved state
  */
