@@ -122,7 +122,7 @@ int telegram_poll() {
                     if (fscanf(pipe_read, "%d\n%zu\n", &http_rc, &data_len) == 2) {
                         if (data_len > 0 && data_len < RESP_MAX) {
                             size_t bytes_read = fread(chunk_data, 1, data_len, pipe_read);
-                            chunk_data[bytes_read] = '\0';  // ← ДОБАВИТЬ
+                            chunk_data[bytes_read] = '\0';
                             LOG_NET(LOG_DEBUG, "poll=%04x raw data (first 100 chars): %.100s",
                                     poll_id, chunk_data);
                         }
@@ -214,7 +214,9 @@ int telegram_poll() {
             }
             
             clock_gettime(CLOCK_MONOTONIC, &req_end);
-            long req_ms = elapsed_ms(req_start, req_end);
+            // INLINE вычисление вместо elapsed_ms()
+            long req_ms = (req_end.tv_sec - req_start.tv_sec) * 1000 +
+                          (req_end.tv_nsec - req_start.tv_nsec) / 1000000;
             LOG_NET(LOG_INFO, "poll=%04x req=%04x done: %ld ms (resp=%zu)",
                     g_current_poll_id, u->req_id, req_ms, strlen(response));
         }
