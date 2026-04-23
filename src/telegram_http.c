@@ -41,9 +41,16 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     return real_size;
 }
 
+static size_t discard_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
+    (void)ptr;
+    (void)userdata;
+    return size * nmemb;
+}
+
 static void setup_curl(CURL *curl) {
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 35L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 30L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 15L);
@@ -52,38 +59,39 @@ static void setup_curl(CURL *curl) {
 int telegram_http_init(const char *token) {
     if (!token || strlen(token) == 0) return -1;
     snprintf(g_base_url, sizeof(g_base_url), "https://api.telegram.org/bot%s", token);
+    curl_global_init(CURL_GLOBAL_DEFAULT);
     LOG_NET(LOG_INFO, "Telegram HTTP module initialized");
     return 0;
 }
 
 void telegram_http_shutdown(void) {
+    curl_global_cleanup();
     LOG_NET(LOG_INFO, "Telegram HTTP module shutdown");
 }
 
 int telegram_http_request(const char *method, const char *post_fields, int need_response,
                           char **out_data, size_t *out_size) {
-    LOG_NET(LOG_INFO, "telegram_http_request: ENTRY, method=%s", method);
-    
     CURL *curl = curl_easy_init();
-    if (!curl) {
-        LOG_NET(LOG_ERROR, "curl_easy_init failed");
-        return -1;
-    }
-    
+    if (!curl) return -1;
+
     setup_curl(curl);
-    
+
     char url[URL_MAX];
     snprintf(url, sizeof(url), "%s/%s", g_base_url, method);
-    LOG_NET(LOG_INFO, "telegram_http_request: url=%.100s", url);
-    
+
     struct memory chunk = {0};
+    
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
     
+    if (need_response) {
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
+    } else {
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback);
+    }
+
     CURLcode res = curl_easy_perform(curl);
-    LOG_NET(LOG_INFO, "telegram_http_request: curl_easy_perform done, res=%d", res);
     
     if (res != CURLE_OK) {
         LOG_NET(LOG_ERROR, "curl error on %s: %s", method, curl_easy_strerror(res));
@@ -91,22 +99,16 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
         if (chunk.data) free(chunk.data);
         return -1;
     }
-    
+
     if (need_response) {
         *out_data = chunk.data;
         *out_size = chunk.size;
-        LOG_NET(LOG_DEBUG, "telegram_http_request: returning data, size=%zu", chunk.size);
     } else {
-        LOG_NET(LOG_DEBUG, "telegram_http_request: discarding data, size=%zu", chunk.size);
-        if (chunk.data) {
-            free(chunk.data);
-            chunk.data = NULL;
-        }
         *out_data = NULL;
         *out_size = 0;
+        // ВАЖНО: не трогаем chunk.data, он NULL
     }
-    
+
     curl_easy_cleanup(curl);
-    LOG_NET(LOG_INFO, "telegram_http_request: success");
     return 0;
 }
