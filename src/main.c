@@ -160,6 +160,7 @@ int main(int argc, char *argv[]) {
         // Polling Telegram API
         // -------------------------------------------------------
         if (telegram_poll_safe(5) != 0) {
+            LOG_SYS(LOG_ERROR, "telegram_poll_safe failed, exiting main loop");
             if (lifecycle_shutdown_requested()) {
                 lifecycle_handle_shutdown();
             }
