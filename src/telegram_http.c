@@ -44,12 +44,6 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     return real_size;
 }
 
-static size_t discard_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
-    (void)ptr;
-    (void)userdata;
-    return size * nmemb;
-}
-
 static void setup_curl(CURL *curl) {
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 35L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
@@ -105,12 +99,9 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_fields);
     
-    if (need_response) {
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
-    } else {
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback);
-    }
+    // ВСЕГДА используем write_callback
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
 
     CURLcode res = curl_easy_perform(curl);
     
@@ -127,6 +118,11 @@ int telegram_http_request(const char *method, const char *post_fields, int need_
         *out_data = chunk.data;
         *out_size = chunk.size;
     } else {
+        // Всегда освобождаем, если ответ не нужен
+        if (chunk.data) {
+            free(chunk.data);
+            chunk.data = NULL;
+        }
         *out_data = NULL;
         *out_size = 0;
     }
