@@ -76,4 +76,12 @@ void config_log(const config_t *cfg) {
     LOG_CFG(LOG_INFO, "LOG_LEVEL: %s", logger_level_to_string(cfg->log_level));
 }
 
+/**
+ * Reload configuration file (for SIGHUP)
+ * @param path Path to config file
+ * @param cfg Pointer to config structure (updated in-place)
+ * @return 0 on success, -1 on error
+ */
+int config_reload(const char *path, config_t *cfg);
+
 #endif // CONFIG_H
