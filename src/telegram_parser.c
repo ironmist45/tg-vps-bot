@@ -24,6 +24,10 @@ static unsigned short make_req_id(long update_uid) {
     return (unsigned short)(x & 0xFFFF);
 }
 
+void telegram_parser_init(void) {
+    LOG_NET(LOG_INFO, "Telegram parser module initialized");
+}
+
 int telegram_parse_updates(const char *raw_data, size_t data_size, unsigned short poll_id,
                            telegram_update_t **updates, int *count) {
     *updates = NULL;
