@@ -83,6 +83,13 @@ int telegram_send_plain(long chat_id, const char *text);
  */
 int telegram_poll(void);
 
+/**
+ * Poll Telegram API with automatic error handling and retry limit
+ * @param max_errors Maximum consecutive errors before giving up
+ * @return 0 on success, -1 if max errors reached or shutdown requested
+ */
+int telegram_poll_safe(int max_errors);
+
 // ============================================================================
 // UTILITIES
 // ============================================================================
