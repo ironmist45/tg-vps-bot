@@ -120,7 +120,8 @@ int telegram_poll() {
                     size_t data_len;
                     if (fscanf(pipe_read, "%d\n%zu\n", &http_rc, &data_len) == 2) {
                         if (data_len > 0 && data_len < RESP_MAX) {
-                            fread(chunk_data, 1, data_len, pipe_read);
+                            size_t bytes_read = fread(chunk_data, 1, data_len, pipe_read);
+                            chunk_data[bytes_read] = '\0';  // ← ДОБАВИТЬ
                         }
                     }
                     fclose(pipe_read);
