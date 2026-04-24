@@ -175,7 +175,7 @@ int users_get_logged(char *buffer, size_t size, unsigned short req_id) {
 
     // Handle case when no active sessions found
     if (count == 0) {
-        LOG_CMD(LOG_INFO, "req=%04x no active user sessions", req_id");
+        LOG_CMD(LOG_INFO, "req=%04x no active user sessions", req_id);
         safe_append(buffer, size, "No active sessions\n");
     }
 
