@@ -91,9 +91,10 @@ static void safe_append(char *dst, size_t size, const char *src) {
  * 
  * @param buffer  Output buffer for formatted session list
  * @param size    Size of output buffer
+ * @param req_id  16-bit request identifier for log correlation
  * @return        Number of active sessions, or -1 on error
  */
-int users_get_logged(char *buffer, size_t size) {
+int users_get_logged(char *buffer, size_t size, unsigned short req_id) {
 
     LOG_CMD(LOG_DEBUG, "users_get_logged()");
 
@@ -174,8 +175,8 @@ int users_get_logged(char *buffer, size_t size) {
 
     // Handle case when no active sessions found
     if (count == 0) {
-        LOG_CMD(LOG_INFO, "no active user sessions");
-        safe_append(buffer, size, "_No active sessions_\n");
+        LOG_CMD(LOG_INFO, "req=%04x no active user sessions", req_id");
+        safe_append(buffer, size, "No active sessions\n");
     }
 
     LOG_CMD(LOG_DEBUG, "users_get_logged(): count=%d", count);
@@ -194,6 +195,7 @@ int users_get_logged(char *buffer, size_t size) {
  * 
  * @param buffer  Output buffer for complete response
  * @param size    Size of output buffer
+ * @param req_id  16-bit request identifier for log correlation
  * @return        0 on success, -1 on error
  */
 int users_get(char *buffer, size_t size, unsigned short req_id) {
@@ -202,12 +204,12 @@ int users_get(char *buffer, size_t size, unsigned short req_id) {
     char tmp[4096] = {0};
 
     // Get raw session list
-    int count = users_get_logged(tmp, sizeof(tmp));
+    int count = users_get_logged(tmp, sizeof(tmp), req_id);
 
     if (count < 0) {
         LOG_CMD(LOG_ERROR,
             "req=%04x users_get_logged failed (count=%d)",
-            count);
+            req_id, count);
 
         snprintf(buffer, size, "❌ Failed to get users");
         return -1;
@@ -223,7 +225,7 @@ int users_get(char *buffer, size_t size, unsigned short req_id) {
     if (written < 0 || (size_t)written >= size) {
         LOG_CMD(LOG_WARN,
             "req=%04x users response truncated (written=%d size=%zu)",
-            written, size);
+            req_id, written, size);
     }
 
     LOG_CMD(LOG_INFO,
