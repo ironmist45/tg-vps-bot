@@ -27,9 +27,10 @@
  * 
  * @param buffer  Output buffer for formatted session list
  * @param size    Size of output buffer
+ * @param req_id  16-bit request identifier for log correlation
  * @return        Number of active sessions, or -1 on error
  */
-int users_get_logged(char *buffer, size_t size);
+int users_get_logged(char *buffer, size_t size, unsigned short req_id);
 
 // ============================================================================
 // HIGH-LEVEL API
