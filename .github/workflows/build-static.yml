@@ -47,10 +47,14 @@ jobs:
             tar -xzf openssl-3.0.15.tar.gz
             cd openssl-3.0.15
             
-            ./Configure linux-x86_64 no-shared --prefix=/usr/local/openssl-static
+            ./Configure linux-x86_64 no-shared \
+              --prefix=/usr/local/openssl-static \
+              --openssldir=/usr/local/openssl-static/ssl
             
             make -j$(nproc)
             make install
+            
+            export PKG_CONFIG_PATH=/usr/local/openssl-static/lib64/pkgconfig:$PKG_CONFIG_PATH
 
             # ===== build static curl 8.7.1 (linked with new openssl) =====
             cd /tmp
