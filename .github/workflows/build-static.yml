@@ -53,8 +53,6 @@ jobs:
             
             make -j$(nproc)
             make install
-            
-            export PKG_CONFIG_PATH=/usr/local/openssl-static/lib64/pkgconfig:$PKG_CONFIG_PATH
 
             # ===== build static curl 8.7.1 (linked with new openssl) =====
             cd /tmp
@@ -62,11 +60,17 @@ jobs:
             tar -xf curl-8.7.1.tar.xz
             cd curl-8.7.1
             
+            export PKG_CONFIG_PATH=/usr/local/openssl-static/lib64/pkgconfig:$PKG_CONFIG_PATH
+            
             ./configure \
               --disable-shared \
               --enable-static \
               --with-openssl=/usr/local/openssl-static \
-              --prefix=/usr/local/curl-static
+              --with-ca-path=/etc/ssl/certs \
+              --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt \
+              --prefix=/usr/local/curl-static \
+              LDFLAGS='-L/usr/local/openssl-static/lib64' \
+              CPPFLAGS='-I/usr/local/openssl-static/include'
             
             make -j$(nproc)
             make install
