@@ -174,7 +174,7 @@ int cmd_about_v2(command_ctx_t *ctx)
         "Uptime: %dd %dh %dm\n"
         "Commit: %s\n"
         "Built: %s\n"
-        "libcurl: %s\n"
+        "libcurl: %.10s\n"
         "OpenSSL: %s\n"
         "cJSON: %d.%d.%d",
         APP_NAME, APP_VERSION, APP_CODENAME,
