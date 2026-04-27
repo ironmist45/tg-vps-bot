@@ -223,11 +223,12 @@ Modular C design:
 
 * **OS:** Ubuntu 18.04.6
 * **Compiler:** GCC 7.5.0
-* **Libraries:**
-    - **🌐 libcurl** — HTTP client library (License: curl license (MIT-like), Website: https://curl.se/libcurl/, version: 8.7.1)
-    - **📄 cJSON** — lightweight JSON parser (License: MIT, Author: Dave Gamble, repo: https://github.com/DaveGamble/cJSON, version: 1.7.15)
+* **Libraries (all statically linked):**
+    - **🌐 libcurl 8.7.1** — HTTP client library (curl license)
+    - **🔒 OpenSSL 3.0.20** — TLS/SSL library (Apache 2.0)
+    - **📄 cJSON 1.7.15** — lightweight JSON parser (MIT)
 
-> ⚡ Other environments may work, but are not guaranteed.
+> ⚡ The binary is self-contained (~5 MB). Only `libc` is required at runtime.
 
 ### 📦 Install dependencies (Ubuntu 18.04)
 
@@ -253,8 +254,10 @@ gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0
 Project is built in Ubuntu 18.04 environment using Docker.
 
 Linking model:
-- cJSON: static
-- libcurl / OpenSSL: dynamic
+- **Fully static**: libcurl, OpenSSL, cJSON are compiled from source and statically linked
+- Only `libc` (glibc) remains dynamically linked
+
+No external dependencies required on the target system — just copy the binary and run.
 
 ⚠️ Do **NOT modify** linker flags unless you know what you are doing!
 
