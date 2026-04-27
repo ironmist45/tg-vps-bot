@@ -168,7 +168,7 @@ int cmd_about_v2(command_ctx_t *ctx)
         "Built: %s",
         APP_NAME, APP_VERSION, APP_CODENAME,
         getpid(), days, hours, mins,
-        BUILD_COMMIT, BUILD_DATE);
+        TG_BUILD_COMMIT, TG_BUILD_DATE);
 
     LOG_CMD_CTX(ctx, LOG_INFO, "about: requested");
 
