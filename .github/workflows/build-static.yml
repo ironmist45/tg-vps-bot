@@ -41,6 +41,17 @@ jobs:
 
             update-ca-certificates
 
+            # ===== generate build info =====
+            BUILD_COMMIT=\$(git -C /app rev-parse --short HEAD 2>/dev/null || echo 'unknown')
+            BUILD_DATE=\$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            
+            echo \"#ifndef BUILD_INFO_H\" > /app/include/build_info.h
+            echo \"#define BUILD_INFO_H\" >> /app/include/build_info.h
+            echo \"#define BUILD_COMMIT \\\"\${BUILD_COMMIT}\\\"\" >> /app/include/build_info.h
+            echo \"#define BUILD_DATE \\\"\${BUILD_DATE}\\\"\" >> /app/include/build_info.h
+            echo \"#endif\" >> /app/include/build_info.h
+            echo '[INFO] Build info generated: commit='\"\${BUILD_COMMIT}\"' date='\"\${BUILD_DATE}\"
+
             # ===== build static openssl 3.0.15 =====
             cd /tmp
             wget https://www.openssl.org/source/openssl-3.0.15.tar.gz
@@ -51,7 +62,7 @@ jobs:
               --prefix=/usr/local/openssl-static \
               --openssldir=/usr/local/openssl-static/ssl
             
-            make -j$(nproc)
+            make -j\$(nproc)
             make install
 
             # ===== build static curl 8.7.1 (linked with new openssl) =====
@@ -60,7 +71,7 @@ jobs:
             tar -xf curl-8.7.1.tar.xz
             cd curl-8.7.1
             
-            export PKG_CONFIG_PATH=/usr/local/openssl-static/lib64/pkgconfig:$PKG_CONFIG_PATH
+            export PKG_CONFIG_PATH=/usr/local/openssl-static/lib64/pkgconfig:\$PKG_CONFIG_PATH
             
             ./configure \
               --disable-shared \
@@ -72,7 +83,7 @@ jobs:
               LDFLAGS='-L/usr/local/openssl-static/lib64' \
               CPPFLAGS='-I/usr/local/openssl-static/include'
             
-            make -j$(nproc)
+            make -j\$(nproc)
             make install
 
             # ===== build cJSON (STATIC) =====
@@ -105,7 +116,7 @@ jobs:
           "
 
       # ==================================================================================
-      # DEBUG (NOTE: ls, file and du in Ubuntu 22.04 runtime, ldd in Ubuntu 18.04 runtime)
+      # DEBUG
       # ==================================================================================
       - name: Debug build output
         run: |
@@ -125,7 +136,6 @@ jobs:
             export DEBIAN_FRONTEND=noninteractive
 
             apt-get update -qq
-            # 👇 Только zlib нужен — всё остальное внутри бинарника
             apt-get install -y zlib1g
 
             echo '=== ldd ==='
@@ -146,7 +156,7 @@ jobs:
       - name: Ensure binary exists
         run: |
           if [ ! -f tg-bot ]; then
-            echo "ERROR: tg-bot not built"
+            echo \"ERROR: tg-bot not built\"
             exit 1
           fi
 
@@ -162,31 +172,31 @@ jobs:
       - name: Run without config (should fail)
         run: |
           if ./tg-bot 2>/dev/null; then
-            echo "ERROR: bot should not start without config"
+            echo \"ERROR: bot should not start without config\"
             exit 1
           else
-            echo "OK"
+            echo \"OK\"
           fi
 
       - name: Run with fake config
         run: |
           rm -f test.conf test.log
 
-          echo "TOKEN=TEST" >> test.conf
-          echo "CHAT_ID=123" >> test.conf
-          echo "LOG_FILE=./test.log" >> test.conf
-          echo "POLL_TIMEOUT=1" >> test.conf
-          echo "TOKEN_TTL=10" >> test.conf
+          echo \"TOKEN=TEST\" >> test.conf
+          echo \"CHAT_ID=123\" >> test.conf
+          echo \"LOG_FILE=./test.log\" >> test.conf
+          echo \"POLL_TIMEOUT=1\" >> test.conf
+          echo \"TOKEN_TTL=10\" >> test.conf
 
-          timeout 3s ./tg-bot -c test.conf || echo "bot exited (expected or timeout)"
+          timeout 3s ./tg-bot -c test.conf || echo \"bot exited (expected or timeout)\"
 
       - name: Check log file created
         run: |
           if [ ! -f test.log ]; then
-            echo "ERROR: log file not created"
+            echo \"ERROR: log file not created\"
             exit 1
           else
-            echo "OK: log file exists"
+            echo \"OK: log file exists\"
           fi
 
       # =========================
