@@ -174,46 +174,13 @@ void env_check_fail2ban(void) {
     };
 
     if (!exec_check_cmd(args, out, sizeof(out), &opts, &res)) {
-        if (strstr(out, "GLIBC")) {
-            LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (glibc)");
-            return;
-        }
-
-        if (res.status == EXEC_EXEC_FAILED) {
-            LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (exec)");
-            return;
-        }
-
         if (strstr(out, "No such file")) {
             LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (missing)");
-            return;
+        } else {
+            LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (%s)", 
+                    exec_status_str(res.status));
         }
-
-        if (out[0] == '\0') {
-            exec_opts_t debug_opts = {
-                .timeout_ms = 2000,
-                .quiet = 0
-            };
-
-            char dbg_out[256] = {0};
-            exec_result_t dbg_res;
-
-            exec_command(args, dbg_out, sizeof(dbg_out), &debug_opts, &dbg_res);
-
-            if (strstr(dbg_out, "GLIBC")) {
-                LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (glibc)");
-                return;
-            }
-
-            if (dbg_out[0]) {
-                LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (%s) -> %.100s",
-                        exec_status_str(dbg_res.status), dbg_out);
-            } else {
-                LOG_SYS(LOG_ERROR, "fail2ban-wrapper: FAIL (no output, %s, possible broken binary)",
-                        exec_status_str(res.status));
-            }
-            return;
-        }
+        return;
     }
         
     LOG_SYS(LOG_INFO, "fail2ban-wrapper: OK");
