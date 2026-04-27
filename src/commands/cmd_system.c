@@ -4,6 +4,7 @@
  * MIT License - Copyright (c) 2026
  */
 
+#include "build_info.h"
 #include "commands.h"
 #include "logger.h"
 #include "reply.h"
@@ -160,9 +161,12 @@ int cmd_about_v2(command_ctx_t *ctx)
         "*ℹ️ ABOUT*\n\n"
         "%s v%s (%s)\n"
         "PID: %d\n"
-        "Uptime: %dd %dh %dm",
+        "Uptime: %dd %dh %dm\n"
+        "Commit: `%s`\n"
+        "Built: %s",
         APP_NAME, APP_VERSION, APP_CODENAME,
-        getpid(), days, hours, mins);
+        getpid(), days, hours, mins,
+        BUILD_COMMIT, BUILD_DATE);
 
     LOG_CMD_CTX(ctx, LOG_INFO, "about: requested");
 
