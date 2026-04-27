@@ -1,4 +1,4 @@
-name: Build tg-bot (static) - OpenSSL 3.0.15, Curl 8.7.1, cJSON 1.7.15
+name: Build tg-bot (static) - OpenSSL 3.0.20, Curl 8.7.1, cJSON 1.7.15
 
 on:
   workflow_dispatch:
@@ -58,11 +58,11 @@ jobs:
             echo \"#endif\" >> /app/include/build_info.h
             echo '[INFO] Build info generated: commit='\"\${BUILD_COMMIT}\"' date='\"\${BUILD_DATE}\"
 
-            # ===== build static openssl 3.0.15 =====
+            # ===== build static openssl 3.0.20 =====
             cd /tmp
-            wget https://www.openssl.org/source/openssl-3.0.15.tar.gz
-            tar -xzf openssl-3.0.15.tar.gz
-            cd openssl-3.0.15
+            wget https://www.openssl.org/source/openssl-3.0.20.tar.gz
+            tar -xzf openssl-3.0.20.tar.gz
+            cd openssl-3.0.20
             
             ./Configure linux-x86_64 no-shared \
               --prefix=/usr/local/openssl-static \
