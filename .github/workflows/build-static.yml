@@ -111,7 +111,7 @@ jobs:
 
             # 👇 Полностью статическая линковка
             make LDFLAGS='-L/usr/local/curl-static/lib -L/usr/local/openssl-static/lib64 -Wl,-Bstatic -lcjson -lcurl -lssl -lcrypto -Wl,-Bdynamic -lz -lpthread -ldl' \
-                 CFLAGS='-Iinclude -I/usr/local/curl-static/include'
+                 CFLAGS='-Iinclude -I/usr/local/curl-static/include -I/usr/local/openssl-static/include'
 
             chmod +x tg-bot || true
 
