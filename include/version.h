@@ -13,17 +13,17 @@
 // BASIC VERSION INFORMATION
 // ============================================================================
 
-#define APP_NAME    "tg-bot"                 // Application name
-#define APP_VERSION "1.2.6"                  // Semantic version
+#define APP_NAME    "tg-bot"                     // Application name
+#define APP_VERSION "1.2.6"                      // Semantic version
 #define TARGET_OS   "Ubuntu 18.04.6 LTS x86_64"  // Target platform
 
 // ============================================================================
 // META INFORMATION
 // ============================================================================
 
-#define APP_CODENAME "Orion"     // Release codename
-#define APP_YEAR     "2026"      // Copyright year
-#define APP_AUTHOR   "dedoverde" // Author
+#define APP_CODENAME "Orion"                      // Release codename
+#define APP_YEAR     "2026"                       // Copyright year
+#define APP_AUTHOR   "dedoverde (aka ironmist45)" // Author
 
 // ============================================================================
 // BUILD INFORMATION (AUTOMATIC)
