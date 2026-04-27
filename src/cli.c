@@ -36,6 +36,7 @@
 
 #include "cli.h"
 #include "version.h"
+#include "build_info.h"
 
 #include <stdio.h>
 #include <string.h>
