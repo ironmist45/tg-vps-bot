@@ -12,6 +12,10 @@
 #include "utils.h"
 #include "version.h"
 
+#include <curl/curl.h>
+#include <openssl/opensslv.h>
+#include <cjson/cJSON.h>
+
 #include <limits.h>
 #include <stdio.h>
 #include <time.h>
@@ -145,6 +149,9 @@ int cmd_health_v2(command_ctx_t *ctx)
  *   - Bot uptime (since process start)
  *   - Build commit hash (short)
  *   - Build date and time (UTC)
+ *   - libcurl version
+ *   - OpenSSL version
+ *   - cJSON version
  * 
  * @param ctx  Command context
  * @return     0 on success
@@ -164,11 +171,16 @@ int cmd_about_v2(command_ctx_t *ctx)
         "%s v%s (%s)\n"
         "PID: %d\n"
         "Uptime: %dd %dh %dm\n"
-        "Commit: `%s`\n"
-        "Built: %s",
+        "Commit: %s\n"
+        "Built: %s\n"
+        "libcurl: %s\n"
+        "OpenSSL: %s\n"
+        "cJSON: %d.%d.%d",
         APP_NAME, APP_VERSION, APP_CODENAME,
         getpid(), days, hours, mins,
-        TG_BUILD_COMMIT, TG_BUILD_DATE);
+        TG_BUILD_COMMIT, TG_BUILD_DATE,
+        curl_version(), OpenSSL_version(OPENSSL_VERSION),
+        CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
 
     LOG_CMD_CTX(ctx, LOG_INFO, "about: requested");
 
