@@ -176,7 +176,7 @@ void cli_print_help() {
 // ============================================================================
 
 /**
- * Display program version and copyright information
+ * Display program version, build information, and copyright
  */
 void cli_print_version(void) {
     printf("%s v%s (%s)\n", APP_NAME, APP_VERSION, APP_CODENAME);
