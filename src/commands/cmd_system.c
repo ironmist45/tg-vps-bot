@@ -143,6 +143,8 @@ int cmd_health_v2(command_ctx_t *ctx)
  *   - Application name, version, codename
  *   - Process ID (PID)
  *   - Bot uptime (since process start)
+ *   - Build commit hash (short)
+ *   - Build date and time (UTC)
  * 
  * @param ctx  Command context
  * @return     0 on success
