@@ -180,7 +180,7 @@ void cli_print_help() {
  */
 void cli_print_version(void) {
     printf("%s v%s (%s)\n", APP_NAME, APP_VERSION, APP_CODENAME);
-    printf("Commit: %s\n", BUILD_COMMIT);
-    printf("Built: %s\n", BUILD_DATE);
+    printf("Commit: %s\n", TG_BUILD_COMMIT);
+    printf("Built: %s\n", TG_BUILD_DATE);
     printf("(c) %s %s\n", APP_YEAR, APP_AUTHOR);
 }
