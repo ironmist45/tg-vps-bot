@@ -43,7 +43,7 @@ jobs:
 
             # ===== generate build info =====
             if [ -d /app/.git ]; then
-                BUILD_COMMIT=\$(cd /app && git rev-parse --short HEAD 2>/dev/null || echo 'unknown')
+                BUILD_COMMIT=\$(cd /app && git log -1 --pretty=format:'%h' 2>/dev/null || echo 'unknown')
             else
                 BUILD_COMMIT='unknown'
             fi
