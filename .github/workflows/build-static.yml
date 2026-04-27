@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # =========================
       # BUILD (Ubuntu 18.04)
@@ -209,7 +209,7 @@ jobs:
       # ARTIFACTS
       # =========================
       - name: Upload binary
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: tg-bot-static
           path: tg-bot
