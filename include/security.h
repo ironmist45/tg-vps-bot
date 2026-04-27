@@ -97,9 +97,10 @@ int security_rate_limit(void);
  * Stored internally for replay protection (single-use).
  * 
  * @param chat_id  Authorized chat ID requesting the token
+ * @param req_id   16-bit request identifier for log correlation
  * @return         6-digit token (000000-999999)
  */
-int security_generate_reboot_token(long chat_id);
+int security_generate_reboot_token(long chat_id, unsigned short req_id);
 
 /**
  * Validate a reboot confirmation token
@@ -111,9 +112,10 @@ int security_generate_reboot_token(long chat_id);
  * 
  * @param chat_id      Authorized chat ID
  * @param token        Token to validate (provided by user)
+ * @param req_id       16-bit request identifier for log correlation
  * @return             0 if valid, -1 if invalid/expired/replayed
  */
-int security_validate_reboot_token(long chat_id, int token);
+int security_validate_reboot_token(long chat_id, int token, unsigned short req_id);
 
 // ============================================================================
 // ACCESS CONTROL MACRO
