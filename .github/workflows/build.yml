@@ -42,7 +42,7 @@ jobs:
             update-ca-certificates
 
             # ===== generate build info =====
-            BUILD_COMMIT=\$(git -C /app rev-parse --short HEAD 2>/dev/null || echo 'unknown')
+            BUILD_COMMIT=\$(cd /app && git rev-parse --short HEAD 2>/dev/null || echo 'unknown')
             BUILD_DATE=\$(date -u '+%Y-%m-%d %H:%M:%S UTC')
             
             echo \"#ifndef BUILD_INFO_H\" > /app/include/build_info.h
@@ -169,7 +169,7 @@ jobs:
           echo \"POLL_TIMEOUT=1\" >> test.conf
           echo \"TOKEN_TTL=10\" >> test.conf
 
-          timeout 3s ./tg-bot -c test.conf || echo \"bot exited (expected or timeout)\"
+          timeout 3s ./tg-bot -c test.conf || echo 'bot exited (expected or timeout)'
 
       - name: Check log file created
         run: |
