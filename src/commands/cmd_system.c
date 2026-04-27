@@ -14,6 +14,7 @@
 
 #include <curl/curl.h>
 #include <openssl/opensslv.h>
+#include <openssl/crypto.h>
 #include <cjson/cJSON.h>
 
 #include <limits.h>
