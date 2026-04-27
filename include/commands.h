@@ -24,27 +24,6 @@ typedef enum {
 } response_type_t;
 
 // ============================================================================
-// LEGACY HANDLER (argc/argv style)
-// ============================================================================
-
-/**
- * Legacy command handler signature
- * 
- * @param argc       Argument count
- * @param argv       Argument vector (argv[0] = command name)
- * @param chat_id    Telegram chat ID of requester
- * @param response   Output buffer for response
- * @param resp_size  Size of response buffer
- * @param resp_type  Output: response type (Markdown or plain)
- * @return           0 on success, -1 on error
- */
-typedef int (*command_handler_t)(int argc, char *argv[],
-                                 long chat_id,
-                                 char *response,
-                                 size_t resp_size,
-                                 response_type_t *resp_type);
-
-// ============================================================================
 // V2 HANDLER CONTEXT (preferred)
 // ============================================================================
 
@@ -95,14 +74,13 @@ typedef int (*command_handler_v2_t)(command_ctx_t *ctx);
  * Command registration entry
  * 
  * Populated statically in commands.c and used by commands_handle().
- * Supports both legacy and V2 handlers (at least one must be non-NULL).
+ * Supports V2 handlers only.
  */
 typedef struct {
-    const char *name;               // Command name including slash (e.g., "/status")
-    command_handler_t handler;      // Legacy handler (may be NULL)
-    command_handler_v2_t handler_v2; // V2 handler (preferred, may be NULL)
-    const char *description;        // Description for /help (NULL = hidden)
-    const char *category;           // Category for /help grouping (NULL = hidden)
+    const char *name;                    // Command name including slash (e.g., "/status")
+    command_handler_v2_t handler_v2;     // V2 handler (preferred, may be NULL)
+    const char *description;             // Description for /help (NULL = hidden)
+    const char *category;                // Category for /help grouping (NULL = hidden)
 } command_t;
 
 // ============================================================================
