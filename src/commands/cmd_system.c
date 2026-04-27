@@ -197,9 +197,16 @@ int cmd_ping_v2(command_ctx_t *ctx)
     long inbound_ms = -1;
     if (ctx->msg_date > 0) {
         time_t now = time(NULL);
-        inbound_ms = (now - ctx->msg_date) * 1000;
+        time_t diff = now - ctx->msg_date;
+        
+        // Защита от переполнения: если разница > LONG_MAX / 1000
+        if (diff > LONG_MAX / 1000) {
+            inbound_ms = LONG_MAX;
+        } else {
+            inbound_ms = (long)(diff * 1000);
+        }
     }
-
+    
     // ------------------------------------------------------------------------
     // Get bot uptime
     // ------------------------------------------------------------------------
