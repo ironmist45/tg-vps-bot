@@ -47,8 +47,8 @@ jobs:
             
             echo \"#ifndef BUILD_INFO_H\" > /app/include/build_info.h
             echo \"#define BUILD_INFO_H\" >> /app/include/build_info.h
-            echo \"#define BUILD_COMMIT \\\"\${BUILD_COMMIT}\\\"\" >> /app/include/build_info.h
-            echo \"#define BUILD_DATE \\\"\${BUILD_DATE}\\\"\" >> /app/include/build_info.h
+            echo \"#define TG_BUILD_COMMIT \\\"\${BUILD_COMMIT}\\\"\" >> /app/include/build_info.h
+            echo \"#define TG_BUILD_DATE \\\"\${BUILD_DATE}\\\"\" >> /app/include/build_info.h
             echo \"#endif\" >> /app/include/build_info.h
             echo '[INFO] Build info generated: commit='\"\${BUILD_COMMIT}\"' date='\"\${BUILD_DATE}\"
 
