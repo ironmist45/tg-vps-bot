@@ -3,8 +3,7 @@
  * 
  * commands.c - Command dispatcher and routing logic
  * 
- * Routes incoming Telegram messages to appropriate command handlers.
- * Supports both legacy (argc/argv) and V2 (command_ctx_t) handler styles.
+ * Routes incoming Telegram messages to command handlers (V2 style).
  * 
  * Command table is defined statically; actual implementations are in:
  *   - cmd_system.c   (/status, /health, /about, /ping, /reboot)
@@ -70,33 +69,32 @@ extern time_t g_start_time;
  * 
  * Fields:
  *   - name:        command string (e.g., "/status")
- *   - handler:     legacy handler (argc/argv style)
  *   - handler_v2:  modern handler (command_ctx_t style)
  *   - description: shown in /help (NULL = hidden)
  *   - category:    grouping for /help (NULL = hidden)
  */
 command_t commands[] = {
     // General commands
-    {"/start", NULL, cmd_start_v2, NULL, "General"},
-    {"/help", NULL, cmd_help_v2, "Show this help", "General"},
+    {"/start", cmd_start_v2, NULL, "General"},
+    {"/help", cmd_help_v2, "Show this help", "General"},
 
     // System status commands
-    {"/status", NULL, cmd_status_v2, "System status", "System"},
-    {"/health", NULL, cmd_health_v2, "Health check", "System"},
-    {"/about",  NULL, cmd_about_v2,  "About bot", "System info"},
-    {"/ping",   NULL, cmd_ping_v2,   NULL, "System info"},
+    {"/status", cmd_status_v2, "System status", "System"},
+    {"/health", cmd_health_v2, "Health check", "System"},
+    {"/about",  cmd_about_v2,  "About bot", "System info"},
+    {"/ping",   cmd_ping_v2,   NULL, "System info"},
 
     // Service management commands
-    {"/services", NULL, cmd_services_v2, NULL, "Services"},
-    {"/users",    NULL, cmd_users_v2,    NULL, "Services"},
-    {"/logs",     NULL, cmd_logs_v2,     NULL, "Services"},
+    {"/services", cmd_services_v2, NULL, "Services"},
+    {"/users",    cmd_users_v2,    NULL, "Services"},
+    {"/logs",     cmd_logs_v2,     NULL, "Services"},
 
     // Security commands
-    {"/fail2ban", NULL, cmd_fail2ban_v2, "Manage Fail2Ban", "Security"},
+    {"/fail2ban", cmd_fail2ban_v2, "Manage Fail2Ban", "Security"},
 
     // System control commands (require token confirmation)
-    {"/reboot",         NULL, cmd_reboot_v2,         "Reboot system", "System"},
-    {"/reboot_confirm", NULL, cmd_reboot_confirm_v2, NULL,            NULL},    // hidden
+    {"/reboot",         cmd_reboot_v2,         "Reboot system", "System"},
+    {"/reboot_confirm", cmd_reboot_confirm_v2, NULL,            NULL},        // hidden
 };
 
 // Number of commands in the table
@@ -223,110 +221,6 @@ int commands_handle(const char *text,
             return rc;
         }
 
-        // --------------------------------------------------------------------
-        // LEGACY HANDLER (argc/argv style)
-        // --------------------------------------------------------------------
-        if (!commands[i].handler) {
-            snprintf(response, resp_size, "Command not implemented");
-            return -1;
-        }
-
-        LOG_NET(LOG_INFO, "cmd: %.32s (chat_id=%ld)", argv[0], chat_id);
-
-        int rc = commands[i].handler(
-            argc, argv, chat_id, response, resp_size, &local_resp_type
-        );
-
-        // Fallback if handler didn't set a response
-        if (response[0] == '\0') {
-            snprintf(response, resp_size, (rc == 0) ? "OK" : "Error");
-        }
-
-        // --------------------------------------------------------------------
-        // Build response preview for logging (strip markdown, normalize whitespace)
-        // --------------------------------------------------------------------
-        char preview[256];
-        size_t j = 0;
-        int last_was_sep = 1;
-        int last_was_space = 0;
-
-        for (size_t k = 0; response[k] && j < sizeof(preview) - 1; k++) {
-            char c = response[k];
-            
-            // Skip UTF-8 continuation bytes (emojis break preview)
-            if ((unsigned char)c >= 0x80) {
-                continue;
-            }
-
-            // Convert newlines to " | " separator
-            if (c == '\n' || c == '\r') {
-                // Skip consecutive newlines
-                while (response[k + 1] == '\n' || response[k + 1] == '\r') {
-                    k++;
-                }
-                if (!last_was_sep && j > 0) {
-                    preview[j++] = ' ';
-                    if (j < sizeof(preview) - 1) preview[j++] = '|';
-                    if (j < sizeof(preview) - 1) preview[j++] = ' ';
-                }
-                last_was_sep = 1;
-                last_was_space = 0;
-                continue;
-            }
-
-            // Strip markdown formatting characters
-            if (c == '*' || c == '`' || c == '_') {
-                continue;
-            }
-
-            // Remove space before slash (e.g., " /help" -> "/help")
-            if (c == '/' && j > 0 && preview[j - 1] == ' ') {
-                j--;
-            }
-
-            // Normalize multiple spaces
-            if (c == ' ') {
-                if (last_was_space || last_was_sep) {
-                    continue;
-                }
-                last_was_space = 1;
-            } else {
-                last_was_space = 0;
-                last_was_sep = 0;
-            }
-
-            preview[j++] = c;
-
-            // Truncate long responses
-            if (j >= 120) {
-                if (j < sizeof(preview) - 4) {
-                    preview[j++] = '.';
-                    preview[j++] = '.';
-                    preview[j++] = '.';
-                }
-                break;
-            }
-        }
-        preview[j] = '\0';
-
-        size_t full_len = strlen(response);
-
-        // Log response preview (skip /logs command to avoid spam)
-        if (strcmp(argv[0], "/logs") != 0) {
-            log_msg(LOG_DEBUG,
-                    "RES %s (%zu chars) → %s",
-                    argv[0], full_len, preview);
-        } else {
-            log_msg(LOG_DEBUG,
-                    "RES %s (%zu chars) → <skipped>",
-                    argv[0], full_len);
-        }
-
-        if (resp_type) {
-            *resp_type = local_resp_type;
-        }
-
-        return rc;
     }
 
     // ------------------------------------------------------------------------
