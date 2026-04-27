@@ -42,12 +42,14 @@ jobs:
             update-ca-certificates
 
             # ===== generate build info =====
-            if [ -f /app/.git/HEAD ]; then
-                BUILD_COMMIT=\$(cat /app/.git/HEAD | cut -d' ' -f2 | cut -c1-7)
+            echo \"DEBUG: .git exists=\$([ -d /app/.git ] && echo yes || echo no)\"
+            if [ -f /app/.git/refs/heads/main ]; then
+                BUILD_COMMIT=\$(cut -c1-7 /app/.git/refs/heads/main)
+            elif [ -f /app/.git/HEAD ]; then
+                BUILD_COMMIT=\$(awk '{print \$2}' /app/.git/HEAD | cut -c1-7)
             else
                 BUILD_COMMIT='unknown'
             fi
-            echo \"DEBUG: .git exists=\$([ -d /app/.git ] && echo yes || echo no)\"
             BUILD_DATE=\$(date -u '+%Y-%m-%d %H:%M:%S UTC')
             
             echo \"#ifndef BUILD_INFO_H\" > /app/include/build_info.h
