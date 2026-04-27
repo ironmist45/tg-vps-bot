@@ -1,4 +1,4 @@
-# 🚀 Telegram Server Bot (pure C) ![Build Status](https://github.com/ironmist45/tg-vps-bot/actions/workflows/build-static.yml/badge.svg)
+# 🚀 Telegram Server Bot ![Build Status](https://github.com/ironmist45/tg-vps-bot/actions/workflows/build-static.yml/badge.svg)
 
 Production-ready Telegram bot for server monitoring and management, written in pure C.
 
@@ -232,9 +232,12 @@ Modular C design:
 
 ### 📦 Install dependencies (Ubuntu 18.04)
 
+No dependencies required! The binary is fully self-contained.
+Just download the latest release and run:
+
 ```bash
-sudo apt update
-sudo apt install build-essential libcurl4-openssl-dev libcjson-dev
+chmod +x tg-bot
+sudo cp tg-bot /usr/local/bin/
 ```
 
 ### 🔍 Check compiler version
