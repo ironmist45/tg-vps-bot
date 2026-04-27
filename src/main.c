@@ -34,6 +34,7 @@
  * SOFTWARE.
  */
 
+#include "build_info.h"
 #include "version.h"
 #include "logger.h"
 #include "config.h"
@@ -83,6 +84,7 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     LOG_SYS(LOG_INFO, "==== START ====");
     LOG_SYS(LOG_INFO, "%s v%s (%s)", APP_NAME, APP_VERSION, APP_CODENAME);
+    LOG_SYS(LOG_INFO, "Build: commit %s, %s", BUILD_COMMIT, BUILD_DATE);
     fflush(NULL);
     
     LOG_SYS(LOG_INFO, "Process started (PID=%d)", getpid());
