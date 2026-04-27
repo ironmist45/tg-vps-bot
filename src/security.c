@@ -225,20 +225,18 @@ int security_check_access(long chat_id, const char *cmd, unsigned short req_id) 
  * 
  * @param now  Current timestamp
  */
-static void register_failed_attempt(time_t now) {
+static void register_failed_attempt(time_t now, unsigned short req_id) {
 
     g_failed_attempts++;
 
-    LOG_SEC(LOG_DEBUG,
-        "failed attempts: %d",
-        g_failed_attempts);
+    LOG_SEC(LOG_DEBUG, "req=%04x failed attempts: %d", req_id, g_failed_attempts);
 
     if (g_failed_attempts >= 5) {
         g_block_until = now + 30;
         g_failed_attempts = 0;
 
         LOG_SEC(LOG_WARN,
-            "Too many invalid tokens, blocking for 30 seconds");
+            "req=%04x Too many invalid tokens, blocking for 30 seconds", req_id);
     }
 }
 
@@ -396,7 +394,7 @@ int security_validate_reboot_token(long chat_id, int input_token, unsigned short
                 "req=%04x Replay or expired token: %06d",
                 req_id, input_token);
 
-            register_failed_attempt(now);
+            register_failed_attempt(now, req_id);
             return -1;
         }
     }
