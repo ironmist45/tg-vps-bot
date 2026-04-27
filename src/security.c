@@ -311,7 +311,7 @@ static int make_token(long chat_id, time_t ts) {
  * @param chat_id  Authorized chat ID requesting the token
  * @return         6-digit token (000000-999999)
  */
-int security_generate_reboot_token(long chat_id) {
+int security_generate_reboot_token(long chat_id, unsigned short req_id) {
 
     time_t ts = time(NULL);
 
@@ -319,11 +319,11 @@ int security_generate_reboot_token(long chat_id) {
     int final_token = (ts % 1000000) ^ token;
 
     LOG_SEC(LOG_INFO,
-        "Generated token: chat_id=%ld ts=%d token=%06d",
-        chat_id, ts, final_token);
+        "req=%04x Generated token: chat_id=%ld ts=%ld token=%06d",
+        req_id, chat_id, (long)ts, final_token);
     LOG_SEC(LOG_DEBUG,
-        "token components: ts_mod=%d raw=%d",
-        ts % 1000000, token);
+        "req=%04x token components: ts_mod=%d raw=%d",
+        req_id, ts % 1000000, token);
 
     // Store for replay protection
     g_last_token = final_token;
@@ -344,13 +344,13 @@ int security_generate_reboot_token(long chat_id) {
  * @param input_token  Token to validate (provided by user)
  * @return             0 if valid, -1 if invalid/expired/replayed
  */
-int security_validate_reboot_token(long chat_id, int input_token) {
+int security_validate_reboot_token(long chat_id, int input_token, unsigned short req_id) {
 
     // Validate token format (must be 6-digit positive integer)
     if (input_token < 0 || input_token > 999999) {
         LOG_SEC(LOG_WARN,
-            "Invalid token format: %d (chat_id=%ld)",
-            input_token, chat_id);
+            "req=%04x Invalid token format: %d (chat_id=%ld)",
+            req_id, input_token, chat_id);
         return -1;
     }
 
@@ -358,7 +358,7 @@ int security_validate_reboot_token(long chat_id, int input_token) {
 
     // Check if currently blocked (bruteforce protection)
     if (now < g_block_until) {
-        LOG_SEC(LOG_WARN, "Token validation blocked (bruteforce)");
+        LOG_SEC(LOG_WARN, "req=%04x Token validation blocked (bruteforce)", req_id);
         return -1;
     }
 
@@ -369,8 +369,8 @@ int security_validate_reboot_token(long chat_id, int input_token) {
         int expected = (ts % 1000000) ^ make_token(chat_id, ts);
 
         LOG_SEC(LOG_DEBUG,
-            "check: ts=%d expected=%06d input=%06d",
-            ts, expected, input_token);
+            "req=%04x check: ts=%d expected=%06d input=%06d",
+            req_id, ts, expected, input_token);
 
         if (expected == input_token) {
 
@@ -382,8 +382,8 @@ int security_validate_reboot_token(long chat_id, int input_token) {
                 g_last_token = -1;
 
                 LOG_SEC(LOG_INFO,
-                    "Token accepted: chat_id=%ld token=%06d (age=%d sec)",
-                    chat_id, input_token, i);
+                    "req=%04x Token accepted: chat_id=%ld token=%06d (age=%d sec)",
+                    req_id, chat_id, input_token, i);
 
                 // Reset bruteforce state on success
                 g_failed_attempts = 0;
@@ -393,8 +393,8 @@ int security_validate_reboot_token(long chat_id, int input_token) {
             }
 
             LOG_SEC(LOG_WARN,
-                "Replay or expired token: %06d",
-                input_token);
+                "req=%04x Replay or expired token: %06d",
+                req_id, input_token);
 
             register_failed_attempt(now);
             return -1;
@@ -402,8 +402,8 @@ int security_validate_reboot_token(long chat_id, int input_token) {
     }
 
     LOG_SEC(LOG_WARN,
-        "Invalid token: chat_id=%ld token=%06d",
-        chat_id, input_token);
+        "req=%04x Invalid token: chat_id=%ld token=%06d",
+        req_id, chat_id, input_token);
 
     register_failed_attempt(now);
     
