@@ -42,8 +42,8 @@ jobs:
             update-ca-certificates
 
             # ===== generate build info =====
-            if [ -d /app/.git ]; then
-                BUILD_COMMIT=\$(cd /app && git log -1 --pretty=format:'%h' 2>/dev/null || echo 'unknown')
+            if [ -f /app/.git/HEAD ]; then
+                BUILD_COMMIT=\$(cat /app/.git/HEAD | cut -d' ' -f2 | cut -c1-7)
             else
                 BUILD_COMMIT='unknown'
             fi
