@@ -38,6 +38,10 @@
 #include "version.h"
 #include "build_info.h"
 
+#include <curl/curl.h>
+#include <openssl/opensslv.h>
+#include <cjson/cJSON.h>
+
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -182,5 +186,8 @@ void cli_print_version(void) {
     printf("%s v%s (%s)\n", APP_NAME, APP_VERSION, APP_CODENAME);
     printf("Commit: %s\n", TG_BUILD_COMMIT);
     printf("Built: %s\n", TG_BUILD_DATE);
+    printf("libcurl: %s\n", curl_version());
+    printf("OpenSSL: %s\n", OpenSSL_version(OPENSSL_VERSION));
+    printf("cJSON: %d.%d.%d\n", CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
     printf("(c) %s %s\n", APP_YEAR, APP_AUTHOR);
 }
