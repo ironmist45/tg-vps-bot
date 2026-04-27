@@ -117,30 +117,4 @@ int security_generate_reboot_token(long chat_id, unsigned short req_id);
  */
 int security_validate_reboot_token(long chat_id, int token, unsigned short req_id);
 
-// ============================================================================
-// ACCESS CONTROL MACRO
-// ============================================================================
-
-/**
- * Convenience macro for access control in legacy handlers
- * 
- * Usage:
- *   REQUIRE_ACCESS(chat_id, "/reboot", req_id, response, resp_size);
- * 
- * If access is denied, sets response message and returns -1.
- * 
- * @param chat_id    Chat ID to check
- * @param cmd        Command name for logging
- * @param req_id     16-bit request identifier
- * @param resp       Response buffer
- * @param size       Size of response buffer
- */
-#define REQUIRE_ACCESS(chat_id, cmd, req_id, resp, size)       \
-    do {                                                       \
-        if (security_check_access(chat_id, cmd, req_id) != 0) { \
-            snprintf(resp, size, "❌ Access denied");           \
-            return -1;                                         \
-        }                                                      \
-    } while (0)
-
 #endif // SECURITY_H
