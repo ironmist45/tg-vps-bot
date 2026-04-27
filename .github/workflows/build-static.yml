@@ -64,7 +64,7 @@ jobs:
             tar -xzf openssl-3.0.20.tar.gz
             cd openssl-3.0.20
             
-            ./Configure linux-x86_64 no-shared \
+            ./Configure linux-x86_64 no-shared no-docs \
               --prefix=/usr/local/openssl-static \
               --openssldir=/usr/local/openssl-static/ssl
             
