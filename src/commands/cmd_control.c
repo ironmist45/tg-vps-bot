@@ -20,7 +20,7 @@
 
 int cmd_reboot_v2(command_ctx_t *ctx)
 {
-    int token = security_generate_reboot_token(ctx->chat_id);
+    int token = security_generate_reboot_token(ctx->chat_id, ctx->req_id);
 
     char msg[128];
     snprintf(msg, sizeof(msg),
@@ -50,7 +50,7 @@ int cmd_reboot_confirm_v2(command_ctx_t *ctx)
         return reply_error(ctx, "Invalid token format");
     }
 
-    if (security_validate_reboot_token(ctx->chat_id, token) != 0) {
+    if (security_validate_reboot_token(ctx->chat_id, token, ctx->req_id) != 0) {
         LOG_CMD_CTX(ctx, LOG_WARN, "reboot_confirm: invalid or expired token");
         return reply_error(ctx, "Invalid or expired token");
     }
