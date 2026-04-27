@@ -500,7 +500,7 @@ int system_get_status(char *buffer, size_t size, unsigned short req_id) {
         "%-7s : %.2f\n\n"
 
         "Memory\n"
-        "%-7s : %d / %d MB (%d%%)\n\n"
+        "%-7s : %d / %d MB (%d%%)\n"
         "Bar     : %s %d%%\n\n"
 
         "Disk\n"
@@ -526,12 +526,12 @@ int system_get_status(char *buffer, size_t size, unsigned short req_id) {
     );
 
     if (written < 0) {
-        LOG_STATE(LOG_ERROR, "req=%04x system_get_status failed");
+        LOG_STATE(LOG_ERROR, "req=%04x system_get_status failed", req_id);
         return -1;
     }
 
     if ((size_t)written >= size) {
-        LOG_STATE(LOG_WARN, "req=%04x system_get_status truncated");
+        LOG_STATE(LOG_WARN, "req=%04x system_get_status truncated", req_id);
     }
 
         LOG_STATE(LOG_INFO, "req=%04x system status built (len=%d)", req_id, written);
@@ -617,12 +617,12 @@ int system_get_status_mini(char *buffer, size_t size, unsigned short req_id) {
     );
 
     if (written < 0) {
-        LOG_STATE(LOG_ERROR, "req=%04x system_get_status_mini failed");
+        LOG_STATE(LOG_ERROR, "req=%04x system_get_status_mini failed", req_id);
         return -1;
     }
 
     if ((size_t)written >= size) {
-        LOG_STATE(LOG_WARN, "req=%04x system_get_status_mini truncated");
+        LOG_STATE(LOG_WARN, "req=%04x system_get_status_mini truncated", req_id);
     }
 
         LOG_STATE(LOG_INFO, "req=%04x system health status built (len=%d)", req_id, written);
