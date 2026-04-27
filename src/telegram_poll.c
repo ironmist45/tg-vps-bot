@@ -198,6 +198,11 @@ int telegram_poll() {
         char response[RESP_MAX];
         response_type_t resp_type;
         struct timespec req_start, req_end;
+
+        // Инициализируем буфер ответа
+        memset(response, 0, sizeof(response));
+        resp_type = RESP_MARKDOWN;
+        
         clock_gettime(CLOCK_MONOTONIC, &req_start);
 
         if (commands_handle(u->text, u->chat_id, u->msg_date, u->user_id, u->username, u->req_id,
