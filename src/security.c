@@ -403,7 +403,7 @@ int security_validate_reboot_token(long chat_id, int input_token, unsigned short
         "req=%04x Invalid token: chat_id=%ld token=%06d",
         req_id, chat_id, input_token);
 
-    register_failed_attempt(now);
+    register_failed_attempt(now, req_id);
     
     return -1;
 }
