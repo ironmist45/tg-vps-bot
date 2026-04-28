@@ -92,7 +92,7 @@ void env_check_journal_access(void) {
     exec_result_t res;
 
     exec_opts_t opts = {
-        .timeout_ms = 2000,
+        .timeout_ms = 5000,
         .capture_stderr = 1,
         .log_output = 0,
         .quiet = 1
@@ -169,7 +169,7 @@ void env_check_fail2ban(void) {
     exec_result_t res;
 
     exec_opts_t opts = {
-        .timeout_ms = 2000,
+        .timeout_ms = 5000,
         .quiet = 1
     };
 
