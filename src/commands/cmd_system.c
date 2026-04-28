@@ -273,16 +273,34 @@ int cmd_ping_v2(command_ctx_t *ctx)
         inbound_str, processing_ms, rtt_str, uptime);
 
     // ------------------------------------------------------------------------
+    // Determine status based on real metrics
+    // ------------------------------------------------------------------------
+    const char *status_text;
+    const char *status_emoji;
+    
+    if (processing_ms > 5000 || (inbound_ms > 0 && inbound_ms > 10000)) {
+        status_text = "Slow";
+        status_emoji = "⚠️";
+    } else if (processing_ms > 1000 || (inbound_ms > 0 && inbound_ms > 5000)) {
+        status_text = "Laggy";
+        status_emoji = "🟡";
+    } else {
+        status_text = "OK";
+        status_emoji = "🟢";
+    }
+    
+    // ------------------------------------------------------------------------
     // Format response
     // ------------------------------------------------------------------------
     char msg[256];
     snprintf(msg, sizeof(msg),
         "🏓 PONG\n\n"
-        "Status: OK ✅\n"
+        "Status: %s %s\n"
         "Processing: %ld ms\n"
         "Inbound: %s\n"
         "RTT (est): %s\n"
         "Uptime: %s",
+        status_text, status_emoji,
         processing_ms, inbound_str, rtt_str, uptime);
 
     return reply_markdown(ctx, msg);
