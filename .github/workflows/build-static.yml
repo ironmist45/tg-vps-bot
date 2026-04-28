@@ -94,7 +94,7 @@ jobs:
 
             # ===== build cJSON (STATIC) =====
             cd /tmp
-            git clone --depth 1 --branch v1.7.15 https://github.com/DaveGamble/cJSON.git
+            git clone --depth 1 --branch v1.7.19 https://github.com/DaveGamble/cJSON.git
             cd cJSON
             mkdir build && cd build
 
