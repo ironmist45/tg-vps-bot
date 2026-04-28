@@ -11,6 +11,7 @@
  * 
  * All commands require root privileges.
  * IP addresses are validated before being passed to fail2ban-client.
+ * Uses full path to fail2ban-client for sudo compatibility.
  * 
  * MIT License - Copyright (c) 2026 ironmist45
  */
@@ -21,6 +22,12 @@
 #include <string.h>
 #include <ctype.h>
 #include <arpa/inet.h>
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+#define F2B_CLIENT "/usr/bin/fail2ban-client"
 
 // ============================================================================
 // IP ADDRESS VALIDATION
@@ -70,22 +77,15 @@ int main(int argc, char *argv[]) {
     if (strcmp(argv[1], "status") == 0) {
         // Generic status (all jails)
         if (argc == 2) {
-            execl("fail2ban-client",
-                   "fail2ban-client",
-                   "status",
-                   NULL);
-            perror("f2b-wrapper: fail2ban-client exec failed");
+            execl(F2B_CLIENT, F2B_CLIENT, "status", NULL);
+            perror("f2b-wrapper: exec failed");
             return 1;
         }
 
         // Status for specific jail (only sshd is allowed)
         if (argc == 3 && strcmp(argv[2], "sshd") == 0) {
-            execl("fail2ban-client",
-                   "fail2ban-client",
-                   "status",
-                   "sshd",
-                   NULL);
-            perror("f2b-wrapper: fail2ban-client exec failed");
+            execl(F2B_CLIENT, F2B_CLIENT, "status", "sshd", NULL);
+            perror("f2b-wrapper: exec failed");
             return 1;
         }
 
@@ -122,15 +122,8 @@ int main(int argc, char *argv[]) {
         }
 
         // Execute fail2ban-client
-        execl("fail2ban-client",
-               "fail2ban-client",
-               "set",
-               "sshd",
-               argv[3],
-               argv[4],
-               NULL);
-        
-        perror("f2b-wrapper: fail2ban-client exec failed");
+        execl(F2B_CLIENT, F2B_CLIENT, "set", "sshd", argv[3], argv[4], NULL);
+        perror("f2b-wrapper: exec failed");
         return 1;
     }
 
