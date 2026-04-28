@@ -136,6 +136,8 @@ int main(int argc, char *argv[]) {
 
     LOG_STATE(LOG_INFO, "Bot started");
     LOG_STATE(LOG_INFO, "Entering main loop");
+    // Отправка стартового сообщения в чат
+    telegram_send_message(cfg.chat_id, "🟢 *Bot started*\n\nReady to serve.");
 
     // ===========================================================
     // 10. ГЛАВНЫЙ ЦИКЛ
