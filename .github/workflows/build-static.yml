@@ -1,4 +1,4 @@
-name: Build tg-bot (static) - OpenSSL 3.0.20, Curl 8.7.1, cJSON 1.7.15
+name: Build tg-bot (static) - OpenSSL 3.0.20, Curl 8.7.1, cJSON 1.7.19
 
 on:
   workflow_dispatch:
