@@ -33,7 +33,12 @@ jobs:
             apt-get install -y --no-install-recommends \
               build-essential
 
-            echo '[INFO] Building f2b-wrapper...'
+            echo ''
+            echo '========================================'
+            echo ' Building f2b-wrapper'
+            echo ' Target: Ubuntu 18.04'
+            echo '========================================'
+            echo ''
 
             gcc -O2 -Wall -Wextra \
               tools/f2b-wrapper.c \
@@ -41,6 +46,7 @@ jobs:
 
             chmod +x f2b-wrapper
 
+            echo ''
             echo '[OK] Build complete'
           "
 
