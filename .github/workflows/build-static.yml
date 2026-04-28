@@ -59,6 +59,12 @@ jobs:
             echo '[INFO] Build info generated: commit='\"\${BUILD_COMMIT}\"' date='\"\${BUILD_DATE}\"
 
             # ===== build static openssl 3.0.20 =====
+            echo ''
+            echo '========================================'
+            echo ' Building OpenSSL 3.0.20 (static)'
+            echo '========================================'
+            echo ''
+            
             cd /tmp
             wget https://www.openssl.org/source/openssl-3.0.20.tar.gz
             tar -xzf openssl-3.0.20.tar.gz
@@ -72,6 +78,12 @@ jobs:
             make install
 
             # ===== build static curl 8.7.1 (linked with new openssl) =====
+            echo ''
+            echo '========================================'
+            echo ' Building Curl 8.7.1 (static)'
+            echo '========================================'
+            echo ''
+            
             cd /tmp
             wget https://curl.se/download/curl-8.7.1.tar.xz
             tar -xf curl-8.7.1.tar.xz
@@ -93,6 +105,12 @@ jobs:
             make install
 
             # ===== build cJSON (STATIC) =====
+            echo ''
+            echo '========================================'
+            echo ' Building cJSON 1.7.19 (static)'
+            echo '========================================'
+            echo ''
+            
             cd /tmp
             git clone --depth 1 --branch v1.7.19 https://github.com/DaveGamble/cJSON.git
             cd cJSON
@@ -108,10 +126,10 @@ jobs:
 
             # ===== build tg-bot =====
             cd /app
-            echo '========================================='
+            echo '=========================================='
             echo ' Building tg-bot (static)'
             echo ' OpenSSL 3.0.20, Curl 8.7.1, cJSON 1.7.19'
-            echo '========================================='
+            echo '=========================================='
 
             # 👇 Полностью статическая линковка
             make LDFLAGS='-L/usr/local/curl-static/lib -L/usr/local/openssl-static/lib64 -Wl,-Bstatic -lcjson -lcurl -lssl -lcrypto -Wl,-Bdynamic -lz -lpthread -ldl' \
