@@ -170,19 +170,18 @@ int cmd_about_v2(command_ctx_t *ctx)
     snprintf(msg, sizeof(msg),
         "*ℹ️ ABOUT*\n\n"
         "%s v%s (%s)\n"
-        "PID: %d\n"
-        "Uptime: %dd %dh %dm\n"
-        "Commit: %s\n"
-        "Built: %s\n"
-        "libcurl: %.14s\n"
-        "OpenSSL: %s\n"
-        "cJSON: %d.%d.%d",
+        "*PID:* %d\n"
+        "*Uptime:* %dd %dh %dm\n"
+        "*Commit:* %s\n"
+        "*Built:* %s\n"
+        "*libcurl:* %.14s\n"
+        "*OpenSSL:* %s\n"
+        "*cJSON:* %d.%d.%d",
         APP_NAME, APP_VERSION, APP_CODENAME,
         getpid(), days, hours, mins,
         TG_BUILD_COMMIT, TG_BUILD_DATE,
         curl_version(), OpenSSL_version(0),
         CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
-
     LOG_CMD_CTX(ctx, LOG_INFO, "about: requested");
 
     return reply_markdown(ctx, msg);
