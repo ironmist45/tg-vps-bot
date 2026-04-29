@@ -18,7 +18,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,6 +42,7 @@
 #include "environment.h"
 #include "logger.h"
 #include "exec.h"
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,7 +84,8 @@ void env_log_workdir(void) {
 
 void env_check_journal_access(void) {
     char *argv[] = {
-        "sudo", "-n", "journalctl",
+        (char *)g_cfg.sudo_path, "-n",
+        (char *)g_cfg.journalctl_path,
         "-n", "1", "--no-pager",
         NULL
     };
@@ -117,7 +119,9 @@ void env_check_journal_access(void) {
 
 void env_check_systemctl_access(void) {
     char *const args[] = {
-        "sudo", "-n", "systemctl", "is-active", "ssh", NULL
+        (char *)g_cfg.sudo_path, "-n",
+        (char *)g_cfg.systemctl_path,
+        "is-active", "ssh", NULL
     };
 
     char out[128] = {0};
@@ -159,8 +163,8 @@ void env_check_systemctl_access(void) {
 
 void env_check_fail2ban(void) {
     char *const args[] = {
-        "sudo", "-n",
-        "/usr/local/bin/f2b-wrapper",
+        (char *)g_cfg.sudo_path, "-n",
+        (char *)g_cfg.f2b_wrapper_path,
         "status",
         NULL
     };
