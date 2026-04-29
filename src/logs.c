@@ -15,7 +15,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -455,7 +455,9 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
 
     char tmp[8192] = {0};
 
-    if (exec_command_simple(args, tmp, sizeof(tmp)) != 0) {
+    exec_result_t res;
+    int rc = exec_command(args, tmp, sizeof(tmp), NULL, &res);
+    if (rc != 0) {
         LOG_EXEC(LOG_DEBUG, "req=%04x RAW OUTPUT (%s): first 200 chars:\n%.200s", req_id, svc, tmp);
         LOG_EXEC(LOG_ERROR, "req=%04x journalctl exec failed", req_id);
         snprintf(buffer, size, "❌ Failed to read logs");
@@ -492,12 +494,13 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
             NULL
         };
 
-        if (exec_command_simple(fallback_args, tmp, sizeof(tmp)) != 0) {
-            LOG_EXEC(LOG_ERROR, "req=%04x fallback exec_command_simple failed", req_id);
+        exec_result_t res2;
+        if (exec_command(fallback_args, tmp, sizeof(tmp), NULL, &res2) != 0) {
+            LOG_EXEC(LOG_ERROR, "req=%04x fallback journalctl exec failed", req_id);
             snprintf(buffer, size, "❌ No logs available");
             return -1;
         }
-
+        
         res = process_logs_output(
             tmp,
             buffer,
