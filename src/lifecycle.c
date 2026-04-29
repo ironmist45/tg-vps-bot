@@ -14,7 +14,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,6 +39,7 @@
 #include "lifecycle.h"
 #include "logger.h"
 #include "telegram.h"
+#include "config.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -225,7 +226,7 @@ void lifecycle_handle_shutdown(void) {
             
             LOG_SYS(LOG_WARN, "Fallback: systemctl reboot");
             fflush(NULL);
-            execl("/bin/systemctl", "systemctl", "reboot", NULL);
+            execl(g_cfg.systemctl_path, "systemctl", "reboot", NULL);
             LOG_SYS(LOG_ERROR, "fallback exec failed: errno=%d (%s)", 
                     errno, strerror(errno));
         }
@@ -257,7 +258,7 @@ void lifecycle_handle_shutdown(void) {
             return;
         }
 
-        execl("/bin/systemctl", "systemctl", "restart", "tg-bot", NULL);
+        execl(g_cfg.systemctl_path, "systemctl", "restart", "tg-bot", NULL);
         LOG_SYS(LOG_ERROR, "exec restart failed: errno=%d (%s)", 
                 errno, strerror(errno));
         return;
