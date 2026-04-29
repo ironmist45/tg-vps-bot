@@ -164,6 +164,10 @@ jobs:
 
             chmod +x tg-bot || true
 
+            # Strip debug symbols to reduce binary size
+            echo '[INFO] Stripping tg-bot binary'
+            strip tg-bot || true
+
             echo '[OK] build complete'
 
             echo '[DEBUG] contents of /app:'
