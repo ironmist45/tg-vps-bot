@@ -226,6 +226,7 @@ Modular C design:
 * **Libraries (all statically linked):**
     - **🌐 libcurl 8.20.0** — HTTP client library (curl license)
     - **🔒 OpenSSL 3.0.20** — TLS/SSL library (Apache 2.0)
+    - **🧭 c-ares 1.34.6** — asynchronous DNS resolver (MIT)
     - **📄 cJSON 1.7.19** — lightweight JSON parser (MIT)
 
 > ⚡ The binary is self-contained (~5 MB). Only `libc` is required at runtime.
@@ -257,7 +258,7 @@ gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0
 Project is built in Ubuntu 18.04 environment using Docker.
 
 Linking model:
-- **Fully static**: libcurl, OpenSSL, cJSON are compiled from source and statically linked
+- **Fully static**: libcurl, OpenSSL, c-ares, cJSON are compiled from source and statically linked
 - Only `libc` (glibc) remains dynamically linked
 
 No external dependencies required on the target system — just copy the binary and run.
