@@ -47,6 +47,8 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
     // Parse subcommand and arguments
     char subcmd[32] = {0};
     char arg[64] = {0};
+
+    LOG_CMD_CTX(ctx, LOG_INFO, "fail2ban: ctx->args='%s'", ctx->args ? ctx->args : "NULL"); // debug
     
     int parsed = sscanf(ctx->args, "%31s %63s", subcmd, arg);
     
