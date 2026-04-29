@@ -494,8 +494,8 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
             NULL
         };
 
-        exec_result_t res2;
-        if (exec_command(fallback_args, tmp, sizeof(tmp), NULL, &res2) != 0) {
+        exec_result_t res_fallback;
+        if (exec_command(fallback_args, tmp, sizeof(tmp), NULL, &res_fallback) != 0) {
             LOG_EXEC(LOG_ERROR, "req=%04x fallback journalctl exec failed", req_id);
             snprintf(buffer, size, "❌ No logs available");
             return -1;
