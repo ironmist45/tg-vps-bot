@@ -16,6 +16,7 @@
 #include <openssl/opensslv.h>
 #include <openssl/crypto.h>
 #include <cjson/cJSON.h>
+#include <ares.h>
 #include <ares_version.h>
 
 #include <limits.h>
