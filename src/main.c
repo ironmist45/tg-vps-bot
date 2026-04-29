@@ -13,7 +13,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,6 +53,9 @@
 // ===== Прототипы вспомогательных функций =====
 static int try_reopen_logger(const char *path);
 static void log_config(const config_t *cfg);
+
+// ===== Глобальный конфиг =====
+config_t g_cfg;
 
 // ===== MAIN =====
 
@@ -98,8 +101,7 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     // 6. Загрузка конфигурации
     // -----------------------------------------------------------
-    config_t cfg;
-    if (config_load(config_path, &cfg) != 0) {
+    if (config_load(config_path, &g_cfg) != 0) {
         LOG_CFG(LOG_ERROR, "Config load failed");
         logger_close();
         return 1;
@@ -108,27 +110,27 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     // 7. Переключение на лог-файл из конфига (если указан)
     // -----------------------------------------------------------
-    if (logger_reopen(cfg.log_file) == 0) {
-        LOG_CFG(LOG_INFO, "Logger switched: %s", cfg.log_file);
+    if (logger_reopen(g_cfg.log_file) == 0) {
+        LOG_CFG(LOG_INFO, "Logger switched: %s", g_cfg.log_file);
     }
 
-    logger_set_level(cfg.log_level);
+    logger_set_level(g_cfg.log_level);
     LOG_SYS(LOG_INFO, "Logger level applied: %s", 
-            logger_level_to_string(cfg.log_level));
+            logger_level_to_string(g_cfg.log_level));
     
-    config_log(&cfg);
+    config_log(&g_cfg);
 
     // -----------------------------------------------------------
     // 8. Инициализация модулей безопасности
     // -----------------------------------------------------------
-    security_set_allowed_chat(cfg.chat_id);
-    security_set_token_ttl(cfg.token_ttl);
+    security_set_allowed_chat(g_cfg.chat_id);
+    security_set_token_ttl(g_cfg.token_ttl);
     security_init();
 
     // -----------------------------------------------------------
     // 9. Инициализация Telegram
     // -----------------------------------------------------------
-    if (telegram_init(cfg.token) != 0) {
+    if (telegram_init(g_cfg.token) != 0) {
         LOG_NET(LOG_ERROR, "Telegram init failed");
         logger_close();
         return 1;
@@ -137,7 +139,7 @@ int main(int argc, char *argv[]) {
     LOG_STATE(LOG_INFO, "Bot started");
     LOG_STATE(LOG_INFO, "Entering main loop");
     // Отправка стартового сообщения в чат
-    telegram_send_message(cfg.chat_id, "🟢 *Bot started*\n\nReady to serve.");
+    telegram_send_message(g_cfg.chat_id, "🟢 *Bot started*\n\nReady to serve.");
 
     // ===========================================================
     // 10. ГЛАВНЫЙ ЦИКЛ
@@ -155,7 +157,7 @@ int main(int argc, char *argv[]) {
         // Проверка запроса на перезагрузку конфигурации (SIGHUP)
         // -------------------------------------------------------
         if (lifecycle_reload_requested()) {
-            config_reload(config_path, &cfg);
+            config_reload(config_path, &g_cfg);
             lifecycle_clear_reload();
         }
 
