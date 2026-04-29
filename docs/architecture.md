@@ -83,13 +83,17 @@ tg-bot/
 | Module | Header | Source | Responsibility |
 |--------|--------|--------|----------------|
 | **CLI** | `cli.h` | `cli.c` | Command-line argument parsing, help/version output |
-| **Config** | `config.h` | `config.c` | Configuration file loading and validation |
+| **Config** | `config.h` | `config.c` | Configuration file loading, validation, reload |
 | **Logger** | `logger.h` | `logger.c` | Thread-safe logging with levels and timestamps |
 | **Lifecycle** | `lifecycle.h` | `lifecycle.c` | Signal handlers, graceful shutdown, reboot/restart |
 | **Environment** | `environment.h` | `environment.c` | Startup diagnostics, access checks, CI detection |
 | **Exec** | `exec.h` | `exec.c` | External command execution with timeout and capture |
-| **Telegram** | `telegram.h` | `telegram.c` | Bot API communication, long polling, message sending |
-| **Commands** | `commands.h` | `commands.c` | Command routing and dispatching (v1 + v2) |
+| **Telegram** | `telegram.h` | `telegram.c` | Public API (init, shutdown, send, safe polling) |
+| **Telegram HTTP** | `telegram_http.h` | `telegram_http.c` | Low-level HTTP requests via libcurl |
+| **Telegram Parser** | `telegram_parser.h` | `telegram_parser.c` | JSON parsing, markdown escaping, message truncation |
+| **Telegram Poll** | `telegram_poll.h` | `telegram_poll.c` | Long polling with fork() isolation and shutdown check |
+| **Telegram Offset** | `telegram_offset.h` | `telegram_offset.c` | Update offset persistence (crash recovery) |
+| **Commands** | `commands.h` | `commands.c` | Command routing and dispatching (V2 only) |
 | **Reply** | `reply.h` | `reply.c` | Unified response formatting for handlers |
 | **Security** | `security.h` | `security.c` | Access control, input validation, reboot tokens |
 | **System** | `system.h` | `system.c` | System metrics, uptime, OS/hardware info |
@@ -97,7 +101,7 @@ tg-bot/
 | **Users** | `users.h` | `users.c` | Active user session enumeration |
 | **Logs** | `logs.h` | `logs.c` | Journalctl log retrieval and formatting |
 | **Logs Filter** | `logs_filter.h` | `logs_filter.c` | Semantic and multi-keyword log filtering |
-| **Utils** | `utils.h` | `utils.c` | String manipulation, parsing, formatting |
+| **Utils** | `utils.h` | `utils.c` | String manipulation, parsing, time measurement |
 
 ## Command Handlers
 
@@ -112,9 +116,10 @@ tg-bot/
 | `/services` | `cmd_services_v2` | `cmd_services.c` | V2 |
 | `/users` | `cmd_users_v2` | `cmd_services.c` | V2 |
 | `/logs` | `cmd_logs_v2` | `cmd_services.c` | V2 |
-| `/fail2ban` | `cmd_fail2ban` | `cmd_security.c` | Legacy |
-| `/reboot` | `cmd_reboot` | `cmd_control.c` | Legacy |
-| `/reboot_confirm` | `cmd_reboot_confirm` | `cmd_control.c` | Legacy |
+| `/fail2ban` | `cmd_fail2ban_v2` | `cmd_security.c` | V2 |
+| `/reboot` | `cmd_reboot_v2` | `cmd_control.c` | V2 |
+| `/reboot_confirm` | `cmd_reboot_confirm_v2` | `cmd_control.c` | V2 |
+
 ---
 
 ## Overview
