@@ -50,7 +50,7 @@ Supports the following services:
 * 🚫 All unauthorized access is logged:
 
   ```
-  ACCESS DENIED: chat_id=... text=...
+  poll=01a3 req=2212 ACCESS CHECK: chat_id=123456789 cmd=/start result=DENIED
   ```
 * 🔑 **Stateless reboot tokens**
 
@@ -224,9 +224,9 @@ Modular C design:
 * **OS:** Ubuntu 18.04.6
 * **Compiler:** GCC 7.5.0
 * **Libraries (all statically linked):**
-    - **🌐 libcurl 8.7.1** — HTTP client library (curl license)
+    - **🌐 libcurl 8.20.0** — HTTP client library (curl license)
     - **🔒 OpenSSL 3.0.20** — TLS/SSL library (Apache 2.0)
-    - **📄 cJSON 1.7.15** — lightweight JSON parser (MIT)
+    - **📄 cJSON 1.7.19** — lightweight JSON parser (MIT)
 
 > ⚡ The binary is self-contained (~5 MB). Only `libc` is required at runtime.
 
