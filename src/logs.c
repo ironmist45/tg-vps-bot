@@ -43,6 +43,7 @@
 #include "exec.h"
 #include "utils.h"
 #include "logs_filter.h"
+#include "config.h"
 
 #include <strings.h>   // for strcasestr
 #include <stdio.h>
@@ -442,9 +443,9 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     snprintf(lines_str, sizeof(lines_str), "%d", lines);
 
     char *const args[] = {
-        "sudo",
+        (char *)g_cfg.sudo_path,
         "-n",
-        "/bin/journalctl",
+        (char *)g_cfg.journalctl_path,
         "-u",
         (char *)real_service,
         "-n",
@@ -485,9 +486,9 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         snprintf(lines_str2, sizeof(lines_str2), "%d", lines);
 
         char *const fallback_args[] = {
-            "sudo",
+            (char *)g_cfg.sudo_path,
             "-n",
-            "/bin/journalctl",
+            (char *)g_cfg.journalctl_path,
             "-n",
             lines_str2,
             "--no-pager",
