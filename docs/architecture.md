@@ -136,18 +136,8 @@ The project follows a modular architecture with clear separation of concerns:
 
 ## Command Architecture (NEW)
 
-### The project now supports two handler models:
+### All commands use V2 handler model:
 
-1. Legacy (v1)
-```
-int handler(int argc, char *argv[], ...);
-```
-- Uses argc/argv
-- Manual parsing
-- More boilerplate
-- Gradually being phased out
-
-2. Modern (v2) — Primary Direction
 ```
 int handler_v2(command_ctx_t *ctx);
 ```
@@ -155,37 +145,36 @@ int handler_v2(command_ctx_t *ctx);
 ```
 typedef struct {
     long chat_id;
-    long user_id;
+    int user_id;
     const char *username;
-
-    const char *args;     // raw argument string
-    const char *raw_text; // full command text
+    const char *args;       // raw argument string
+    const char *raw_text;   // full command text
+    time_t msg_date;        // message timestamp (for /ping latency)
 
     char *response;
     size_t resp_size;
     response_type_t *resp_type;
+
+    unsigned short req_id;  // 16-bit request ID for log correlation
 } command_ctx_t;
 ```
 ### Key Improvements (v2)
-- No argc/argv
-- Direct access to raw arguments (ctx->args)
-- Cleaner handler signatures
-- Less boilerplate
-- Easier validation and parsing
-- Better extensibility
+- No argc/argv — direct access to raw arguments (ctx->args)
+- Clean handler signatures — less boilerplate
+- Context logging with req_id and chat_id via LOG_CMD_CTX
+- Unified reply API via reply_markdown(), reply_error(), reply_ok()
+- Access to msg_date for latency calculation (/ping)
+- Better extensibility — new fields only added to struct
 
 ### Dispatcher (commands.c)
 
 Responsibilities:
 - Input validation (security_validate_text)
-- Rate limiting
-- Argument splitting (legacy support)
+- Rate limiting (security_rate_limit)
 - Access control (security_check_access)
-Routing:
-- handler_v2 (preferred)
-- fallback to legacy handler
-- Unified logging
-- Response fallback handling
+- Handler routing (V2 only)
+
+**Legacy support removed.** The dispatcher no longer contains fallback to argc/argv handlers. All commands use V2.
 
 ### Migration Status
 
@@ -194,8 +183,10 @@ Routing:
 | Services | ✅ FULL v2 | /services, /users, /logs                    |
 | System   | ✅ FULL v2 | /start, /status, /health, /about, /ping     |
 | Help     | ✅ FULL v2 | /help                                       |
-| Security | ⏳ legacy  | /fail2ban                                   |
-| Control  | ⏳ legacy  | /reboot, /reboot_confirm                    |
+| Security | ✅ FULL v2 | /fail2ban                                   |
+| Control  | ✅ FULL v2 | /reboot, /reboot_confirm                    |
+
+**All 12 commands fully migrated to V2. Legacy code completely removed.**
 
 ### Services Module (Updated)
 
@@ -203,6 +194,7 @@ cmd_services.c is now fully migrated:
 - /services → v2
 - /users → v2
 - /logs → v2
+  
 **Improvements:**
 - Removed legacy handlers
 - Direct use of ctx->args
