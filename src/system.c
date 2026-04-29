@@ -605,15 +605,15 @@ int system_get_status_mini(char *buffer, size_t size, unsigned short req_id) {
 
     // Format compact output
     int written = snprintf(buffer, size,
-        "⚡ *System status (mini)*\n\n"
-        "CPU  %s %.2f (1m)\n"
-        "MEM  %s %d%%\n"
-        "DSK  %s %d%%\n"
-        "UP   %dd %dh %dm",
-        cpu_icon, l1,
-        mem_icon, mem_pct,
-        disk_icon, disk_pct,
-        days, hours, mins
+        "⚡ *System Health*\n\n"
+        "%-4s %s %.2f (1m)\n"
+        "%-4s %s %d%%\n"
+        "%-4s %s %d%%\n"
+        "%-4s %dd %dh %dm",
+        "CPU", cpu_icon, l1,
+        "MEM", mem_icon, mem_pct,
+        "DSK", disk_icon, disk_pct,
+        "UP", days, hours, mins
     );
 
     if (written < 0) {
