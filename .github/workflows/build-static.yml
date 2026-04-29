@@ -1,4 +1,4 @@
-name: Build tg-bot (static) - OpenSSL 3.0.20, Curl 8.7.1, cJSON 1.7.19
+name: Build tg-bot (static) - OpenSSL 3.0.20, Curl 8.20.0, cJSON 1.7.19
 
 on:
   workflow_dispatch:
@@ -77,17 +77,17 @@ jobs:
             make -j\$(nproc)
             make install
 
-            # ===== build static curl 8.7.1 (linked with new openssl) =====
+            # ===== build static curl 8.20.0 (linked with new openssl) =====
             echo ''
             echo '========================================'
-            echo ' Building Curl 8.7.1 (static)'
+            echo ' Building Curl 8.20.0 (static)'
             echo '========================================'
             echo ''
             
             cd /tmp
-            wget https://curl.se/download/curl-8.7.1.tar.xz
-            tar -xf curl-8.7.1.tar.xz
-            cd curl-8.7.1
+            wget https://curl.se/download/curl-8.20.0.tar.xz
+            tar -xf curl-8.20.0.tar.xz
+            cd curl-8.20.0
             
             export PKG_CONFIG_PATH=/usr/local/openssl-static/lib64/pkgconfig:\$PKG_CONFIG_PATH
             
