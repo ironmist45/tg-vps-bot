@@ -15,7 +15,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -158,6 +158,7 @@ static int exec_command_internal(char *const argv[],
  * Execute external command with full options
  * 
  * This is the primary execution interface. Commands are run via sudo.
+ * Use this instead of exec_command_simple() for better log diagnostics.
  * 
  * @param argv    Command argument array (NULL-terminated)
  * @param output  Buffer for captured output (may be NULL)
@@ -184,6 +185,8 @@ int exec_command(char *const argv[],
  * Execute external command with default options
  * 
  * Simplified interface for cases where options and result are not needed.
+ * Kept for backward compatibility. Prefer exec_command() with explicit
+ * result parameter for better log diagnostics (avoids status=N/A).
  * 
  * @param argv    Command argument array (NULL-terminated)
  * @param output  Buffer for captured output
