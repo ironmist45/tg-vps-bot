@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * cmd_security.c - /fail2ban command handler (V2)
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #include "cmd_security.h"
@@ -10,6 +10,7 @@
 #include "utils.h"
 #include "security.h"
 #include "reply.h"
+#include "config.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -67,8 +68,8 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
         // Dynamically build args based on whether jail is specified
         if (arg[0] != '\0') {
             char *const args[] = {
-                "sudo", "-n",
-                "/usr/local/bin/f2b-wrapper",
+                (char *)g_cfg.sudo_path, "-n",
+                (char *)g_cfg.f2b_wrapper_path,
                 "status",
                 arg,
                 NULL
@@ -76,8 +77,8 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
             rc = exec_command(args, tmp, sizeof(tmp), NULL, &res);
         } else {
             char *const args[] = {
-                "sudo", "-n",
-                "/usr/local/bin/f2b-wrapper",
+                (char *)g_cfg.sudo_path, "-n",
+                (char *)g_cfg.f2b_wrapper_path,
                 "status",
                 NULL
             };
@@ -117,8 +118,8 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
         }
 
         char *const args[] = {
-            "sudo", "-n",
-            "/usr/local/bin/f2b-wrapper",
+            (char *)g_cfg.sudo_path, "-n",
+            (char *)g_cfg.f2b_wrapper_path,
             "set",
             "sshd",
             "banip",
@@ -157,8 +158,8 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
         }
 
         char *const args[] = {
-            "sudo", "-n",
-            "/usr/local/bin/f2b-wrapper",
+            (char *)g_cfg.sudo_path, "-n",
+            (char *)g_cfg.f2b_wrapper_path,
             "set",
             "sshd",
             "unbanip",
