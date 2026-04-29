@@ -17,7 +17,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -79,6 +79,11 @@ int config_load(const char *path, config_t *cfg) {
     cfg->token_ttl = 60;
     safe_copy(cfg->log_file, sizeof(cfg->log_file), "/var/log/tg-bot.log");
     cfg->log_level = LOG_INFO;
+    // Default system paths
+    safe_copy(cfg->sudo_path, sizeof(cfg->sudo_path), "/usr/bin/sudo");
+    safe_copy(cfg->systemctl_path, sizeof(cfg->systemctl_path), "/bin/systemctl");
+    safe_copy(cfg->journalctl_path, sizeof(cfg->journalctl_path), "/bin/journalctl");
+    safe_copy(cfg->f2b_wrapper_path, sizeof(cfg->f2b_wrapper_path), "/usr/local/bin/f2b-wrapper");
 
     char line[LINE_MAX_LEN];
     int line_num = 0;
@@ -173,6 +178,20 @@ int config_load(const char *path, config_t *cfg) {
                 cfg->log_level = LOG_INFO;
             }
         }
+
+        else if (strcasecmp(key, "SUDO_PATH") == 0) {
+            safe_copy(cfg->sudo_path, sizeof(cfg->sudo_path), value);
+        }
+        else if (strcasecmp(key, "SYSTEMCTL_PATH") == 0) {
+            safe_copy(cfg->systemctl_path, sizeof(cfg->systemctl_path), value);
+        }
+        else if (strcasecmp(key, "JOURNALCTL_PATH") == 0) {
+            safe_copy(cfg->journalctl_path, sizeof(cfg->journalctl_path), value);
+        }
+        else if (strcasecmp(key, "F2B_WRAPPER_PATH") == 0) {
+            safe_copy(cfg->f2b_wrapper_path, sizeof(cfg->f2b_wrapper_path), value);
+        }
+            
         else {
             // Unknown key (non-fatal, just log for debugging)
             LOG_CFG(LOG_DEBUG, "Unknown config key: %s", key);
