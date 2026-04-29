@@ -16,6 +16,7 @@
 #include <openssl/opensslv.h>
 #include <openssl/crypto.h>
 #include <cjson/cJSON.h>
+#include <ares_version.h>
 
 #include <limits.h>
 #include <stdio.h>
@@ -176,11 +177,13 @@ int cmd_about_v2(command_ctx_t *ctx)
         "*Built:* %s\n"
         "*libcurl:* %.14s\n"
         "*OpenSSL:* %s\n"
+        "*c-ares:* %s\n"
         "*cJSON:* %d.%d.%d",
         APP_NAME, APP_VERSION, APP_CODENAME,
         getpid(), days, hours, mins,
         TG_BUILD_COMMIT, TG_BUILD_DATE,
         curl_version(), OpenSSL_version(0),
+        ares_version(NULL),
         CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
     LOG_CMD_CTX(ctx, LOG_INFO, "about: requested");
 
