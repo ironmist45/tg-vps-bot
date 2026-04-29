@@ -455,8 +455,8 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
 
     char tmp[8192] = {0};
 
-    exec_result_t res;
-    int rc = exec_command(args, tmp, sizeof(tmp), NULL, &res);
+    exec_result_t exec_res;
+    int rc = exec_command(args, tmp, sizeof(tmp), NULL, &exec_res);
     if (rc != 0) {
         LOG_EXEC(LOG_DEBUG, "req=%04x RAW OUTPUT (%s): first 200 chars:\n%.200s", req_id, svc, tmp);
         LOG_EXEC(LOG_ERROR, "req=%04x journalctl exec failed", req_id);
