@@ -27,10 +27,16 @@ typedef struct {
     long chat_id;           // Allowed Telegram chat ID (single-user mode)
     
     // Optional (with defaults)
-    int poll_timeout;       // Long polling timeout in seconds (default: 30)
-    char log_file[256];     // Path to log file (default: /var/log/tg-bot.log)
-    int token_ttl;          // Reboot token TTL in seconds (default: 60)
-    log_level_t log_level;  // Logging verbosity (default: LOG_INFO)
+    int  poll_timeout;         // Long polling timeout in seconds (default: 30)
+    char log_file[256];        // Path to log file (default: /var/log/tg-bot.log)
+    int  token_ttl;            // Reboot token TTL in seconds (default: 60)
+    log_level_t log_level;     // Logging verbosity (default: LOG_INFO)
+
+    // System paths (with defaults)
+    char sudo_path[128];
+    char systemctl_path[128];
+    char journalctl_path[128];
+    char f2b_wrapper_path[128];
 } config_t;
 
 // ============================================================================
