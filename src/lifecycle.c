@@ -134,7 +134,7 @@ static void handle_sigterm(int sig) {
     if (g_signal_received) return;
     g_signal_received = 1;
 
-    LOG_SYS(LOG_WARN, "Received SIGTERM, shutting down...");
+    LOG_SYS(LOG_WARN, "Received SIGTERM (PID=%d), shutting down...", getpid());
     g_shutdown_requested = SHUTDOWN_STOP;  // ← 0 = обычный выход
 }
 
