@@ -1,4 +1,4 @@
-name: Build tg-bot (static) - OpenSSL 3.0.20, Curl 8.20.0, cJSON 1.7.19
+name: Build tg-bot (static) - OpenSSL 3.0.20, Curl 8.20.0, c-ares 1.34.6, cJSON 1.7.19
 
 on:
   workflow_dispatch:
@@ -77,7 +77,27 @@ jobs:
             make -j\$(nproc)
             make install
 
-            # ===== build static curl 8.20.0 (linked with new openssl) =====
+            # ===== build static c-ares 1.34.6 =====
+            echo ''
+            echo '========================================'
+            echo ' Building c-ares 1.34.6 (static)'
+            echo '========================================'
+            echo ''
+
+            cd /tmp
+            wget https://c-ares.org/download/c-ares-1.34.6.tar.gz
+            tar -xzf c-ares-1.34.6.tar.gz
+            cd c-ares-1.34.6
+
+            ./configure \
+              --enable-static \
+              --disable-shared \
+              --prefix=/usr/local/cares-static
+
+            make -j\$(nproc)
+            make install
+
+            # ===== build static curl 8.20.0 (linked with new openssl and c-ares) =====
             echo ''
             echo '========================================'
             echo ' Building Curl 8.20.0 (static)'
@@ -89,11 +109,12 @@ jobs:
             tar -xf curl-8.20.0.tar.xz
             cd curl-8.20.0
             
-            export PKG_CONFIG_PATH=/usr/local/openssl-static/lib64/pkgconfig:\$PKG_CONFIG_PATH
+            export PKG_CONFIG_PATH=/usr/local/openssl-static/lib64/pkgconfig:/usr/local/cares-static/lib/pkgconfig:\$PKG_CONFIG_PATH
             
             ./configure \
               --disable-shared \
               --enable-static \
+              --enable-ares=/usr/local/cares-static \
               --without-libpsl \
               --disable-ldap \
               --without-libidn2 \
@@ -101,8 +122,8 @@ jobs:
               --with-ca-path=/etc/ssl/certs \
               --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt \
               --prefix=/usr/local/curl-static \
-              LDFLAGS='-L/usr/local/openssl-static/lib64' \
-              CPPFLAGS='-I/usr/local/openssl-static/include'
+              LDFLAGS='-L/usr/local/openssl-static/lib64 -L/usr/local/cares-static/lib' \
+              CPPFLAGS='-I/usr/local/openssl-static/include -I/usr/local/cares-static/include'
             
             make -j\$(nproc)
             make install
@@ -129,13 +150,16 @@ jobs:
 
             # ===== build tg-bot =====
             cd /app
-            echo '==========================================='
+            echo ''
+            echo '========================================'
             echo ' Building tg-bot (static)'
-            echo ' OpenSSL 3.0.20, Curl 8.20.0, cJSON 1.7.19'
-            echo '==========================================='
+            echo ' OpenSSL 3.0.20, c-ares 1.34.6'
+            echo ' Curl 8.20.0, cJSON 1.7.19'
+            echo '========================================'
+            echo ''
 
             # 👇 Полностью статическая линковка
-            make LDFLAGS='-L/usr/local/curl-static/lib -L/usr/local/openssl-static/lib64 -Wl,-Bstatic -lcjson -lcurl -lssl -lcrypto -Wl,-Bdynamic -lz -lpthread -ldl' \
+            make LDFLAGS='-L/usr/local/curl-static/lib -L/usr/local/openssl-static/lib64 -L/usr/local/cares-static/lib -Wl,-Bstatic -lcjson -lcurl -lssl -lcrypto -lcares -Wl,-Bdynamic -lz -lpthread -ldl' \
                  CFLAGS='-Iinclude -I/usr/local/curl-static/include -I/usr/local/openssl-static/include'
 
             chmod +x tg-bot || true
