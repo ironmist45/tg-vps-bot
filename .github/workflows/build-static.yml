@@ -95,6 +95,8 @@ jobs:
               --disable-shared \
               --enable-static \
               --without-libpsl \
+              --disable-ldap \
+              --without-libidn2 \
               --with-openssl=/usr/local/openssl-static \
               --with-ca-path=/etc/ssl/certs \
               --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt \
