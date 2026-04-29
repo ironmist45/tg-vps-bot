@@ -42,6 +42,7 @@
 #include <openssl/opensslv.h>
 #include <openssl/crypto.h>
 #include <cjson/cJSON.h>
+#include <ares_version.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -189,6 +190,7 @@ void cli_print_version(void) {
     printf("Built: %s\n", TG_BUILD_DATE);
     printf("libcurl: %.14s\n", curl_version());
     printf("OpenSSL: %s\n", OpenSSL_version(0));
+    printf("c-ares: %s\n", ares_version(NULL));
     printf("cJSON: %d.%d.%d\n", CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
     printf("(c) %s %s\n", APP_YEAR, APP_AUTHOR);
 }
