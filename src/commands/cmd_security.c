@@ -71,6 +71,8 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
                 arg,
                 NULL
             };
+            LOG_CMD_CTX(ctx, LOG_INFO, "fail2ban args: [0]=%s [1]=%s [2]=%s [3]=%s [4]=%s [5]=%s",
+                args[0], args[1], args[2], args[3], args[4] ? args[4] : "NULL", args[5] ? args[5] : "NULL"); // debug cmdline
             rc = exec_command(args, tmp, sizeof(tmp), NULL, &res);
         } else {
             char *const args[] = {
@@ -79,6 +81,8 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
                 "status",
                 NULL
             };
+            LOG_CMD_CTX(ctx, LOG_INFO, "fail2ban args: [0]=%s [1]=%s [2]=%s [3]=%s [4]=%s [5]=%s",
+                args[0], args[1], args[2], args[3], args[4] ? args[4] : "NULL", args[5] ? args[5] : "NULL"); // debug cmdline
             rc = exec_command(args, tmp, sizeof(tmp), NULL, &res);
         }
 
