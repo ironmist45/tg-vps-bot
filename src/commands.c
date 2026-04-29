@@ -14,7 +14,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -183,14 +183,25 @@ int commands_handle(const char *text,
         }
 
         // --------------------------------------------------------------------
-        // V2 HANDLER (preferred, uses command_ctx_t)
+        // V2 HANDLER (uses command_ctx_t)
         // --------------------------------------------------------------------
         if (commands[i].handler_v2) {
+            // Build full argument string (everything after command name)
+            char args_buffer[512] = {0};
+            if (argc > 1) {
+                for (int j = 1; j < argc; j++) {
+                    if (j > 1) {
+                        strcat(args_buffer, " ");
+                    }
+                    strcat(args_buffer, argv[j]);
+                }
+            }
+            
             command_ctx_t ctx = {
                 .chat_id   = chat_id,
                 .user_id   = user_id,
                 .username  = username,
-                .args      = (argc > 1) ? argv[1] : NULL,
+                .args      = (args_buffer[0] != '\0') ? args_buffer : NULL,
                 .raw_text  = text,
                 .msg_date  = msg_date,
                 .response  = response,
