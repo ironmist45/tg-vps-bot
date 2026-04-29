@@ -1,4 +1,4 @@
-name: Build tg-bot (static) - OpenSSL 3.0.20, Curl 8.20.0, c-ares 1.34.6, cJSON 1.7.19
+name: Build tg-bot (static)
 
 on:
   workflow_dispatch:
@@ -85,7 +85,7 @@ jobs:
             echo ''
 
             cd /tmp
-            wget https://c-ares.org/download/c-ares-1.34.6.tar.gz
+            wget https://github.com/c-ares/c-ares/releases/download/v1.34.6/c-ares-1.34.6.tar.gz
             tar -xzf c-ares-1.34.6.tar.gz
             cd c-ares-1.34.6
 
