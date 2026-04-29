@@ -53,6 +53,9 @@ static void setup_curl(CURL *curl) {
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 30L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 15L);
+    curl_easy_setopt(curl, CURLOPT_DNS_CACHE_TIMEOUT, 300L);    // DNS-кэш на 5 минут (работает с c-ares)
+    curl_easy_setopt(curl, CURLOPT_FORBID_REUSE, 0L);           // Разрешаем libcurl переиспользовать существующее TCP-соединение (keep-alive)
+    curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 0L);          // Не принуждаем создавать новое соединение — libcurl может использовать уже открытое, если оно доступно
 }
 
 int telegram_http_init(const char *token) {
