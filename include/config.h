@@ -83,4 +83,7 @@ void config_log(const config_t *cfg);
  */
 int config_reload(const char *path, config_t *cfg);
 
+// Global config instance (defined in main.c)
+extern config_t g_cfg;
+
 #endif // CONFIG_H
