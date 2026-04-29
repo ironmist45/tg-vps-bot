@@ -58,19 +58,29 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
     // STATUS subcommand
     // ------------------------------------------------------------------------
     if (strcmp(subcmd, "status") == 0) {
-        char *const args[] = {
-            "sudo",
-            "-n",
-            "/usr/local/bin/f2b-wrapper",
-            "status",
-            (arg[0] != '\0') ? arg : NULL,
-            NULL
-        };
-
         char tmp[RESP_MAX];
         exec_result_t res;
+        int rc;
 
-        int rc = exec_command(args, tmp, sizeof(tmp), NULL, &res);
+        // Dynamically build args based on whether jail is specified
+        if (arg[0] != '\0') {
+            char *const args[] = {
+                "sudo", "-n",
+                "/usr/local/bin/f2b-wrapper",
+                "status",
+                arg,
+                NULL
+            };
+            rc = exec_command(args, tmp, sizeof(tmp), NULL, &res);
+        } else {
+            char *const args[] = {
+                "sudo", "-n",
+                "/usr/local/bin/f2b-wrapper",
+                "status",
+                NULL
+            };
+            rc = exec_command(args, tmp, sizeof(tmp), NULL, &res);
+        }
 
         if (rc != 0) {
             if (res.status == EXEC_TIMEOUT) {
@@ -105,8 +115,7 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
         }
 
         char *const args[] = {
-            "sudo",
-            "-n",
+            "sudo", "-n",
             "/usr/local/bin/f2b-wrapper",
             "set",
             "sshd",
@@ -146,8 +155,7 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
         }
 
         char *const args[] = {
-            "sudo",
-            "-n",
+            "sudo", "-n",
             "/usr/local/bin/f2b-wrapper",
             "set",
             "sshd",
