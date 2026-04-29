@@ -11,7 +11,7 @@
  *   - Non-blocking I/O with select()
  *   - Graceful termination (SIGTERM → SIGKILL escalation)
  * 
- * All commands are executed through /usr/bin/sudo for privilege escalation.
+ * All commands are executed through configurable sudo path for privilege escalation.
  * 
  * MIT License
  * 
@@ -40,6 +40,7 @@
 
 #include "exec.h"
 #include "logger.h"
+#include "config.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -323,7 +324,7 @@ static int exec_command_internal(char *const argv[],
         close(pipefd[1]);
 
         // Execute command via sudo
-        execv("/usr/bin/sudo", argv);
+        execv(g_cfg.sudo_path, argv);
         _exit(127);  // Only reached if execv fails
     }
 
