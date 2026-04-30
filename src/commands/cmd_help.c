@@ -7,6 +7,7 @@
 #include "cmd_help.h"
 #include "logger.h"
 #include "reply.h"
+#include "metrics.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -83,6 +84,7 @@ int cmd_help_v2(command_ctx_t *ctx)
     }
 
     LOG_CMD_CTX(ctx, LOG_INFO, "help: displayed %zu bytes", used);
+    METRICS_CMD("help");
     
     // ✅ Теперь можно использовать reply_markdown
     return reply_markdown(ctx, buffer);
