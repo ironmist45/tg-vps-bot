@@ -38,7 +38,7 @@ int cmd_services_v2(command_ctx_t *ctx)
         return reply_error(ctx, "Failed to get services");
     }
 
-    METRICS_CMD("services");
+    METRICS_CMD(services);
     return reply_markdown(ctx, buffer);
 }
 
@@ -68,7 +68,7 @@ int cmd_users_v2(command_ctx_t *ctx)
         return reply_error(ctx, "Failed to get users");
     }
 
-    METRICS_CMD("users");
+    METRICS_CMD(users);
     return reply_markdown(ctx, buffer);
 }
 
@@ -148,6 +148,6 @@ int cmd_logs_v2(command_ctx_t *ctx)
         *(ctx->resp_type) = RESP_PLAIN;
     }
 
-    METRICS_CMD("logs");
+    METRICS_CMD(logs);
     return 0;
 }
