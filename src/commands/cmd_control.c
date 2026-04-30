@@ -57,7 +57,7 @@ int cmd_reboot_confirm_v2(command_ctx_t *ctx)
     }
 
     LOG_CMD_CTX(ctx, LOG_INFO, "reboot confirmed and executing");
-    METRICS_CMD("reboot");
+    METRICS_CMD(reboot);
 
     // Request reboot via lifecycle module
     lifecycle_request_shutdown(SHUTDOWN_REBOOT, ctx->chat_id);
