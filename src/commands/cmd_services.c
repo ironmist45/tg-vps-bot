@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * cmd_services.c - Service-related command handlers (/services, /users, /logs)
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #include "commands.h"
@@ -11,6 +11,7 @@
 #include "logger.h"
 #include "logs.h"
 #include "utils.h"
+#include "metrics.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -37,6 +38,7 @@ int cmd_services_v2(command_ctx_t *ctx)
         return reply_error(ctx, "Failed to get services");
     }
 
+    METRICS_CMD("services");
     return reply_markdown(ctx, buffer);
 }
 
@@ -66,6 +68,7 @@ int cmd_users_v2(command_ctx_t *ctx)
         return reply_error(ctx, "Failed to get users");
     }
 
+    METRICS_CMD("users");
     return reply_markdown(ctx, buffer);
 }
 
@@ -145,5 +148,6 @@ int cmd_logs_v2(command_ctx_t *ctx)
         *(ctx->resp_type) = RESP_PLAIN;
     }
 
+    METRICS_CMD("logs");
     return 0;
 }
