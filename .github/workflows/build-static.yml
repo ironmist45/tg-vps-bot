@@ -92,8 +92,8 @@ jobs:
             ./configure \
               --enable-static \
               --disable-shared \
-              --prefix=/usr/local/cares-static
-              CFLAGS='-Wno-conversion -Wno-format-truncation'
+              --prefix=/usr/local/cares-static \
+              CFLAGS='-Wno-conversion -Wno-format-truncation -Wno-unused-result -Wno-sign-conversion'
 
             make -j\$(nproc)
             make install
