@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * telegram.c - Public Telegram API and orchestration
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #include "lifecycle.h"
@@ -11,6 +11,7 @@
 #include "telegram_poll.h"
 #include "telegram_offset.h"
 #include "logger.h"
+#include "metrics.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -83,6 +84,7 @@ int telegram_poll_safe(int max_errors) {
             return -1;
         }
         
+        g_metrics.api_calls_failed++;
         consecutive_errors++;
         LOG_NET(LOG_WARN, "Polling error (rc=%d, attempt=%d/%d)", 
                 rc, consecutive_errors, max_errors);
@@ -95,6 +97,8 @@ int telegram_poll_safe(int max_errors) {
         return 0;
     }
     
+    g_metrics.api_calls_total++;
+    g_metrics.poll_count++;
     consecutive_errors = 0;
     return 0;
 }
