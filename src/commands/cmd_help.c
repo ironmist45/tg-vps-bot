@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * cmd_help.c - /help command handler (V2)
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #include "cmd_help.h"
@@ -84,7 +84,7 @@ int cmd_help_v2(command_ctx_t *ctx)
     }
 
     LOG_CMD_CTX(ctx, LOG_INFO, "help: displayed %zu bytes", used);
-    METRICS_CMD("help");
+    METRICS_CMD(help);
     
     // ✅ Теперь можно использовать reply_markdown
     return reply_markdown(ctx, buffer);
