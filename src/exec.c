@@ -41,6 +41,7 @@
 #include "exec.h"
 #include "logger.h"
 #include "config.h"
+#include "metrics.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -237,6 +238,7 @@ static int exec_command_internal(char *const argv[],
             LOG_EXEC(LOG_ERROR, "invalid argv (empty command)");
         }
         exec_result_fail(result, EXEC_EXEC_FAILED);
+        g_metrics.err_exec++;
         return -1;
     }
 
@@ -282,6 +284,7 @@ static int exec_command_internal(char *const argv[],
             LOG_EXEC(LOG_ERROR, "pipe failed cmd='%s'", cmdline);
         }
         exec_result_fail(result, EXEC_PIPE_FAILED);
+        g_metrics.err_exec++;
         return -1;
     }
 
@@ -343,6 +346,7 @@ static int exec_command_internal(char *const argv[],
 
         if (result) result->duration_ms = elapsed_ms;
         exec_result_fail(result, EXEC_READ_FAILED);
+        g_metrics.err_exec++;
         return -1;
     }
 
@@ -388,6 +392,7 @@ static int exec_command_internal(char *const argv[],
 
             if (result) result->duration_ms = elapsed_ms;
             exec_result_fail(result, EXEC_TIMEOUT);
+            g_metrics.err_exec++;
             return -1;
         }
 
@@ -409,6 +414,7 @@ static int exec_command_internal(char *const argv[],
 
             if (result) result->duration_ms = elapsed_ms;
             exec_result_fail(result, EXEC_READ_FAILED);
+            g_metrics.err_exec++;
             return -1;
         }
 
@@ -458,6 +464,7 @@ static int exec_command_internal(char *const argv[],
 
             if (result) result->duration_ms = elapsed_ms;
             exec_result_fail(result, EXEC_READ_FAILED);
+            g_metrics.err_exec++;
             return -1;
         }
 
@@ -481,6 +488,7 @@ static int exec_command_internal(char *const argv[],
 
         if (result) result->duration_ms = elapsed_ms;
         exec_result_fail(result, EXEC_TIMEOUT);
+        g_metrics.err_exec++;
         return -1;
     }
 
@@ -499,6 +507,7 @@ static int exec_command_internal(char *const argv[],
         }
 
         LOG_EXEC(LOG_WARN, "cmd='%s' killed by signal=%d", cmdline, WTERMSIG(status));
+        g_metrics.err_exec++;
         return -1;
     }
     
