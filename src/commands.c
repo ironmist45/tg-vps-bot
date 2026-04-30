@@ -47,6 +47,7 @@
 #include "cmd_help.h"
 #include "cmd_security.h"
 #include "cmd_control.h"
+#include "metrics.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -237,6 +238,8 @@ int commands_handle(const char *text,
     // ------------------------------------------------------------------------
     // Unknown command
     // ------------------------------------------------------------------------
+
+    METRICS_CMD("unknown");
     
     log_msg(LOG_WARN,
             "UNKNOWN CMD %.32s (chat_id=%ld)",
