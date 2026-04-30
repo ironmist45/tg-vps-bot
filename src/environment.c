@@ -84,7 +84,7 @@ void env_log_workdir(void) {
 
 void env_check_journal_access(void) {
     char *argv[] = {
-        (char *)g_cfg.sudo_path, "-n",
+        "sudo", "-n",
         (char *)g_cfg.journalctl_path,
         "-n", "1", "--no-pager",
         NULL
@@ -119,7 +119,7 @@ void env_check_journal_access(void) {
 
 void env_check_systemctl_access(void) {
     char *const args[] = {
-        (char *)g_cfg.sudo_path, "-n",
+        "sudo", "-n",
         (char *)g_cfg.systemctl_path,
         "is-active", "ssh", NULL
     };
@@ -163,7 +163,7 @@ void env_check_systemctl_access(void) {
 
 void env_check_fail2ban(void) {
     char *const args[] = {
-        (char *)g_cfg.sudo_path, "-n",
+        "sudo", "-n",
         (char *)g_cfg.f2b_wrapper_path,
         "status",
         NULL
