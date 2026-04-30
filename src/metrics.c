@@ -29,18 +29,18 @@ void metrics_format_log(char *buf, size_t size) {
 
 void metrics_format_health(char *buf, size_t size) {
     int pos = snprintf(buf, size,
-        "\n📊 *BOT METRICS*\n"
+        "\n📊 *BOT METRICS*\n\n"
         "`COMMANDS (total: %lu)\n"
-        "/start      %lu\n"
-        "/help       %lu\n"
-        "/logs       %lu\n"
-        "/fail2ban   %lu\n"
-        "/reboot      %lu\n"
-        "/restart     %lu\n"
-        "/services    %lu\n"
-        "/users       %lu\n"
-        "/health      %lu\n"
-        "other        %lu\n"
+        "%-10s %4lu\n"
+        "%-10s %4lu\n"
+        "%-10s %4lu\n"
+        "%-10s %4lu\n"
+        "%-10s %4lu\n"
+        "%-10s %4lu\n"
+        "%-10s %4lu\n"
+        "%-10s %4lu\n"
+        "%-10s %4lu\n"
+        "%-10s %4lu\n"
         " `\n"
         "`ERRORS\n"
         "Unauthorized:   %lu\n"
@@ -53,10 +53,16 @@ void metrics_format_health(char *buf, size_t size) {
         "Poll cycles:   %lu\n"
         "API calls:     %lu (%lu failed)`",
         g_metrics.cmd_total,
-        g_metrics.cmd_start, g_metrics.cmd_help, g_metrics.cmd_logs,
-        g_metrics.cmd_fail2ban, g_metrics.cmd_reboot, g_metrics.cmd_restart,
-        g_metrics.cmd_services, g_metrics.cmd_users, g_metrics.cmd_health,
-        g_metrics.cmd_other,
+        "/start", g_metrics.cmd_start,
+        "/help", g_metrics.cmd_help,
+        "/logs", g_metrics.cmd_logs,
+        "/fail2ban", g_metrics.cmd_fail2ban,
+        "/reboot", g_metrics.cmd_reboot,
+        "/restart", g_metrics.cmd_restart,
+        "/services", g_metrics.cmd_services,
+        "/users", g_metrics.cmd_users,
+        "/health", g_metrics.cmd_health,
+        "other", g_metrics.cmd_other,
         g_metrics.err_unauthorized, g_metrics.err_timeout, g_metrics.err_exec,
         g_metrics.avg_response_ms, g_metrics.max_response_ms,
         g_metrics.poll_count,
