@@ -162,6 +162,11 @@ void env_check_systemctl_access(void) {
 }
 
 void env_check_fail2ban(void) {
+    if (env_is_ci()) {
+        LOG_SYS(LOG_INFO, "fail2ban-wrapper: skipped (CI environment)");
+        return;
+    }
+    
     char *const args[] = {
         (char *)g_cfg.sudo_path, "-n",
         (char *)g_cfg.f2b_wrapper_path,
