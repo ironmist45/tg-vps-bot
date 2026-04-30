@@ -97,7 +97,7 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
         }
 
         LOG_CMD_CTX(ctx, LOG_INFO, "fail2ban status: %s", arg[0] ? arg : "all");
-        METRICS_CMD("fail2ban");
+        METRICS_CMD(fail2ban);
         safe_code_block(tmp, ctx->response, ctx->resp_size);
         
         if (ctx->resp_type) {
@@ -143,7 +143,7 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
         }
 
         LOG_CMD_CTX(ctx, LOG_INFO, "fail2ban ban: %s", arg);
-        METRICS_CMD("fail2ban");
+        METRICS_CMD(fail2ban);
         return reply_ok(ctx, "IP banned");
     }
 
@@ -184,7 +184,7 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
         }
 
         LOG_CMD_CTX(ctx, LOG_INFO, "fail2ban unban: %s", arg);
-        METRICS_CMD("fail2ban");
+        METRICS_CMD(fail2ban);
         return reply_ok(ctx, "IP unbanned");
     }
 
