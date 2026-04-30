@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * cmd_control.c - System control commands (/reboot, /reboot_confirm) (V2)
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #include "cmd_control.h"
@@ -10,6 +10,7 @@
 #include "lifecycle.h"
 #include "reply.h"
 #include "utils.h"
+#include "metrics.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -56,6 +57,7 @@ int cmd_reboot_confirm_v2(command_ctx_t *ctx)
     }
 
     LOG_CMD_CTX(ctx, LOG_INFO, "reboot confirmed and executing");
+    METRICS_CMD("reboot");
 
     // Request reboot via lifecycle module
     lifecycle_request_shutdown(SHUTDOWN_REBOOT, ctx->chat_id);
