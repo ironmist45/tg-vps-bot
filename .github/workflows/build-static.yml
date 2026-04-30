@@ -148,6 +148,17 @@ jobs:
             make install
             ldconfig
 
+            # ===== build f2b-wrapper =====
+            cd /app
+            echo ''
+            echo '========================================'
+            echo ' Building f2b-wrapper'
+            echo '========================================'
+            echo ''
+            gcc -O2 -Wall -Wextra tools/f2b-wrapper.c -o f2b-wrapper
+            chmod +x f2b-wrapper
+            cp f2b-wrapper /usr/local/bin/f2b-wrapper
+
             # ===== build tg-bot =====
             cd /app
             echo ''
@@ -245,6 +256,10 @@ jobs:
           echo 'LOG_FILE=./test.log' >> test.conf
           echo 'POLL_TIMEOUT=1' >> test.conf
           echo 'TOKEN_TTL=10' >> test.conf
+          echo 'SUDO_PATH=/usr/bin/sudo' >> test.conf
+          echo 'SYSTEMCTL_PATH=/bin/systemctl' >> test.conf
+          echo 'JOURNALCTL_PATH=/bin/journalctl' >> test.conf
+          echo 'F2B_WRAPPER_PATH=/usr/local/bin/f2b-wrapper' >> test.conf
           timeout 3s ./tg-bot -c test.conf || echo 'bot exited (expected or timeout)'
         continue-on-error: true
 
