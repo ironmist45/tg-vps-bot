@@ -19,7 +19,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -606,14 +606,14 @@ int system_get_status_mini(char *buffer, size_t size, unsigned short req_id) {
     // Format compact output
     int written = snprintf(buffer, size,
         "⚡ *System Health*\n\n"
-        "%-4s %s %.2f (1m)\n"
-        "%-4s %s %d%%\n"
-        "%-4s %s %d%%\n"
-        "%-4s %dd %dh %dm",
-        "CPU", cpu_icon, l1,
-        "MEM", mem_icon, mem_pct,
-        "DSK", disk_icon, disk_pct,
-        "UP", days, hours, mins
+        "%-5s %s %5.2f (1m)\n"
+        "%-5s %s %3d%%\n"
+        "%-5s %s %3d%%\n"
+        "%-5s %dd %dh %dm",
+        "CPU:", cpu_icon, l1,
+        "MEM:", mem_icon, mem_pct,
+        "DSK:", disk_icon, disk_pct,
+        "UP:", days, hours, mins
     );
 
     if (written < 0) {
