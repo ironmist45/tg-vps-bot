@@ -58,7 +58,7 @@ int cmd_start_v2(command_ctx_t *ctx)
     system_get_uptime_str(uptime, sizeof(uptime));
 
     LOG_CMD_CTX(ctx, LOG_INFO, "start: user opened bot");
-    METRICS_CMD("start");
+    METRICS_CMD(start);
 
     // Format welcome message
     char msg[512];
@@ -138,7 +138,7 @@ int cmd_health_v2(command_ctx_t *ctx)
     }
 
     LOG_CMD_CTX(ctx, LOG_INFO, "health: requested");
-    METRICS_CMD("health");
+    METRICS_CMD(health);
 
     char health_buf[1024];
     snprintf(health_buf, sizeof(health_buf), "%s\n", buf);
