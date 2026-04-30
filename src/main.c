@@ -44,6 +44,7 @@
 #include "security.h"
 #include "lifecycle.h"
 #include "environment.h"
+#include "metrics.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -65,6 +66,7 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     lifecycle_init();
     lifecycle_register_handlers();
+    memset(&g_metrics, 0, sizeof(g_metrics));    // Обнулить метрики при старте
 
     // -----------------------------------------------------------
     // 2. Обработка аргументов командной строки
@@ -180,6 +182,10 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     // 11. Завершение работы
     // -----------------------------------------------------------
+    char metrics_buf[512];
+    metrics_format_log(metrics_buf, sizeof(metrics_buf));
+    LOG_SYS(LOG_INFO, "%s", metrics_buf);
+    
     logger_close();
     return 0;
 }
