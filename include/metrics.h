@@ -25,7 +25,7 @@ typedef struct {
     unsigned long cmd_services;
     unsigned long cmd_users;
     unsigned long cmd_health;
-    unsigned long cmd_unknown;
+    unsigned long cmd_other;
 
     // --- Ошибки ---
     unsigned long err_unauthorized;
