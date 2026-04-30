@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * cmd_system.c - System information command handlers (/start, /status, /health, /about, /ping)
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #include "build_info.h"
@@ -11,6 +11,7 @@
 #include "system.h"
 #include "utils.h"
 #include "version.h"
+#include "metrics.h"
 
 #include <curl/curl.h>
 #include <openssl/opensslv.h>
@@ -57,6 +58,7 @@ int cmd_start_v2(command_ctx_t *ctx)
     system_get_uptime_str(uptime, sizeof(uptime));
 
     LOG_CMD_CTX(ctx, LOG_INFO, "start: user opened bot");
+    METRICS_CMD("start");
 
     // Format welcome message
     char msg[512];
@@ -122,6 +124,7 @@ int cmd_status_v2(command_ctx_t *ctx)
  *   - Memory usage percentage
  *   - Disk usage percentage
  *   - System uptime
+ *   - Bot metrics (commands, errors, performance, API stats)
  * 
  * @param ctx  Command context
  * @return     0 on success, error reply on failure
@@ -135,8 +138,14 @@ int cmd_health_v2(command_ctx_t *ctx)
     }
 
     LOG_CMD_CTX(ctx, LOG_INFO, "health: requested");
+    METRICS_CMD("health");
 
-    return reply_markdown(ctx, buf);
+    char health_buf[1024];
+    snprintf(health_buf, sizeof(health_buf), "%s\n", buf);
+    metrics_format_health(health_buf + strlen(health_buf),
+                          sizeof(health_buf) - strlen(health_buf));
+
+    return reply_markdown(ctx, health_buf);
 }
 
 // ============================================================================
