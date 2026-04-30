@@ -13,7 +13,7 @@ bot_metrics_t g_metrics = {0};
 void metrics_format_log(char *buf, size_t size) {
     snprintf(buf, size,
         "Commands: %lu (start=%lu help=%lu logs=%lu f2b=%lu reboot=%lu "
-        "restart=%lu services=%lu users=%lu health=%lu unknown=%lu) | "
+        "restart=%lu services=%lu users=%lu health=%lu other=%lu) | "
         "Errors: unauthorized=%lu timeout=%lu exec=%lu | "
         "API: %lu calls, %lu failed | "
         "Response: avg=%ldms max=%ldms",
@@ -21,7 +21,7 @@ void metrics_format_log(char *buf, size_t size) {
         g_metrics.cmd_start, g_metrics.cmd_help, g_metrics.cmd_logs,
         g_metrics.cmd_fail2ban, g_metrics.cmd_reboot, g_metrics.cmd_restart,
         g_metrics.cmd_services, g_metrics.cmd_users, g_metrics.cmd_health,
-        g_metrics.cmd_unknown,
+        g_metrics.cmd_other,
         g_metrics.err_unauthorized, g_metrics.err_timeout, g_metrics.err_exec,
         g_metrics.api_calls_total, g_metrics.api_calls_failed,
         g_metrics.avg_response_ms, g_metrics.max_response_ms);
@@ -40,7 +40,7 @@ void metrics_format_health(char *buf, size_t size) {
         "/services   %lu\n"
         "/users      %lu\n"
         "/health     %lu\n"
-        "unknown     %lu\n\n"
+        "other     %lu\n\n"
         "*ERRORS*\n"
         "Unauthorized:   %lu\n"
         "Timeouts:       %lu\n"
@@ -54,7 +54,7 @@ void metrics_format_health(char *buf, size_t size) {
         g_metrics.cmd_start, g_metrics.cmd_help, g_metrics.cmd_logs,
         g_metrics.cmd_fail2ban, g_metrics.cmd_reboot, g_metrics.cmd_restart,
         g_metrics.cmd_services, g_metrics.cmd_users, g_metrics.cmd_health,
-        g_metrics.cmd_unknown,
+        g_metrics.cmd_other,
         g_metrics.err_unauthorized, g_metrics.err_timeout, g_metrics.err_exec,
         g_metrics.avg_response_ms, g_metrics.max_response_ms,
         g_metrics.poll_count,
