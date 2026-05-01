@@ -43,7 +43,6 @@
 #include "security.h"
 #include "lifecycle.h"
 #include "environment.h"
-#include "sd_notify.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -135,13 +134,6 @@ int main(int argc, char *argv[]) {
     }
 
     LOG_STATE(LOG_INFO, "Bot started");
-
-    /*
-     * Уведомляем systemd что инициализация завершена и бот готов к работе.
-     * Требуется при Type=notify в unit-файле.
-     * Если NOTIFY_SOCKET не установлен — no-op.
-     */
-    sd_notify_ready();
     LOG_STATE(LOG_INFO, "Entering main loop");
 
     // ===========================================================
@@ -151,13 +143,6 @@ int main(int argc, char *argv[]) {
     const int max_consecutive_errors = 5;
     
     while (1) {
-        /*
-         * Сбрасываем watchdog таймер systemd в каждой итерации.
-         * WatchdogSec=60 в unit-файле — ожидается каждые 30 сек.
-         * Одна итерация: poll (до 25 сек) + usleep(200мс) — укладываемся.
-         * Если NOTIFY_SOCKET не установлен — no-op.
-         */
-        sd_notify_watchdog();
         // -------------------------------------------------------
         // Проверка запроса на shutdown (от сигнала или команды)
         // -------------------------------------------------------
@@ -188,6 +173,19 @@ int main(int argc, char *argv[]) {
             }
 
             lifecycle_clear_reload();
+        }
+        // -------------------------------------------------------
+        // Ротация лог-файла (SIGUSR1 от logrotate)
+        // -------------------------------------------------------
+        if (lifecycle_rotate_requested()) {
+            LOG_SYS(LOG_INFO, "Log rotation requested (SIGUSR1)");
+            if (try_reopen_logger(cfg.log_file) == 0) {
+                LOG_SYS(LOG_INFO, "Log file reopened: %s", cfg.log_file);
+            } else {
+                LOG_SYS(LOG_WARN, "Failed to reopen log file: %s", cfg.log_file);
+            }
+            lifecycle_clear_rotate();
+        // убираем лишний }
         }
 
         // -------------------------------------------------------
