@@ -34,6 +34,7 @@
 #include "logger.h"
 #include "commands.h"
 #include "security.h"
+#include "metrics.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -325,8 +326,20 @@ static void process_updates(const char *chunk_data, size_t data_len,
             }
 
             clock_gettime(CLOCK_MONOTONIC, &req_end);
-            long req_ms = (req_end.tv_sec  - req_start.tv_sec)  * 1000 +
-                          (req_end.tv_nsec - req_start.tv_nsec) / 1000000;
+            long req_ms = elapsed_ms(req_start, req_end);
+
+            /* Обновить метрики времени ответа */
+            if (req_ms > g_metrics.max_response_ms) {
+                g_metrics.max_response_ms = req_ms;
+            }
+            /* Скользящее среднее */
+            if (g_metrics.cmd_total > 0) {
+                g_metrics.avg_response_ms =
+                    (g_metrics.avg_response_ms * (g_metrics.cmd_total - 1) + req_ms)
+                    / g_metrics.cmd_total;
+            } else {
+                g_metrics.avg_response_ms = req_ms;
+            }
 
             LOG_NET(LOG_INFO,
                     "poll=%04x req=%04x done: %ld ms (resp=%zu)",
