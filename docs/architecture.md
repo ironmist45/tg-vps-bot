@@ -5,77 +5,78 @@ This document describes the structure and organization of the project tg-bot.
 ## Project Layout
 
 ```
-## Project Layout
 tg-bot/
 ├── README.md              # 📘 project documentation (setup, usage, architecture)
 ├── Makefile               # ⚙️ build system (compile, clean, targets)
 ├── .gitignore             # 🚫 ignored files (build artifacts, logs, etc.)
 │
 ├── .github/
-│ └── workflows/
-│ └── build-static.yml           # 🔧 CI/CD pipeline (fully static build)
+│   └── workflows/
+│       └── build-static.yml  # 🔧 CI/CD pipeline (fully static build)
 │
 ├── config/
-│ └── config.example.conf        # 🔧 example configuration (env template)
+│   └── config.example.conf   # 🔧 example configuration (env template)
 │
 ├── include/                     # 📂 public headers (module APIs)
-│ ├── version.h                  # 🔹 version and build information
-│ ├── build_info.h               # 🔹 generated build info (commit, date)
-│ ├── cli.h                      # 🔹 command-line interface parsing
-│ ├── config.h                   # 🔹 config loader API (parsing, reload, access)
-│ ├── logger.h                   # 🔹 logging system API (levels, macros, output)
-│ ├── lifecycle.h                # 🔹 process lifecycle (signals, shutdown, reboot)
-│ ├── environment.h              # 🔹 runtime environment diagnostics
-│ ├── exec.h                     # 🔹 execution API (command runner with timeout)
-│ ├── telegram.h                 # 🔹 Telegram API client interface (public)
-│ ├── telegram_http.h            # 🔹 low-level HTTP communication
-│ ├── telegram_parser.h          # 🔹 JSON parsing and message formatting
-│ ├── telegram_poll.h            # 🔹 long polling with fork isolation
-│ ├── telegram_offset.h          # 🔹 update offset persistence
-│ ├── commands.h                 # 🔹 command dispatcher interface (V2 only)
-│ ├── reply.h                    # 🔹 unified response formatting API
-│ ├── security.h                 # 🔹 security layer (access control, tokens)
-│ ├── system.h                   # 🔹 system info (metrics, uptime, host info)
-│ ├── services.h                 # 🔹 systemd services status API
-│ ├── users.h                    # 🔹 active user sessions API
-│ ├── logs.h                     # 🔹 logs retrieval API (journalctl integration)
-│ ├── logs_filter.h              # 🔹 log filtering API (semantic + multi-keyword)
-│ └── utils.h                    # 🔹 shared helpers (strings, parsing, formatting)
+│   ├── version.h                # 🔹 version and build information
+│   ├── build_info.h             # 🔹 generated build info (commit, date)
+│   ├── cli.h                    # 🔹 command-line interface parsing
+│   ├── config.h                 # 🔹 config loader API (parsing, reload, access)
+│   ├── logger.h                 # 🔹 logging system API (levels, macros, output)
+│   ├── lifecycle.h              # 🔹 process lifecycle (signals, shutdown, reboot)
+│   ├── environment.h            # 🔹 runtime environment diagnostics
+│   ├── exec.h                   # 🔹 execution API (command runner with timeout)
+│   ├── metrics.h                # 🔹 bot usage metrics and statistics
+│   ├── telegram.h               # 🔹 Telegram API client interface (public)
+│   ├── telegram_http.h          # 🔹 low-level HTTP communication
+│   ├── telegram_parser.h        # 🔹 JSON parsing and message formatting
+│   ├── telegram_poll.h          # 🔹 long polling with fork isolation
+│   ├── telegram_offset.h        # 🔹 update offset persistence
+│   ├── commands.h               # 🔹 command dispatcher interface (V2 only)
+│   ├── reply.h                  # 🔹 unified response formatting API
+│   ├── security.h               # 🔹 security layer (access control, tokens)
+│   ├── system.h                 # 🔹 system info (metrics, uptime, host info)
+│   ├── services.h               # 🔹 systemd services status API
+│   ├── users.h                  # 🔹 active user sessions API
+│   ├── logs.h                   # 🔹 logs retrieval API (journalctl integration)
+│   ├── logs_filter.h            # 🔹 log filtering API (semantic + multi-keyword)
+│   └── utils.h                  # 🔹 shared helpers (strings, parsing, formatting)
 │
 ├── src/                 # 📂 implementation (core modules)
-│ ├── main.c             # 🚀 entry point (init, orchestration, main loop)
-│ ├── cli.c              # 🔹 command-line argument parsing
-│ ├── config.c           # 🔹 config parser, reload, validation
-│ ├── logger.c           # 🔹 thread-safe logging implementation
-│ ├── lifecycle.c        # 🔹 signal handlers, graceful shutdown, reboot/restart
-│ ├── environment.c      # 🔹 startup diagnostics and access checks
-│ ├── exec.c             # 🔹 external command execution with timeout
-│ ├── telegram.c         # 🔹 public API (init, send, safe polling)
-│ ├── telegram_http.c    # 🔹 curl-based HTTP requests
-│ ├── telegram_parser.c  # 🔹 JSON parsing + markdown escaping
-│ ├── telegram_poll.c    # 🔹 long polling with fork() isolation
-│ ├── telegram_offset.c  # 🔹 offset persistence (crash recovery)
-│ ├── commands.c         # 🔹 command routing and dispatcher (V2 only)
-│ ├── reply.c            # 🔹 response formatting helpers
-│ ├── security.c         # 🔹 access control + reboot token validation
-│ ├── system.c           # 🔹 system metrics and information
-│ ├── services.c         # 🔹 systemd service status queries
-│ ├── users.c            # 🔹 active user session enumeration
-│ ├── logs.c             # 🔹 journalctl log retrieval and formatting
-│ ├── logs_filter.c      # 🔹 semantic log filtering engine
-│ ├── utils.c            # 🔹 helper functions implementation
-│ │
-│ ├── cmd_help.c         # 🧩 /help command handler (V2)
-│ ├── cmd_system.c       # 🧩 /start, /status, /health, /ping, /about (V2)
-│ ├── cmd_services.c     # 🧩 /services, /users, /logs (V2)
-│ ├── cmd_security.c     # 🧩 /fail2ban command handler (V2)
-│ └── cmd_control.c      # 🧩 /reboot, /reboot_confirm (V2)
+│   ├── main.c           # 🚀 entry point (init, orchestration, main loop)
+│   ├── cli.c            # 🔹 command-line argument parsing
+│   ├── config.c         # 🔹 config parser, reload, validation
+│   ├── logger.c         # 🔹 thread-safe logging implementation
+│   ├── lifecycle.c      # 🔹 signal handlers, graceful shutdown, reboot/restart
+│   ├── environment.c    # 🔹 startup diagnostics and access checks
+│   ├── exec.c           # 🔹 external command execution with timeout
+│   ├── metrics.c        # 🔹 bot metrics collection and formatting
+│   ├── telegram.c       # 🔹 public API (init, send, safe polling)
+│   ├── telegram_http.c  # 🔹 curl-based HTTP requests
+│   ├── telegram_parser.c# 🔹 JSON parsing + markdown escaping
+│   ├── telegram_poll.c  # 🔹 long polling with fork() isolation
+│   ├── telegram_offset.c# 🔹 offset persistence (crash recovery)
+│   ├── commands.c       # 🔹 command routing and dispatcher (V2 only)
+│   ├── reply.c          # 🔹 response formatting helpers
+│   ├── security.c       # 🔹 access control + reboot token validation
+│   ├── system.c         # 🔹 system metrics and information
+│   ├── services.c       # 🔹 systemd service status queries
+│   ├── users.c          # 🔹 active user session enumeration
+│   ├── logs.c           # 🔹 journalctl log retrieval and formatting
+│   ├── logs_filter.c    # 🔹 semantic log filtering engine
+│   ├── utils.c          # 🔹 helper functions implementation
+│   │
+│   ├── cmd_help.c       # 🧩 /help command handler (V2)
+│   ├── cmd_system.c     # 🧩 /start, /status, /health, /ping, /about (V2)
+│   ├── cmd_services.c   # 🧩 /services, /users, /logs (V2)
+│   ├── cmd_security.c   # 🧩 /fail2ban command handler (V2)
+│   └── cmd_control.c    # 🧩 /reboot, /reboot_confirm (V2)
 │
-├── tools/ # 🔧 internal utilities
-│ └── f2b-wrapper.c      # 🔹 Fail2Ban wrapper (ban/unban/status)
+├── tools/               # 🔧 internal utilities
+│   └── f2b-wrapper.c    # 🔹 Fail2Ban wrapper (ban/unban/status)
 │
-└── build/ # 🏗 build artifacts (created by Makefile)
-└── *.o                  # compiled object files
+└── build/               # 🏗 build artifacts (created by Makefile)
+    └── *.o              # compiled object files
 ```
 
 ## Module Organization
