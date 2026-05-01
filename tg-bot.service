@@ -1,0 +1,45 @@
+[Unit]
+Description=Telegram Bot
+After=network.target
+  
+# ===== ANTI-REBOOT LOOP =====
+StartLimitInterval=60
+StartLimitBurst=3
+  
+[Service]
+Type=notify
+NotifyAccess=main
+ 
+User=tg-bot
+Group=tg-bot
+ 
+# 👉 Working directory (important!)
+WorkingDirectory=/var/lib/tg-bot
+  
+ExecStart=/usr/local/bin/tg-bot --config /usr/local/etc/tgbot.conf
+ 
+Restart=always
+RestartSec=3
+MemoryAccounting=yes
+MemoryMax=128M
+TimeoutStopSec=10
+ 
+# Watchdog: systemd убьёт и перезапустит сервис если не получит
+# WATCHDOG=1 в течение WatchdogSec секунд.
+# Одна итерация main loop = до 25 сек (long poll) + 200мс.
+# 60 секунд даёт двукратный запас.
+WatchdogSec=60
+ 
+# Security options
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=no
+ProtectHome=no
+ReadWritePaths=/var/log /var/lib
+
+# Logging
+StandardOutput=file:/var/log/tg-bot.log
+StandardError=file:/var/log/tg-bot.log
+ 
+[Install]
+WantedBy=multi-user.target
