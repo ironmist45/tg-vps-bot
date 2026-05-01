@@ -6,6 +6,7 @@
 
 #include "telegram_http.h"
 #include "logger.h"
+#include "telegram_timeouts.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,8 +48,8 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 }
 
 static void setup_curl(CURL *curl) {
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 35L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long)TG_HTTP_TIMEOUT_SEC);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, (long)TG_CONNECT_TIMEOUT_SEC);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 30L);
