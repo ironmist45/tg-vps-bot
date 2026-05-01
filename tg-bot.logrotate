@@ -1,0 +1,29 @@
+# /etc/logrotate.d/tg-bot
+#
+# Log rotation for tg-bot Telegram bot.
+#
+# After rotation logrotate sends SIGUSR1 to the bot process.
+# The bot handles SIGUSR1 by reopening the log file on the next
+# main loop iteration (within ~25 seconds).
+#
+# To install:
+#   cp tg-bot.logrotate /etc/logrotate.d/tg-bot
+
+/var/log/tg-bot.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 tg-bot tg-bot
+
+    su tg-bot tg-bot
+
+    postrotate
+        # Send SIGUSR1 to reopen the log file.
+        # pidof returns non-zero if the process is not running —
+        # that is fine, missingok covers the file side.
+        /bin/kill -USR1 $(pidof tg-bot) 2>/dev/null || true
+    endscript
+}
