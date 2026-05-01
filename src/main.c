@@ -35,6 +35,7 @@
  */
 
 #include "version.h"
+#include "build_info.h"
 #include "logger.h"
 #include "config.h"
 #include "cli.h"
@@ -74,7 +75,7 @@ int main(int argc, char *argv[]) {
     char config_path[256];
     int rc = cli_process(argc, argv, config_path);
     if (rc != 0) {
-        // Help/version printed or error — exit cleanly
+        // Help / version printed or error — exit cleanly
         return (rc == -1 && (argc == 2)) ? 0 : 1;
     }
 
@@ -89,6 +90,7 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     LOG_SYS(LOG_INFO, "==== START ====");
     LOG_SYS(LOG_INFO, "%s v%s (%s)", APP_NAME, APP_VERSION, APP_CODENAME);
+    LOG_SYS(LOG_INFO, "Build: commit %s, %s", TG_BUILD_COMMIT, TG_BUILD_DATE);
     fflush(NULL);
     
     LOG_SYS(LOG_INFO, "Process started (PID=%d)", getpid());
@@ -110,7 +112,7 @@ int main(int argc, char *argv[]) {
 
     // -----------------------------------------------------------
     // 7. Переключение на лог-файл из конфига (если указан)
-    //    и проверки окружения
+    //    и проверки окружения (g_cfg заполнен, пути известны)
     // -----------------------------------------------------------
     if (try_reopen_logger(g_cfg.log_file) == 0) {
         LOG_CFG(LOG_INFO, "Logger switched: %s", g_cfg.log_file);
@@ -121,7 +123,6 @@ int main(int argc, char *argv[]) {
             logger_level_to_string(g_cfg.log_level));
 
     env_check_all(g_cfg.log_file);
-    
     log_config(&g_cfg);
 
     // -----------------------------------------------------------
