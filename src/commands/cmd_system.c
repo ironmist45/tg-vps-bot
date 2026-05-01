@@ -109,6 +109,7 @@ int cmd_status_v2(command_ctx_t *ctx)
     }
 
     LOG_CMD_CTX(ctx, LOG_INFO, "status: requested");
+    METRICS_CMD(status);
 
     return reply_markdown(ctx, buf);
 }
@@ -197,6 +198,7 @@ int cmd_about_v2(command_ctx_t *ctx)
         ares_version(NULL),
         CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
     LOG_CMD_CTX(ctx, LOG_INFO, "about: requested");
+    METRICS_CMD(about);
 
     return reply_markdown(ctx, msg);
 }
@@ -316,5 +318,6 @@ int cmd_ping_v2(command_ctx_t *ctx)
         status_text, status_emoji,
         processing_ms, inbound_str, rtt_str, uptime);
 
+    METRICS_CMD(ping);
     return reply_markdown(ctx, msg);
 }
