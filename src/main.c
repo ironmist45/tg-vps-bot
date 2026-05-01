@@ -233,6 +233,7 @@ int main(int argc, char *argv[]) {
                     poll_rc, consecutive_errors, max_consecutive_errors);
 
             if (consecutive_errors >= max_consecutive_errors) {
+                g_metrics.err_timeout++;
                 LOG_SYS(LOG_ERROR, "Too many consecutive polling errors, exiting");
                 break;
             }
