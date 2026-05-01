@@ -15,12 +15,13 @@
  *     🌐 host
  *     ⏱ login_time
  * 
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  *
  */
 
 #include "users.h"
 #include "logger.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -50,13 +51,22 @@ static void format_time(time_t t, char *buf, size_t size) {
 }
 
 /**
- * Safely copy string with truncation protection
- * 
- * @param dst   Destination buffer
+ * Copy utmp field into a fixed buffer with NULL/empty fallback.
+ *
+ * Different from the global safe_copy() (utils.c) in two ways:
+ *   - argument order is (dst, src, size) — matches strncpy convention
+ *     and is intentional for utmp field handling
+ *   - substitutes "unknown" when src is NULL, which is appropriate
+ *     for utmp fields that may be absent
+ *
+ * Named copy_utmp_field to avoid any confusion with the global
+ * safe_copy(dst, size, src) from utils.c whose argument order differs.
+ *
+ * @param dst   Destination buffer (always null-terminated on return)
  * @param src   Source string (may be NULL)
  * @param size  Size of destination buffer
  */
-static void safe_copy(char *dst, const char *src, size_t size) {
+static void copy_utmp_field(char *dst, const char *src, size_t size) {
     if (!src) {
         strncpy(dst, "unknown", size - 1);
     } else {
@@ -102,37 +112,32 @@ int users_get_logged(char *buffer, size_t size, unsigned short req_id) {
 
     buffer[0] = '\0';
 
-    // Open utmp database for reading
     setutent();
 
     int count = 0;
 
-    // Iterate through all utmp entries
     while ((entry = getutent()) != NULL) {
 
-        // Only interested in user processes (active logins)
         if (entry->ut_type != USER_PROCESS)
             continue;
 
         char line[MAX_LINE];
         char timebuf[64];
 
-        // Format login timestamp
         format_time(entry->ut_tv.tv_sec, timebuf, sizeof(timebuf));
 
-        // Safely extract and truncate fields
         char user[MAX_FIELD];
         char tty[MAX_FIELD];
         char host[MAX_FIELD];
 
-        safe_copy(user, entry->ut_user, sizeof(user));
-        safe_copy(tty, entry->ut_line, sizeof(tty));
+        copy_utmp_field(user, entry->ut_user, sizeof(user));
+        copy_utmp_field(tty,  entry->ut_line, sizeof(tty));
 
         // Host may be empty for local logins
         if (entry->ut_host && strlen(entry->ut_host) > 0)
-            safe_copy(host, entry->ut_host, sizeof(host));
+            copy_utmp_field(host, entry->ut_host, sizeof(host));
         else
-            safe_copy(host, "local", sizeof(host));
+            copy_utmp_field(host, "local", sizeof(host));
 
         // Format session entry (Markdown)
         int written = snprintf(line, sizeof(line),
@@ -170,10 +175,8 @@ int users_get_logged(char *buffer, size_t size, unsigned short req_id) {
         count++;
     }
 
-    // Close utmp database
     endutent();
 
-    // Handle case when no active sessions found
     if (count == 0) {
         LOG_CMD(LOG_INFO, "req=%04x no active user sessions", req_id);
         safe_append(buffer, size, "No active sessions\n");
@@ -203,7 +206,6 @@ int users_get(char *buffer, size_t size, unsigned short req_id) {
     
     char tmp[4096] = {0};
 
-    // Get raw session list
     int count = users_get_logged(tmp, sizeof(tmp), req_id);
 
     if (count < 0) {
@@ -215,7 +217,6 @@ int users_get(char *buffer, size_t size, unsigned short req_id) {
         return -1;
     }
 
-    // Format final response with header
     int written = snprintf(buffer, size,
         "*👤 ACTIVE USERS: %d*\n\n%s",
         count,
