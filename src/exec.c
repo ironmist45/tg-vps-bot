@@ -215,7 +215,6 @@ static int exec_command_internal(char *const argv[],
  * Execute external command with full options
  * 
  * This is the primary execution interface. Commands are run via sudo.
- * Use this instead of exec_command_simple() for better log diagnostics.
  * 
  * @param argv    Command argument array (NULL-terminated)
  * @param output  Buffer for captured output (may be NULL)
@@ -236,25 +235,6 @@ int exec_command(char *const argv[],
     }
 
     return exec_command_internal(argv, output, size, opts, result);
-}
-
-/**
- * Execute external command with default options
- * 
- * Simplified interface for cases where options and result are not needed.
- * Kept for backward compatibility. Prefer exec_command() with explicit
- * result parameter for better log diagnostics (avoids status=N/A).
- * 
- * @param argv    Command argument array (NULL-terminated)
- * @param output  Buffer for captured output
- * @param size    Size of output buffer
- * @return        0 on success, -1 on failure
- */
-int exec_command_simple(char *const argv[],
-                        char *output,
-                        size_t size)
-{
-    return exec_command(argv, output, size, NULL, NULL);
 }
 
 // ============================================================================
