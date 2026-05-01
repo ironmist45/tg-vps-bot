@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
             logger_level_to_string(g_cfg.log_level));
 
     env_check_all(g_cfg.log_file);
-    config_log(&g_cfg)
+    config_log(&g_cfg);
 
     // -----------------------------------------------------------
     // 8. Инициализация модулей безопасности
@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
                 security_set_token_ttl(new_cfg.token_ttl);
 
                 g_cfg = new_cfg;
-                config_log(&g_cfg)
+                config_log(&g_cfg);
             }
 
             lifecycle_clear_reload();
