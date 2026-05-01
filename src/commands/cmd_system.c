@@ -181,7 +181,7 @@ int cmd_about_v2(command_ctx_t *ctx)
     char msg[256];
     snprintf(msg, sizeof(msg),
         "*ℹ️ ABOUT*\n\n"
-        "%s v%s (%s)\n"
+        "*%s v%s (%s)*\n"
         "*PID:* %d\n"
         "*Uptime:* %dd %dh %dm\n"
         "*Commit:* %s\n"
