@@ -54,6 +54,7 @@
 time_t g_start_time;
 volatile sig_atomic_t g_shutdown_requested = 0;
 volatile sig_atomic_t g_reload_config = 0;
+volatile sig_atomic_t g_rotate_log   = 0;
 long g_reboot_requested_by = 0;
 
 // ===== Внутренние статические переменные (ранее - static - экспортируем в telegram.c)=====
@@ -62,6 +63,7 @@ volatile sig_atomic_t g_signal_received = 0;
 
 // ===== Прототипы внутренних функций =====
 static void handle_sighup(int sig);
+static void handle_sigusr1(int sig);
 static void handle_sigterm(int sig);
 static void graceful_shutdown(void);
 
@@ -71,6 +73,7 @@ void lifecycle_init(void) {
     g_start_time = time(NULL);
     g_shutdown_requested = 0;
     g_reload_config = 0;
+    g_rotate_log    = 0;
     g_reboot_requested_by = 0;
     g_signal_received = 0;
 }
@@ -86,6 +89,11 @@ void lifecycle_register_handlers(void) {
     sa_term.sa_flags = 0;
     sigaction(SIGTERM, &sa_term, NULL);
     sigaction(SIGINT, &sa_term, NULL);
+
+    struct sigaction sa_usr1 = {0};
+    sa_usr1.sa_handler = handle_sigusr1;
+    sa_usr1.sa_flags = SA_RESTART;
+    sigaction(SIGUSR1, &sa_usr1, NULL);
 }
 
 int lifecycle_shutdown_requested(void) {
@@ -96,8 +104,17 @@ int lifecycle_reload_requested(void) {
     return g_reload_config != 0;
 }
 
+int lifecycle_rotate_requested(void) {
+    return g_rotate_log != 0;
+}
+
+void lifecycle_clear_rotate(void) {
+    g_rotate_log = 0;
+}
+
 void lifecycle_clear_reload(void) {
     g_reload_config = 0;
+    g_rotate_log    = 0;
 }
 
 void lifecycle_request_shutdown(int mode, long requested_by) {
@@ -123,6 +140,11 @@ void lifecycle_log_uptime(void) {
 }
 
 // ===== Обработчики сигналов =====
+
+static void handle_sigusr1(int sig) {
+    (void)sig;
+    g_rotate_log = 1;
+}
 
 static void handle_sighup(int sig) {
     (void)sig;
