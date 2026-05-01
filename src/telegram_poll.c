@@ -35,6 +35,7 @@
 #include "commands.h"
 #include "security.h"
 #include "metrics.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
