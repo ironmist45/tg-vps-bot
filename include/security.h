@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * security.h - Access control and token-based confirmation
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef SECURITY_H
@@ -41,6 +41,13 @@ void security_set_allowed_chat(long chat_id);
  * @param ttl  Token validity period in seconds (1-3600)
  */
 void security_set_token_ttl(int ttl);
+
+/**
+ * Get current token time-to-live
+ * 
+ * @return  Token validity period in seconds
+ */
+int security_get_token_ttl(void);
 
 // ============================================================================
 // ACCESS CONTROL
