@@ -36,6 +36,7 @@
 #include "security.h"
 #include "metrics.h"
 #include "utils.h"
+#include "telegram_timeouts.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,12 +51,6 @@
 #define URL_MAX      1024
 #define RESP_MAX     8192
 
-/*
- * Таймаут ожидания дочернего процесса в миллисекундах.
- * curl настроен на CURLOPT_TIMEOUT=35 сек (telegram_http.c),
- * поэтому берём с небольшим запасом.
- */
-#define CHILD_WAIT_TIMEOUT_MS  38000
 
 static long           g_last_processed_update = 0;
 static int            g_offset_counter        = 0;
@@ -383,7 +378,8 @@ int telegram_poll(void) {
 
     char url[URL_MAX];
     snprintf(url, sizeof(url),
-             "getUpdates?timeout=25&offset=%ld", last_update_id);
+             "getUpdates?timeout=%d&offset=%ld",
+             TG_POLL_TIMEOUT_SEC, last_update_id);
     LOG_NET(LOG_DEBUG, "poll=%04x request (offset=%ld)", poll_id, last_update_id);
 
     // -----------------------------------------------------------------------
