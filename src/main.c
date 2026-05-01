@@ -98,7 +98,6 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     env_log_user_info();
     env_log_workdir();
-    env_check_all(fallback_log);
 
     // -----------------------------------------------------------
     // 6. Загрузка конфигурации
@@ -111,6 +110,7 @@ int main(int argc, char *argv[]) {
 
     // -----------------------------------------------------------
     // 7. Переключение на лог-файл из конфига (если указан)
+    //    и проверки окружения
     // -----------------------------------------------------------
     if (try_reopen_logger(g_cfg.log_file) == 0) {
         LOG_CFG(LOG_INFO, "Logger switched: %s", g_cfg.log_file);
@@ -119,6 +119,8 @@ int main(int argc, char *argv[]) {
     logger_set_level(g_cfg.log_level);
     LOG_SYS(LOG_INFO, "Logger level applied: %s", 
             logger_level_to_string(g_cfg.log_level));
+
+    env_check_all(g_cfg.log_file);
     
     log_config(&g_cfg);
 
