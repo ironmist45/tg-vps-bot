@@ -5,13 +5,16 @@
  * 
  * Provides the /logs command for viewing systemd journal logs.
  * Features:
- *   - Service alias mapping (e.g., "ssh" → "ssh.service")
+ *   - Service alias mapping via shared services_config (e.g., "ssh" → "ssh")
  *   - Configurable line count (default 30, max 200)
  *   - Case-insensitive multi-keyword filtering
  *   - Automatic fallback to global journal if service has no logs
  *   - ANSI escape code stripping
  *   - Reboot marker detection
  *   - Output truncation protection
+ *
+ * Service list is defined in services_config.c — edit that file to
+ * add, remove, or rename monitored services.
  * 
  * MIT License
  * 
@@ -43,40 +46,20 @@
 #include "exec.h"
 #include "utils.h"
 #include "logs_filter.h"
+#include "services_config.h"
 #include "config.h"
 
-#include <strings.h>   // for strcasestr
+#include <strings.h>   /* strcasestr */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
 
-// Maximum line length for processing
-#define MAX_LINE 256
+/* Maximum line length for processing */
+#define MAX_LINE    256
 
-// Number of lines to log at DEBUG level for troubleshooting
+/* Number of lines to log at DEBUG level for troubleshooting */
 #define DEBUG_LINES 5
-
-// ============================================================================
-// SERVICE MAPPING (ALIAS → SYSTEMD UNIT)
-// ============================================================================
-
-typedef struct {
-    const char *alias;    // User-facing service name
-    const char *systemd;  // Actual systemd unit name
-} service_map_t;
-
-/**
- * Allowed services for /logs command.
- * Only services listed here can be queried.
- */
-static service_map_t services[] = {
-    {"ssh",         "ssh"},
-    {"shadowsocks", "shadowsocks-libev"},
-    {"mtg",         "mtg"},
-};
-
-static const int services_count = sizeof(services) / sizeof(services[0]);
 
 // ============================================================================
 // INTERNAL HELPER FUNCTIONS
@@ -84,9 +67,6 @@ static const int services_count = sizeof(services) / sizeof(services[0]);
 
 /**
  * Check if string consists entirely of digits
- * 
- * @param s  String to check
- * @return   1 if all digits, 0 otherwise
  */
 static int is_number(const char *s) {
     if (!s || *s == '\0') return 0;
@@ -99,39 +79,34 @@ static int is_number(const char *s) {
 }
 
 /**
- * Resolve service alias to actual systemd unit name
- * 
- * @param name  User-provided service alias
- * @return      Systemd unit name, or NULL if not allowed
+ * Resolve user-facing service alias to systemd unit name.
+ *
+ * Looks up alias in the shared g_services table (services_config.c).
+ *
+ * @param alias  User-provided service name (e.g. "shadowsocks")
+ * @return       Systemd unit name (e.g. "shadowsocks-libev"), or NULL if not allowed
  */
-static const char* resolve_service(const char *name) {
-    for (int i = 0; i < services_count; i++) {
-        if (strcmp(name, services[i].alias) == 0)
-            return services[i].systemd;
+static const char *resolve_service(const char *alias) {
+    for (int i = 0; i < g_services_count; i++) {
+        if (strcmp(alias, g_services[i].alias) == 0)
+            return g_services[i].unit;
     }
     return NULL;
 }
 
 /**
  * Safely append string with overflow protection
- * 
- * @param dst   Destination buffer (must be null-terminated)
- * @param size  Total size of destination buffer
- * @param src   Source string to append
  */
 static void safe_append(char *dst, size_t size, const char *src) {
-    size_t len = strlen(dst);
+    size_t len  = strlen(dst);
     size_t left = (len < size) ? (size - len - 1) : 0;
 
-    if (left > 0) {
+    if (left > 0)
         strncat(dst, src, left);
-    }
 }
 
 /**
  * Remove carriage return from line (Windows line ending cleanup)
- * 
- * @param line  Line to sanitize (modified in-place)
  */
 static void sanitize_line(char *line) {
     line[strcspn(line, "\r")] = '\0';
@@ -154,45 +129,38 @@ static void sanitize_line(char *line) {
  * @param tmp         Raw output from journalctl
  * @param buffer      Output buffer for formatted response
  * @param size        Size of output buffer
- * @param svc         Service alias being queried
+ * @param svc         Service alias being queried (for display)
  * @param lines       Number of lines requested
  * @param filter      Filter string (may be NULL)
  * @param is_fallback 1 if this is fallback (global journal), 0 otherwise
  * @return            Result with matched and raw line counts
  */
 static logs_result_t process_logs_output(char *tmp,
-                                        char *buffer,
-                                        size_t size,
-                                        const char *svc,
-                                        int lines,
-                                        const char *filter,
-                                        int is_fallback)
+                                         char *buffer,
+                                         size_t size,
+                                         const char *svc,
+                                         int lines,
+                                         const char *filter,
+                                         int is_fallback)
 {
     LOG_CMD(LOG_DEBUG,
         "process_logs_output start: svc=%s filter=%s is_fallback=%d",
-        svc,
-        filter ? filter : "NULL",
-        is_fallback);
-    
+        svc, filter ? filter : "NULL", is_fallback);
+
     buffer[0] = '\0';
 
-    // Format header
     snprintf(buffer, size,
         "📜 LOGS: %s (%s%d lines)%s\n\n",
         svc,
         is_fallback ? "fallback, " : "",
         lines,
-        filter ? " [filtered]" : ""
-    );
+        filter ? " [filtered]" : "");
 
     int line_count = 0;
-    int dropped = 0;
+    int dropped    = 0;
+    int raw_lines  = 0;
 
-    char *saveptr;
-    char *line = strtok_r(tmp, "\n", &saveptr);
-    int raw_lines = 0;
-
-    // Prepare multi-keyword filter
+    /* Prepare multi-keyword filter */
     filter_t f = {0};
     char filter_copy[128];
     if (filter) {
@@ -201,57 +169,52 @@ static logs_result_t process_logs_output(char *tmp,
         parse_filter(filter_copy, &f);
     }
 
-    // Process each line
+    char *saveptr;
+    char *line = strtok_r(tmp, "\n", &saveptr);
+
     while (line) {
         raw_lines++;
 
-        // Log first few raw lines for debugging
-        if (raw_lines <= 5) {
+        if (raw_lines <= DEBUG_LINES)
             LOG_CMD(LOG_DEBUG, "raw[%d]: %s", raw_lines, line);
-        }
 
-        // Prevent Telegram message size limit issues
+        /* Prevent Telegram message size limit issues */
         if (strlen(buffer) > 3500) {
-            safe_append(buffer, size,
-                "\n...\n⚠ logs truncated (limit reached)");
+            safe_append(buffer, size, "\n...\n⚠ logs truncated (limit reached)");
             LOG_CMD(LOG_WARN,
                 "logs truncated early (%s): raw=%d matched=%d",
-                is_fallback ? "fallback" : svc,
-                raw_lines,
-                line_count);
+                is_fallback ? "fallback" : svc, raw_lines, line_count);
             break;
         }
 
         sanitize_line(line);
 
-        // Highlight reboot markers
+        /* Highlight reboot markers */
         if (strstr(line, "-- Reboot --")) {
             safe_append(buffer, size, "\n=== REBOOT ===\n");
             line = strtok_r(NULL, "\n", &saveptr);
             continue;
         }
-        
-        // Suppress journald header line
+
+        /* Suppress journald header line */
         if (strstr(line, "Logs begin at")) {
             LOG_CMD(LOG_DEBUG, "Skipping journal header line: %s", line);
             line = strtok_r(NULL, "\n", &saveptr);
             continue;
         }
 
-        // Strip ANSI escape codes (terminal color sequences)
+        /* Strip ANSI escape codes */
         char *esc = strchr(line, '\x1b');
-        if (esc) {
+        if (esc)
             *esc = '\0';
-        }
-        
-        // Apply multi-keyword filter
+
+        /* Apply multi-keyword filter */
         if (!match_filter_multi(line, &f)) {
             dropped++;
             line = strtok_r(NULL, "\n", &saveptr);
             continue;
         }
 
-        // Log first few matched lines for debugging
         if (line_count < DEBUG_LINES) {
             LOG_CMD(LOG_DEBUG,
                 "%s LOG LINE[%d]: %s",
@@ -261,12 +224,10 @@ static logs_result_t process_logs_output(char *tmp,
 
         line_count++;
 
-        // Check buffer capacity before appending
+        /* Check buffer capacity before appending */
         if (strlen(buffer) + strlen(line) >= size - 5) {
             LOG_CMD(LOG_WARN,
-                "buffer limit reached (svc=%s, matched=%d)",
-                svc,
-                line_count);
+                "buffer limit reached (svc=%s, matched=%d)", svc, line_count);
             break;
         }
 
@@ -278,22 +239,16 @@ static logs_result_t process_logs_output(char *tmp,
 
     LOG_CMD(LOG_DEBUG,
         "logs_done: svc=%s raw=%d matched=%d dropped=%d bytes=%zu",
-        svc,
-        raw_lines,
-        line_count,
-        dropped,
-        strlen(buffer));
+        svc, raw_lines, line_count, dropped, strlen(buffer));
 
     if (line_count == 0) {
         LOG_CMD(LOG_DEBUG,
-            "no matches (svc=%s filter=%s)",
-            svc,
-            filter ? filter : "NULL");
+            "no matches (svc=%s filter=%s)", svc, filter ? filter : "NULL");
     }
-    
+
     logs_result_t res = {
         .matched = line_count,
-        .raw = raw_lines
+        .raw     = raw_lines
     };
 
     return res;
@@ -310,9 +265,9 @@ static logs_result_t process_logs_output(char *tmp,
  * and formats the response.
  * 
  * Usage:
- *   /logs                    - List available services
- *   /logs <service>          - Show last 30 lines
- *   /logs <service> <lines>  - Show last N lines
+ *   /logs                          - List available services
+ *   /logs <service>                - Show last 30 lines
+ *   /logs <service> <lines>        - Show last N lines (max 200)
  *   /logs <service> <lines> <filter> - Filter results
  * 
  * @param service  Command arguments string
@@ -327,15 +282,15 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         req_id, service ? service : "NULL");
 
     // ------------------------------------------------------------------------
-    // No arguments: list available services
+    // No arguments: list available services from shared table
     // ------------------------------------------------------------------------
     if (!service || service[0] == '\0') {
         buffer[0] = '\0';
         safe_append(buffer, size, "📜 Available services:\n\n");
 
-        for (int i = 0; i < services_count; i++) {
+        for (int i = 0; i < g_services_count; i++) {
             safe_append(buffer, size, "- ");
-            safe_append(buffer, size, services[i].alias);
+            safe_append(buffer, size, g_services[i].alias);
             safe_append(buffer, size, "\n");
         }
 
@@ -343,8 +298,7 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
             "\nUsage:\n"
             "/logs <service>\n"
             "/logs <service> <lines>\n"
-            "/logs <service> <lines> <filter>\n"
-        );
+            "/logs <service> <lines> <filter>\n");
 
         return 0;
     }
@@ -352,13 +306,13 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     // ------------------------------------------------------------------------
     // Parse arguments: service [lines] [filter]
     // ------------------------------------------------------------------------
-    char svc[64] = {0};
+    char svc[64]  = {0};
     char arg1[64] = {0};
     char arg2[64] = {0};
 
     int parsed = sscanf(service, "%63s %63s %63s", svc, arg1, arg2);
 
-    // Resolve service alias to systemd unit
+    /* Resolve alias → systemd unit via shared table */
     const char *real_service = resolve_service(svc);
     if (!real_service) {
         snprintf(buffer, size, "❌ Service not allowed");
@@ -366,11 +320,9 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         return -1;
     }
 
-    // Default values
-    int lines = 30;
+    int         lines  = 30;
     const char *filter = NULL;
 
-    // Parse optional arguments
     if (parsed >= 2) {
         if (is_number(arg1)) {
             if (parse_int(arg1, &lines) != 0) {
@@ -383,9 +335,8 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         }
     }
 
-    if (parsed >= 3) {
+    if (parsed >= 3)
         filter = arg2;
-    }
 
     // ------------------------------------------------------------------------
     // Validate filter string
@@ -393,7 +344,6 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     if (filter) {
         size_t flen = strlen(filter);
 
-        // Length limits
         if (flen > 32) {
             LOG_CMD(LOG_WARN, "req=%04x filter too long: %s", req_id, filter);
             snprintf(buffer, size, "❌ Filter too long");
@@ -406,28 +356,23 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
             return -1;
         }
 
-        // Character whitelist (alphanumeric, hyphen, underscore, dot)
         for (size_t i = 0; i < flen; i++) {
             char c = filter[i];
 
             if (!isalnum((unsigned char)c) &&
-                c != '-' &&
-                c != '_' &&
-                c != '.') {
-
+                c != '-' && c != '_' && c != '.') {
                 LOG_CMD(LOG_WARN,
                         "req=%04x invalid filter rejected: %s (bad char: %c)",
                         req_id, filter, c);
-
                 snprintf(buffer, size, "❌ Invalid filter");
                 return -1;
             }
         }
 
-                LOG_CMD(LOG_DEBUG, "req=%04x filter accepted: %s", req_id, filter);
+        LOG_CMD(LOG_DEBUG, "req=%04x filter accepted: %s", req_id, filter);
     }
 
-    // Clamp line count to reasonable range
+    /* Clamp line count to reasonable range */
     if (lines <= 0)
         lines = 30;
 
@@ -459,28 +404,23 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     exec_result_t exec_res;
     int rc = exec_command(args, tmp, sizeof(tmp), NULL, &exec_res);
     if (rc != 0) {
-        LOG_EXEC(LOG_DEBUG, "req=%04x RAW OUTPUT (%s): first 200 chars:\n%.200s", req_id, svc, tmp);
+        LOG_EXEC(LOG_DEBUG,
+            "req=%04x RAW OUTPUT (%s): first 200 chars:\n%.200s",
+            req_id, svc, tmp);
         LOG_EXEC(LOG_ERROR, "req=%04x journalctl exec failed", req_id);
         snprintf(buffer, size, "❌ Failed to read logs");
         return -1;
     }
- 
-    // Process service-specific output
+
     logs_result_t res = process_logs_output(
-        tmp,
-        buffer,
-        size,
-        svc,
-        lines,
-        filter,
-        0  // not fallback
-    );
-            
+        tmp, buffer, size, svc, lines, filter, 0 /* not fallback */);
+
     // ------------------------------------------------------------------------
     // Fallback: try global journal if service has no logs
     // ------------------------------------------------------------------------
     if (res.raw == 0) {
-        LOG_CMD(LOG_WARN, "req=%04x no logs for %s, trying global journal", req_id, svc);
+        LOG_CMD(LOG_WARN,
+            "req=%04x no logs for %s, trying global journal", req_id, svc);
 
         char lines_str2[16];
         snprintf(lines_str2, sizeof(lines_str2), "%d", lines);
@@ -496,35 +436,28 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         };
 
         exec_result_t res_fallback;
-        if (exec_command(fallback_args, tmp, sizeof(tmp), NULL, &res_fallback) != 0) {
-            LOG_EXEC(LOG_ERROR, "req=%04x fallback journalctl exec failed", req_id);
+        if (exec_command(fallback_args, tmp, sizeof(tmp),
+                         NULL, &res_fallback) != 0) {
+            LOG_EXEC(LOG_ERROR,
+                "req=%04x fallback journalctl exec failed", req_id);
             snprintf(buffer, size, "❌ No logs available");
             return -1;
         }
-        
+
         res = process_logs_output(
-            tmp,
-            buffer,
-            size,
-            svc,
-            lines,
-            filter,
-            1  // is fallback
-        );
+            tmp, buffer, size, svc, lines, filter, 1 /* is fallback */);
 
         LOG_CMD(LOG_INFO,
-                "req=%04x fallback done: svc=%s matched=%d raw=%d bytes=%zu",
-                req_id, svc, res.matched, res.raw, strlen(buffer));
+            "req=%04x fallback done: svc=%s matched=%d raw=%d bytes=%zu",
+            req_id, svc, res.matched, res.raw, strlen(buffer));
     }
 
-    // Log when filter matches nothing
     if (res.raw > 0 && res.matched == 0) {
         LOG_CMD(LOG_INFO,
             "req=%04x no matches: svc=%s filter=%s",
-            req_id, svc,
-            filter ? filter : "NULL");
+            req_id, svc, filter ? filter : "NULL");
     }
-    
+
     // ------------------------------------------------------------------------
     // Handle empty results
     // ------------------------------------------------------------------------
@@ -538,20 +471,16 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
                 "- /logs %s\n"
                 "- /logs %s fail\n"
                 "- /logs %s Accepted\n",
-                svc,
-                filter,
-                res.raw,
+                svc, filter, res.raw,
                 svc, svc, svc);
         } else {
             snprintf(buffer, size,
-                "📜 LOGS: %s\n\nNo logs found",
-                svc);
+                "📜 LOGS: %s\n\nNo logs found", svc);
         }
     }
-    
+
     LOG_CMD(LOG_DEBUG,
-        "req=%04x response size: %zu bytes",
-        req_id, strlen(buffer));
-    
+        "req=%04x response size: %zu bytes", req_id, strlen(buffer));
+
     return 0;
 }
