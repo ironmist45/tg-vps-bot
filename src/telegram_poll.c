@@ -183,7 +183,7 @@ static int wait_for_child(pid_t pid, int pipe_read_fd,
         .events = POLLIN
     };
 
-    int remaining_ms = CHILD_WAIT_TIMEOUT_MS;
+    int remaining_ms = TG_CHILD_WAIT_TIMEOUT_MS;
 
     while (remaining_ms > 0) {
 
@@ -245,7 +245,7 @@ static int wait_for_child(pid_t pid, int pipe_read_fd,
     /* Общий таймаут исчерпан */
     LOG_NET(LOG_ERROR,
             "poll=%04x child PID=%d timed out after %d ms, killing",
-            poll_id, pid, CHILD_WAIT_TIMEOUT_MS);
+            poll_id, pid, TG_CHILD_WAIT_TIMEOUT_MS);
     kill_and_reap(pid, poll_id);
     return -1;
 }
