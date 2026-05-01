@@ -149,6 +149,8 @@ int main(int argc, char *argv[]) {
      */
     sd_notify_ready();
 
+    telegram_send_message(g_cfg.chat_id, "🟢 *Bot started*\n\nReady to serve.");
+
     LOG_STATE(LOG_INFO, "Entering main loop");
 
     // ===========================================================
