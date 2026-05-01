@@ -4,7 +4,6 @@
  * MIT License - Copyright (c) 2026 ironmist45
  */
 
-#include "lifecycle.h"
 #include "telegram.h"
 #include "telegram_http.h"
 #include "telegram_parser.h"
@@ -73,32 +72,4 @@ int telegram_send_plain(long chat_id, const char *text) {
 
 long telegram_get_last_offset(void) {
     return telegram_offset_get_last();
-}
-
-int telegram_poll_safe(int max_errors) {
-    static int consecutive_errors = 0;
-    
-    int rc = telegram_poll();
-    if (rc != 0) {
-        if (lifecycle_shutdown_requested()) {
-            return -1;
-        }
-        
-        g_metrics.api_calls_failed++;
-        consecutive_errors++;
-        LOG_NET(LOG_WARN, "Polling error (rc=%d, attempt=%d/%d)", 
-                rc, consecutive_errors, max_errors);
-        
-        if (consecutive_errors >= max_errors) {
-            LOG_SYS(LOG_ERROR, "Too many consecutive polling errors, exiting");
-            return -1;
-        }
-        sleep(5);
-        return 0;
-    }
-    
-    g_metrics.api_calls_total++;
-    g_metrics.poll_count++;
-    consecutive_errors = 0;
-    return 0;
 }
