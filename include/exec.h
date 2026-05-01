@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * exec.h - External command execution with timeout and capture
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef EXEC_H
@@ -147,19 +147,3 @@ int exec_command(char *const argv[],
                  size_t size,
                  const exec_opts_t *opts,
                  exec_result_t *result);
-
-/**
- * Execute external command with default options
- * 
- * Simplified interface for basic use cases.
- * 
- * @param argv    Command argument array (NULL-terminated)
- * @param output  Buffer for captured output
- * @param size    Size of output buffer
- * @return        0 on success, -1 on failure
- */
-int exec_command_simple(char *const argv[],
-                        char *output,
-                        size_t size);
-
-#endif // EXEC_H
