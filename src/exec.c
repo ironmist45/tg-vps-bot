@@ -42,6 +42,7 @@
 #include "logger.h"
 #include "config.h"
 #include "metrics.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -305,10 +306,9 @@ static int exec_command_internal(char *const argv[],
         close(pipefd[1]);
 
         clock_gettime(CLOCK_MONOTONIC, &t_end);
-        long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                          (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+        long ms = elapsed_ms(t_start, t_end);
 
-        if (result) result->duration_ms = elapsed_ms;
+        if (result) result->duration_ms = ms;
         exec_result_fail(result, EXEC_FORK_FAILED);
         return -1;
     }
@@ -341,10 +341,9 @@ static int exec_command_internal(char *const argv[],
         close(pipefd[0]);
 
         clock_gettime(CLOCK_MONOTONIC, &t_end);
-        long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                          (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+        long ms = elapsed_ms(t_start, t_end);
 
-        if (result) result->duration_ms = elapsed_ms;
+        if (result) result->duration_ms = ms;
         exec_result_fail(result, EXEC_READ_FAILED);
         g_metrics.err_exec++;
         return -1;
@@ -387,10 +386,9 @@ static int exec_command_internal(char *const argv[],
             waitpid(pid, NULL, 0);
 
             clock_gettime(CLOCK_MONOTONIC, &t_end);
-            long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                              (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+            long ms = elapsed_ms(t_start, t_end);
 
-            if (result) result->duration_ms = elapsed_ms;
+            if (result) result->duration_ms = ms;
             exec_result_fail(result, EXEC_TIMEOUT);
             g_metrics.err_exec++;
             return -1;
@@ -409,10 +407,9 @@ static int exec_command_internal(char *const argv[],
             waitpid(pid, NULL, 0);
 
             clock_gettime(CLOCK_MONOTONIC, &t_end);
-            long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                              (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+            long ms = elapsed_ms(t_start, t_end);
 
-            if (result) result->duration_ms = elapsed_ms;
+            if (result) result->duration_ms = ms;
             exec_result_fail(result, EXEC_READ_FAILED);
             g_metrics.err_exec++;
             return -1;
@@ -459,10 +456,9 @@ static int exec_command_internal(char *const argv[],
             }
 
             clock_gettime(CLOCK_MONOTONIC, &t_end);
-            long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                              (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+            long ms = elapsed_ms(t_start, t_end);
 
-            if (result) result->duration_ms = elapsed_ms;
+            if (result) result->duration_ms = ms;
             exec_result_fail(result, EXEC_READ_FAILED);
             g_metrics.err_exec++;
             return -1;
@@ -483,10 +479,9 @@ static int exec_command_internal(char *const argv[],
         waitpid(pid, &status, 0);
 
         clock_gettime(CLOCK_MONOTONIC, &t_end);
-        long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                          (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+        long ms = elapsed_ms(t_start, t_end);
 
-        if (result) result->duration_ms = elapsed_ms;
+        if (result) result->duration_ms = ms;
         exec_result_fail(result, EXEC_TIMEOUT);
         g_metrics.err_exec++;
         return -1;
@@ -496,8 +491,7 @@ static int exec_command_internal(char *const argv[],
     // Populate result structure
     // ------------------------------------------------------------------------
     clock_gettime(CLOCK_MONOTONIC, &t_end);
-    long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                      (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+    long ms = elapsed_ms(t_start, t_end);
 
     // Process terminated by signal
     if (!WIFEXITED(status)) {
@@ -525,7 +519,7 @@ static int exec_command_internal(char *const argv[],
         result->signaled = 0;
         result->stdout_len = used;
         result->stderr_len = 0;
-        result->duration_ms = elapsed_ms;
+        result->duration_ms = ms;
 
         if (exit_code == 0)
             result->status = EXEC_OK;
@@ -545,7 +539,7 @@ static int exec_command_internal(char *const argv[],
                 cmdline,
                 result ? exec_status_str(result->status) : "N/A",
                 exit_code,
-                elapsed_ms,
+                ms,
                 used);
         } else {
             LOG_EXEC(LOG_INFO,
@@ -553,7 +547,7 @@ static int exec_command_internal(char *const argv[],
                 cmdline,
                 result ? exec_status_str(result->status) : "N/A",
                 exit_code,
-                elapsed_ms,
+                ms,
                 used);
         }
     }
