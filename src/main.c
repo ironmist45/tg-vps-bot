@@ -227,6 +227,7 @@ int main(int argc, char *argv[]) {
                 break;
             }
             
+            g_metrics.api_calls_failed++;
             consecutive_errors++;
             LOG_NET(LOG_WARN, "Polling error (rc=%d, attempt=%d/%d)",
                     poll_rc, consecutive_errors, max_consecutive_errors);
@@ -242,6 +243,8 @@ int main(int argc, char *argv[]) {
             }
             sleep(5);
         } else {
+            g_metrics.api_calls_total++;
+            g_metrics.poll_count++;
             consecutive_errors = 0;
         }
                     
