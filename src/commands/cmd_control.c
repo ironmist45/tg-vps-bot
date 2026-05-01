@@ -22,15 +22,16 @@
 int cmd_reboot_v2(command_ctx_t *ctx)
 {
     int token = security_generate_reboot_token(ctx->chat_id, ctx->req_id);
+    int ttl   = security_get_token_ttl();
 
     char msg[128];
     snprintf(msg, sizeof(msg),
         "⚠️ *Confirm reboot*\n\n"
         "`/reboot_confirm %d`\n\n"
         "Token valid for %d seconds",
-        token, 60);  // TODO: get TTL from security config
+        token, ttl);
 
-    LOG_CMD_CTX(ctx, LOG_INFO, "reboot token generated: %06d", token);
+    LOG_CMD_CTX(ctx, LOG_INFO, "reboot token generated: %06d (ttl=%d)", token, ttl);
 
     return reply_markdown(ctx, msg);
 }
@@ -59,7 +60,6 @@ int cmd_reboot_confirm_v2(command_ctx_t *ctx)
     LOG_CMD_CTX(ctx, LOG_INFO, "reboot confirmed and executing");
     METRICS_CMD(reboot);
 
-    // Request reboot via lifecycle module
     lifecycle_request_shutdown(SHUTDOWN_REBOOT, ctx->chat_id);
 
     return reply_markdown(ctx, "♻️ Rebooting system...");
