@@ -54,7 +54,6 @@
 
 // ===== Прототипы вспомогательных функций =====
 static int try_reopen_logger(const char *path);
-static void log_config(const config_t *cfg);
 
 // ===== Глобальный конфиг (используется в exec.c, environment.c, services.c и др.) =====
 config_t g_cfg;
@@ -123,7 +122,7 @@ int main(int argc, char *argv[]) {
             logger_level_to_string(g_cfg.log_level));
 
     env_check_all(g_cfg.log_file);
-    log_config(&g_cfg);
+    config_log(&g_cfg)
 
     // -----------------------------------------------------------
     // 8. Инициализация модулей безопасности
@@ -198,7 +197,7 @@ int main(int argc, char *argv[]) {
                 security_set_token_ttl(new_cfg.token_ttl);
 
                 g_cfg = new_cfg;
-                log_config(&g_cfg);
+                config_log(&g_cfg)
             }
 
             lifecycle_clear_reload();
@@ -284,17 +283,4 @@ static int try_reopen_logger(const char *path) {
     logger_close();
     
     return logger_init(path);
-}
-
-/**
- * Логирование текущей конфигурации (для отладки)
- * 
- * @param cfg  указатель на структуру конфигурации
- */
-static void log_config(const config_t *cfg) {
-    LOG_CFG(LOG_INFO, "===== CONFIG =====");
-    LOG_CFG(LOG_INFO, "CHAT_ID: %ld", cfg->chat_id);
-    LOG_CFG(LOG_INFO, "TOKEN_TTL: %d", cfg->token_ttl);
-    LOG_CFG(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
-    LOG_CFG(LOG_INFO, "LOG_LEVEL: %s", logger_level_to_string(cfg->log_level));
 }
