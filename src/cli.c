@@ -13,7 +13,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,7 +62,7 @@
  * @param args  Pointer to cli_args_t structure to populate
  * @return      0 on success, -1 on error
  */
-int cli_parse(int argc, char *argv[], cli_args_t *args) {
+static int cli_parse(int argc, char *argv[], cli_args_t *args) {
 
     // Protect against NULL pointer dereference
     if (!args) {
@@ -162,7 +162,7 @@ int cli_process(int argc, char *argv[], char *config_path) {
 /**
  * Display usage information and available options
  */
-void cli_print_help() {
+static void cli_print_help() {
     printf("%s v%s\n\n", APP_NAME, APP_VERSION);
 
     printf("Usage:\n");
@@ -185,7 +185,7 @@ void cli_print_help() {
 /**
  * Display program version, build information, and copyright
  */
-void cli_print_version(void) {
+static void cli_print_version(void) {
     printf("%s v%s (%s)\n", APP_NAME, APP_VERSION, APP_CODENAME);
     printf("Commit: %s\n", TG_BUILD_COMMIT);
     printf("Built: %s\n", TG_BUILD_DATE);
