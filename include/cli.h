@@ -25,21 +25,6 @@ typedef struct {
 // ============================================================================
 
 /**
- * Parse command-line arguments
- * 
- * Recognized options:
- *   -c, --config <path>   Specify configuration file
- *   -h, --help            Show usage information
- *   -v, --version         Show program version
- * 
- * @param argc  Argument count (from main)
- * @param argv  Argument vector (from main)
- * @param args  Output structure to populate
- * @return      0 on success, -1 on error
- */
-int cli_parse(int argc, char *argv[], cli_args_t *args);
-
-/**
  * Process command-line arguments and handle help/version
  * 
  * Validates arguments and handles --help/--version (prints and exits).
@@ -50,15 +35,5 @@ int cli_parse(int argc, char *argv[], cli_args_t *args);
  * @return           0 on success, -1 on error (already printed)
  */
 int cli_process(int argc, char *argv[], char *config_path);
-
-/**
- * Display usage information and available options
- */
-void cli_print_help(void);
-
-/**
- * Display program version and copyright information
- */
-void cli_print_version(void);
 
 #endif // CLI_H
