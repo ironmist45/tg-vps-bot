@@ -317,10 +317,17 @@ static void process_updates(const char *chunk_data, size_t data_len,
                             response, sizeof(response),
                             &resp_type) == 0) {
 
-            LOG_NET(LOG_DEBUG, "req=%04x sending response...", u->req_id);
+            LOG_NET(LOG_DEBUG, "req=%04x sending response (type=%s)...",
+                    u->req_id,
+                    (resp_type == RESP_PLAIN) ? "plain" : "markdown");
 
-            if (strncmp(u->text, "/logs",     5) == 0 ||
-                strncmp(u->text, "/fail2ban", 9) == 0) {
+            /*
+             * Тип ответа выставляется самим обработчиком команды через
+             * ctx->resp_type (RESP_PLAIN / RESP_MARKDOWN).  Проверять
+             * текст команды здесь не нужно — логика инкапсулирована
+             * в командных модулях (cmd_services.c, cmd_security.c и т.д.).
+             */
+            if (resp_type == RESP_PLAIN) {
                 telegram_send_plain(u->chat_id, response);
             } else {
                 telegram_send_message(u->chat_id, response);
