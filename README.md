@@ -44,6 +44,27 @@ Supports the following services:
 
 ---
 
+### 📊 Metrics & Health Monitoring
+
+Built-in metrics collected since last bot start:
+
+**Commands:**
+- Total commands processed
+- Per-command counters (`/start`, `/help`, `/logs`, `/fail2ban`, `/reboot`, `/services`, `/users`, `/health`)
+
+**Errors:**
+- Unauthorized access attempts
+- Polling timeouts
+- Exec failures (sudo, systemctl, journalctl)
+
+**Performance:**
+- Average response time (ms)
+- Max response time (ms)
+- Poll cycles count
+- Telegram API calls (total / failed)
+
+---
+
 ### 🛡 Security (PRO level)
 
 * 🔐 **Single allowed chat_id**
