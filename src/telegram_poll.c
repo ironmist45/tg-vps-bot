@@ -289,6 +289,7 @@ static void process_updates(const char *chunk_data, size_t data_len,
                 u->chat_id, strlen(u->text), u->text);
 
         if (!security_is_allowed_chat(u->chat_id)) {
+            g_metrics.err_unauthorized++;
             LOG_NET(LOG_WARN,
                     "poll=%04x req=%04x ACCESS CHECK: "
                     "chat_id=%ld cmd=%s result=DENIED",
