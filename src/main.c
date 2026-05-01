@@ -55,6 +55,9 @@
 static int try_reopen_logger(const char *path);
 static void log_config(const config_t *cfg);
 
+// ===== Глобальный конфиг (используется в exec.c, environment.c, services.c и др.) =====
+config_t g_cfg;
+
 // ===== MAIN =====
 
 int main(int argc, char *argv[]) {
@@ -100,8 +103,7 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     // 6. Загрузка конфигурации
     // -----------------------------------------------------------
-    config_t cfg;
-    if (config_load(config_path, &cfg) != 0) {
+    if (config_load(config_path, &g_cfg) != 0) {
         LOG_CFG(LOG_ERROR, "Config load failed");
         logger_close();
         return 1;
@@ -110,27 +112,27 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     // 7. Переключение на лог-файл из конфига (если указан)
     // -----------------------------------------------------------
-    if (try_reopen_logger(cfg.log_file) == 0) {
-        LOG_CFG(LOG_INFO, "Logger switched: %s", cfg.log_file);
+    if (try_reopen_logger(g_cfg.log_file) == 0) {
+        LOG_CFG(LOG_INFO, "Logger switched: %s", g_cfg.log_file);
     }
 
-    logger_set_level(cfg.log_level);
+    logger_set_level(g_cfg.log_level);
     LOG_SYS(LOG_INFO, "Logger level applied: %s", 
-            logger_level_to_string(cfg.log_level));
+            logger_level_to_string(g_cfg.log_level));
     
-    log_config(&cfg);
+    log_config(&g_cfg);
 
     // -----------------------------------------------------------
     // 8. Инициализация модулей безопасности
     // -----------------------------------------------------------
-    security_set_allowed_chat(cfg.chat_id);
-    security_set_token_ttl(cfg.token_ttl);
+    security_set_allowed_chat(g_cfg.chat_id);
+    security_set_token_ttl(g_cfg.token_ttl);
     security_init();
 
     // -----------------------------------------------------------
     // 9. Инициализация Telegram
     // -----------------------------------------------------------
-    if (telegram_init(cfg.token) != 0) {
+    if (telegram_init(g_cfg.token) != 0) {
         LOG_NET(LOG_ERROR, "Telegram init failed");
         logger_close();
         return 1;
@@ -179,7 +181,7 @@ int main(int argc, char *argv[]) {
             config_t new_cfg;
             if (config_load(config_path, &new_cfg) == 0) {
                 // Если изменился путь к лог-файлу — переоткрываем
-                if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
+                if (strcmp(g_cfg.log_file, new_cfg.log_file) != 0) {
                     try_reopen_logger(new_cfg.log_file);
                 }
 
@@ -187,8 +189,8 @@ int main(int argc, char *argv[]) {
                 security_set_allowed_chat(new_cfg.chat_id);
                 security_set_token_ttl(new_cfg.token_ttl);
 
-                cfg = new_cfg;
-                log_config(&cfg);
+                g_cfg = new_cfg;
+                log_config(&g_cfg);
             }
 
             lifecycle_clear_reload();
@@ -198,10 +200,10 @@ int main(int argc, char *argv[]) {
         // -------------------------------------------------------
         if (lifecycle_rotate_requested()) {
             LOG_SYS(LOG_INFO, "Log rotation requested (SIGUSR1)");
-            if (try_reopen_logger(cfg.log_file) == 0) {
-                LOG_SYS(LOG_INFO, "Log file reopened: %s", cfg.log_file);
+            if (try_reopen_logger(g_cfg.log_file) == 0) {
+                LOG_SYS(LOG_INFO, "Log file reopened: %s", g_cfg.log_file);
             } else {
-                LOG_SYS(LOG_WARN, "Failed to reopen log file: %s", cfg.log_file);
+                LOG_SYS(LOG_WARN, "Failed to reopen log file: %s", g_cfg.log_file);
             }
             lifecycle_clear_rotate();
         }
