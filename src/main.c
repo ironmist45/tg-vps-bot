@@ -43,6 +43,8 @@
 #include "security.h"
 #include "lifecycle.h"
 #include "environment.h"
+#include "metrics.h"
+#include "sd_notify.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -61,6 +63,7 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     lifecycle_init();
     lifecycle_register_handlers();
+    memset(&g_metrics, 0, sizeof(g_metrics));
 
     // -----------------------------------------------------------
     // 2. Обработка аргументов командной строки
@@ -134,6 +137,14 @@ int main(int argc, char *argv[]) {
     }
 
     LOG_STATE(LOG_INFO, "Bot started");
+
+    /*
+     * Уведомляем systemd что инициализация завершена и бот готов к работе.
+     * Требуется при Type=notify в unit-файле.
+     * Если NOTIFY_SOCKET не установлен — no-op.
+     */
+    sd_notify_ready();
+
     LOG_STATE(LOG_INFO, "Entering main loop");
 
     // ===========================================================
@@ -143,6 +154,14 @@ int main(int argc, char *argv[]) {
     const int max_consecutive_errors = 5;
     
     while (1) {
+        /*
+         * Сбрасываем watchdog таймер systemd в каждой итерации.
+         * WatchdogSec=60 в unit-файле — ожидается каждые 30 сек.
+         * Одна итерация: poll (до 25 сек) + usleep(200мс) — укладываемся.
+         * Если NOTIFY_SOCKET не установлен — no-op.
+         */
+        sd_notify_watchdog();
+
         // -------------------------------------------------------
         // Проверка запроса на shutdown (от сигнала или команды)
         // -------------------------------------------------------
@@ -185,7 +204,6 @@ int main(int argc, char *argv[]) {
                 LOG_SYS(LOG_WARN, "Failed to reopen log file: %s", cfg.log_file);
             }
             lifecycle_clear_rotate();
-        // убираем лишний }
         }
 
         // -------------------------------------------------------
@@ -223,6 +241,10 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     // 11. Завершение работы
     // -----------------------------------------------------------
+    char metrics_buf[512];
+    metrics_format_log(metrics_buf, sizeof(metrics_buf));
+    LOG_SYS(LOG_INFO, "%s", metrics_buf);
+
     logger_close();
     return 0;
 }
