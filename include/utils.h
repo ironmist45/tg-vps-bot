@@ -64,15 +64,6 @@ int safe_copy(char *dst, size_t dst_size, const char *src);
 // ============================================================================
 
 /**
- * Wrap text in Markdown code block with truncation support
- * 
- * @param input   Input text to wrap
- * @param output  Output buffer
- * @param size    Size of output buffer
- */
-void format_code_block(const char *input, char *output, size_t size);
-
-/**
  * Safely wrap text in Markdown code block with triple-backtick escaping
  * 
  * Escapes any "```" sequences in the source text to prevent breaking
@@ -123,23 +114,6 @@ int parse_int(const char *str, int *out);
 int split_args(char *input, char *argv[], int max_args);
 
 // ============================================================================
-// URL ENCODING
-// ============================================================================
-
-/**
- * URL-encode string (application/x-www-form-urlencoded)
- * 
- * Space is encoded as '+' (form encoding, not percent-encoding).
- * Used for Telegram API parameters.
- * 
- * @param src       Source string
- * @param dst       Destination buffer
- * @param dst_size  Size of destination buffer
- * @return          0 on success, -1 on overflow
- */
-int url_encode(const char *src, char *dst, size_t dst_size);
-
-// ============================================================================
 // NETWORK UTILITIES
 // ============================================================================
 
@@ -150,22 +124,6 @@ int url_encode(const char *src, char *dst, size_t dst_size);
  * @return    1 if valid IPv4 address, 0 otherwise
  */
 int is_safe_ip(const char *ip);
-
-// ============================================================================
-// COMMAND VALIDATION
-// ============================================================================
-
-/**
- * Generic command validation
- * 
- * Checks that command arguments are non-NULL and non-empty.
- * 
- * @param argv  Argument array (first element is command name)
- * @param resp  Response buffer for error message
- * @param size  Size of response buffer
- * @return      0 on success, -1 on validation failure
- */
-int validate_command(char *argv[], char *resp, size_t size);
 
 // ============================================================================
 // TIME UTILITIES
