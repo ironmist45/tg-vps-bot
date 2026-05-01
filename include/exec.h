@@ -147,3 +147,5 @@ int exec_command(char *const argv[],
                  size_t size,
                  const exec_opts_t *opts,
                  exec_result_t *result);
+
+#endif // EXEC_H
