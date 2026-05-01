@@ -27,7 +27,6 @@ typedef struct {
     long chat_id;           // Allowed Telegram chat ID (single-user mode)
     
     // Optional (with defaults)
-    int  poll_timeout;         // Long polling timeout in seconds (default: 30)
     char log_file[256];        // Path to log file (default: /var/log/tg-bot.log)
     int  token_ttl;            // Reboot token TTL in seconds (default: 60)
     log_level_t log_level;     // Logging verbosity (default: LOG_INFO)
@@ -53,7 +52,6 @@ typedef struct {
  * Supported keys:
  *   TOKEN        - Telegram Bot API token (required)
  *   CHAT_ID      - Allowed Telegram chat ID (required)
- *   POLL_TIMEOUT - Long polling timeout in seconds (default: 30)
  *   LOG_FILE     - Path to log file (default: /var/log/tg-bot.log)
  *   TOKEN_TTL    - Reboot token time-to-live in seconds (default: 60)
  *   LOG_LEVEL    - Logging level: ERROR, WARN, INFO, DEBUG (default: INFO)
