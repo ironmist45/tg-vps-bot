@@ -14,7 +14,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -112,50 +112,6 @@ int safe_copy(char *dst, size_t dst_size, const char *src) {
 // ============================================================================
 // OUTPUT FORMATTING (TELEGRAM MARKDOWN)
 // ============================================================================
-
-/**
- * Wrap text in Markdown code block with truncation support
- * 
- * @param input   Input text to wrap
- * @param output  Output buffer
- * @param size    Size of output buffer
- */
-void format_code_block(const char *input,
-                       char *output,
-                       size_t size) {
-
-    // Need minimum space for code block markers
-    if (!input || !output || size < 16) {
-        if (output && size > 0) output[0] = '\0';
-        return;
-    }
-
-    int truncated = 0;
-
-    // Reserve space for:
-    // ```\n        (4 bytes)
-    // \n```        (4 bytes)
-    // \n[truncated] (12 bytes)
-    // Total: ~24 bytes overhead
-    size_t max_content = size - 24;
-
-    size_t input_len = strlen(input);
-
-    if (input_len > max_content) {
-        truncated = 1;
-    }
-
-    char tmp[max_content + 1];
-
-    strncpy(tmp, input, max_content);
-    tmp[max_content] = '\0';
-
-    if (truncated) {
-        strncat(tmp, "\n[truncated]", max_content - strlen(tmp));
-    }
-
-    snprintf(output, size, "```\n%s\n```", tmp);
-}
 
 /**
  * Safely wrap text in Markdown code block with triple-backtick escaping
@@ -299,63 +255,6 @@ int split_args(char *input, char *argv[], int max_args) {
 }
 
 // ============================================================================
-// URL ENCODING
-// ============================================================================
-
-/**
- * Check if character is unreserved per RFC 3986
- * 
- * @param c  Character to check
- * @return   1 if unreserved, 0 otherwise
- */
-static int is_unreserved(char c) {
-    return isalnum((unsigned char)c) ||
-           c == '-' || c == '_' || c == '.' || c == '~';
-}
-
-/**
- * URL-encode string (application/x-www-form-urlencoded)
- * 
- * Space is encoded as '+' (form encoding, not percent-encoding).
- * 
- * @param src       Source string
- * @param dst       Destination buffer
- * @param dst_size  Size of destination buffer
- * @return          0 on success, -1 on overflow
- */
-int url_encode(const char *src, char *dst, size_t dst_size) {
-
-    if (!src || !dst || dst_size == 0) return -1;
-
-    size_t i = 0;
-    size_t j = 0;
-
-    while (src[i] != '\0') {
-
-        // Need up to 4 bytes for percent encoding (%XX + null)
-        if (j + 4 >= dst_size) {
-            return -1;
-        }
-
-        if (is_unreserved(src[i])) {
-            dst[j++] = src[i];
-        }
-        else if (src[i] == ' ') {
-            dst[j++] = '+';
-        }
-        else {
-            snprintf(&dst[j], 4, "%%%02X", (unsigned char)src[i]);
-            j += 3;
-        }
-
-        i++;
-    }
-
-    dst[j] = '\0';
-    return 0;
-}
-
-// ============================================================================
 // NETWORK UTILITIES
 // ============================================================================
 
@@ -370,28 +269,6 @@ int is_safe_ip(const char *ip) {
 
     struct sockaddr_in sa;
     return inet_pton(AF_INET, ip, &(sa.sin_addr)) == 1;
-}
-
-// ============================================================================
-// COMMAND VALIDATION
-// ============================================================================
-
-/**
- * Generic command validation
- * 
- * Checks that command arguments are non-NULL and non-empty.
- * 
- * @param argv  Argument array (first element is command name)
- * @param resp  Response buffer for error message
- * @param size  Size of response buffer
- * @return      0 on success, -1 on validation failure
- */
-int validate_command(char *argv[], char *resp, size_t size) {
-    if (!argv || !argv[0]) {
-        snprintf(resp, size, "Invalid command");
-        return -1;
-    }
-    return 0;
 }
 
 // ============================================================================
