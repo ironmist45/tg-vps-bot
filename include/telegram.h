@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * telegram.h - Telegram Bot API communication layer
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef TELEGRAM_H
@@ -82,13 +82,6 @@ int telegram_send_plain(long chat_id, const char *text);
  * @return  0 on success (including timeout with no messages), -1 on error
  */
 int telegram_poll(void);
-
-/**
- * Poll Telegram API with automatic error handling and retry limit
- * @param max_errors Maximum consecutive errors before giving up
- * @return 0 on success, -1 if max errors reached or shutdown requested
- */
-int telegram_poll_safe(int max_errors);
 
 // ============================================================================
 // UTILITIES
