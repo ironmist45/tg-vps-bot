@@ -12,7 +12,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,15 +42,24 @@
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/random.h>
 
 // ⚠️ SECURITY NOTE:
 // This is NOT a cryptographic secret.
-// Tokens are protected by runtime salt (generated at startup).
+// Tokens are protected by runtime salt (generated at startup via getrandom).
 // Purpose:
 //   - prevent accidental execution
 //   - add confirmation step for critical actions
 // Real security is enforced by chat_id validation.
 #define TOKEN_SALT 0x5F3759DF
+
+/*
+ * Maximum burst count for rate limiting.
+ * Capped at this value to prevent integer overflow:
+ * once the limit is exceeded g_cmd_burst stays pinned at
+ * RATE_LIMIT_MAX rather than growing without bound.
+ */
+#define RATE_LIMIT_MAX 16
 
 // ============================================================================
 // INTERNAL STATE
@@ -58,43 +67,75 @@
 
 // Access control
 static long g_allowed_chat_id = 0;
-static int g_token_ttl = 60;
+static int  g_token_ttl       = 60;
 
-// Runtime token salt (generated at startup, not persistent)
+// Runtime token salt (generated at startup via getrandom, not persistent)
 static unsigned int g_runtime_salt = 0;
 
 // Last generated token (for replay protection)
-static int g_last_token = -1;
+static int    g_last_token      = -1;
 static time_t g_last_token_time = 0;
 
 // Bruteforce protection
-static int g_failed_attempts = 0;
-static time_t g_block_until = 0;
+static int    g_failed_attempts = 0;
+static time_t g_block_until     = 0;
 
 // Rate limiting
 static time_t g_last_cmd_time = 0;
-static int g_cmd_burst = 0;
+static int    g_cmd_burst     = 0;
 
 // ============================================================================
 // INITIALIZATION
 // ============================================================================
 
 /**
- * Initialize security module
- * 
- * Generates runtime salt for token generation. Must be called once
- * at program startup.
+ * Initialize security module.
+ *
+ * Generates runtime salt via getrandom(2) — a non-blocking kernel CSPRNG
+ * available since Linux 3.17 (Ubuntu 18.04 ships kernel 4.15+).
+ * Falls back to /dev/urandom if the syscall unexpectedly fails.
+ *
+ * Must be called once at program startup before any other security functions.
  */
 void security_init(void) {
-    unsigned int seed = (unsigned int)(
-        time(NULL) ^ getpid() ^ clock()
-    );
 
-    srand(seed);
-    g_runtime_salt = (unsigned int)rand();
+    unsigned int salt = 0;
 
-    LOG_SEC(LOG_INFO, "Security initialized (stateless tokens)");
-    LOG_SEC(LOG_DEBUG, "runtime salt=0x%X", g_runtime_salt);
+    /*
+     * getrandom(2) with flags=0 blocks until the kernel entropy pool is
+     * initialised (only relevant at very early boot) and cannot be
+     * interrupted by signals for requests <= 256 bytes.  This is the
+     * correct way to obtain unpredictable bytes on Linux.
+     */
+    ssize_t n = getrandom(&salt, sizeof(salt), 0);
+
+    if (n != (ssize_t)sizeof(salt)) {
+        /*
+         * Extremely unlikely on a running system; log and fall back to
+         * /dev/urandom rather than using a predictable seed.
+         */
+        LOG_SEC(LOG_WARN,
+            "getrandom() failed (n=%zd), falling back to /dev/urandom", n);
+
+        FILE *f = fopen("/dev/urandom", "rb");
+        if (f) {
+            if (fread(&salt, sizeof(salt), 1, f) != 1) {
+                LOG_SEC(LOG_ERROR,
+                    "fread /dev/urandom failed -- salt will be zero");
+                salt = 0;
+            }
+            fclose(f);
+        } else {
+            LOG_SEC(LOG_ERROR,
+                "cannot open /dev/urandom -- salt will be zero");
+            salt = 0;
+        }
+    }
+
+    g_runtime_salt = salt;
+
+    LOG_SEC(LOG_INFO, "Security initialized (stateless tokens, getrandom salt)");
+    /* Do NOT log the salt value -- even at DEBUG level. */
 }
 
 // ============================================================================
@@ -103,7 +144,7 @@ void security_init(void) {
 
 /**
  * Set the allowed Telegram chat ID (single-user mode)
- * 
+ *
  * @param chat_id  Telegram chat ID of the authorized user
  */
 void security_set_allowed_chat(long chat_id) {
@@ -112,12 +153,21 @@ void security_set_allowed_chat(long chat_id) {
 
 /**
  * Set token time-to-live for reboot confirmation
- * 
+ *
  * @param ttl  Token validity period in seconds (1-3600)
  */
 void security_set_token_ttl(int ttl) {
     if (ttl > 0 && ttl <= 3600)
         g_token_ttl = ttl;
+}
+
+/**
+ * Get current token TTL (used by command handlers for display)
+ *
+ * @return  Token TTL in seconds
+ */
+int security_get_token_ttl(void) {
+    return g_token_ttl;
 }
 
 // ============================================================================
@@ -126,13 +176,12 @@ void security_set_token_ttl(int ttl) {
 
 /**
  * Check if chat ID matches the allowed user
- * 
+ *
  * @param chat_id  Telegram chat ID to validate
  * @return         1 if allowed, 0 otherwise
  */
 int security_is_allowed_chat(long chat_id) {
 
-    // Protect against uninitialized state
     if (g_allowed_chat_id == 0) {
         LOG_SEC(LOG_ERROR, "allowed_chat_id not initialized");
         return 0;
@@ -143,30 +192,26 @@ int security_is_allowed_chat(long chat_id) {
 
 /**
  * Validate text input for safety (no binary/control characters)
- * 
+ *
  * Allows only printable characters, newlines, carriage returns, and tabs.
  * Rejects strings containing binary data or other control characters.
- * 
+ *
  * @param text  Input string to validate
  * @return      0 if valid, -1 if invalid or too long
  */
 int security_validate_text(const char *text) {
-    
+
     if (!text)
         return -1;
 
     size_t len = strlen(text);
 
-    // Reject empty or excessively long input
     if (len == 0 || len > 1024)
         return -1;
 
-    // Scan for prohibited control characters
     for (size_t i = 0; i < len; i++) {
-        
         unsigned char c = text[i];
 
-        // Reject control characters except newline, carriage return, tab
         if (c < 32 &&
             c != '\n' &&
             c != '\r' &&
@@ -180,9 +225,9 @@ int security_validate_text(const char *text) {
 
 /**
  * Check access for a specific command
- * 
+ *
  * Verifies that the requesting chat ID is authorized and logs the result.
- * 
+ *
  * @param chat_id  Telegram chat ID making the request
  * @param cmd      Command being executed (for logging)
  * @param req_id   16-bit request identifier (for log correlation)
@@ -203,9 +248,9 @@ int security_check_access(long chat_id, const char *cmd, unsigned short req_id) 
     if (!allowed) {
         LOG_STATE(LOG_WARN,
             "ACCESS DENIED: req=%04x cmd=%s chat_id=%ld",
-             req_id,
-             cmd ? cmd : "NULL",
-             chat_id);
+            req_id,
+            cmd ? cmd : "NULL",
+            chat_id);
 
         return -1;
     }
@@ -218,12 +263,9 @@ int security_check_access(long chat_id, const char *cmd, unsigned short req_id) 
 // ============================================================================
 
 /**
- * Register failed token validation attempt
- * 
- * Implements exponential backoff: after 5 consecutive failures,
- * blocks further attempts for 30 seconds.
- * 
- * @param now  Current timestamp
+ * Register failed token validation attempt.
+ *
+ * After 5 consecutive failures blocks further attempts for 30 seconds.
  */
 static void register_failed_attempt(time_t now, unsigned short req_id) {
 
@@ -232,7 +274,7 @@ static void register_failed_attempt(time_t now, unsigned short req_id) {
     LOG_SEC(LOG_DEBUG, "req=%04x failed attempts: %d", req_id, g_failed_attempts);
 
     if (g_failed_attempts >= 5) {
-        g_block_until = now + 30;
+        g_block_until     = now + 30;
         g_failed_attempts = 0;
 
         LOG_SEC(LOG_WARN,
@@ -245,10 +287,13 @@ static void register_failed_attempt(time_t now, unsigned short req_id) {
 // ============================================================================
 
 /**
- * Apply rate limiting to prevent command spam
- * 
- * Allows up to 5 commands per second before throttling.
- * 
+ * Apply rate limiting to prevent command spam.
+ *
+ * Allows up to 5 commands per second.  The burst counter is capped at
+ * RATE_LIMIT_MAX (16) to prevent integer overflow on sustained spam --
+ * once the cap is reached the counter stays pinned rather than wrapping
+ * around and accidentally bypassing the limit check.
+ *
  * @return  0 if request allowed, -1 if rate limit exceeded
  */
 int security_rate_limit(void) {
@@ -256,15 +301,20 @@ int security_rate_limit(void) {
     time_t now = time(NULL);
 
     if (now == g_last_cmd_time) {
-        g_cmd_burst++;
+        /*
+         * Cap the counter to avoid overflow.  Any value > 5 already
+         * means "rate limited", so there is no need to let it grow further.
+         */
+        if (g_cmd_burst < RATE_LIMIT_MAX)
+            g_cmd_burst++;
 
         if (g_cmd_burst > 5) {
-            LOG_SEC(LOG_WARN, "Rate limit triggered");
+            LOG_SEC(LOG_WARN, "Rate limit triggered (burst=%d)", g_cmd_burst);
             return -1;
         }
     } else {
         g_last_cmd_time = now;
-        g_cmd_burst = 1;
+        g_cmd_burst     = 1;
     }
 
     return 0;
@@ -275,25 +325,28 @@ int security_rate_limit(void) {
 // ============================================================================
 
 /**
- * Generate hash for token calculation
- * 
- * Combines chat_id, timestamp, compile-time salt, and runtime salt.
- * The result is mixed to improve distribution.
- * 
+ * Compute the raw hash component for a given (chat_id, timestamp) pair.
+ *
+ * Combines chat_id, timestamp, compile-time salt, and getrandom-derived
+ * runtime salt.  The three-step integer mix (xorshift -> multiply -> xorshift)
+ * gives good avalanche behaviour so that adjacent timestamps produce
+ * completely different values.
+ *
  * @param chat_id  Authorized chat ID
  * @param ts       Timestamp for this token window
- * @return         Integer hash in range [0, 999999]
+ * @return         Unsigned hash value (full 32-bit range)
  */
-static int make_token(long chat_id, time_t ts) {
+static unsigned int make_token(long chat_id, time_t ts) {
 
-    unsigned int x = (unsigned int)(chat_id ^ ts ^ TOKEN_SALT ^ g_runtime_salt);
-
-    // Mix bits for better distribution
+    unsigned int x = (unsigned int)((unsigned long)chat_id
+                                    ^ (unsigned long)ts
+                                    ^ TOKEN_SALT
+                                    ^ g_runtime_salt);
     x ^= (x >> 16);
-    x *= 0x45d9f3b;
+    x *= 0x45d9f3bu;
     x ^= (x >> 16);
 
-    return (int)(x % 1000000);
+    return x;
 }
 
 // ============================================================================
@@ -301,50 +354,53 @@ static int make_token(long chat_id, time_t ts) {
 // ============================================================================
 
 /**
- * Generate a new reboot confirmation token
- * 
- * Token is stateless: derived from chat_id, current time, and salts.
- * Stored internally for replay protection.
- * 
+ * Generate a new reboot confirmation token.
+ *
+ * Token is stateless: derived from chat_id, current time, and the
+ * getrandom-seeded runtime salt.  Stored internally for replay protection
+ * (single-use enforcement in security_validate_reboot_token).
+ *
  * @param chat_id  Authorized chat ID requesting the token
+ * @param req_id   16-bit request identifier for log correlation
  * @return         6-digit token (000000-999999)
  */
 int security_generate_reboot_token(long chat_id, unsigned short req_id) {
 
     time_t ts = time(NULL);
 
-    int token = make_token(chat_id, ts);
-    int final_token = (ts % 1000000) ^ token;
+    unsigned int raw    = make_token(chat_id, ts);
+    int final_token     = (int)(((unsigned int)(ts % 1000000) ^ raw) % 1000000u);
 
     LOG_SEC(LOG_INFO,
         "req=%04x Generated token: chat_id=%ld ts=%ld token=%06d",
         req_id, chat_id, (long)ts, final_token);
-    LOG_SEC(LOG_DEBUG,
-        "req=%04x token components: ts_mod=%d raw=%d",
-        req_id, ts % 1000000, token);
+    /*
+     * Intermediate values (ts_mod, raw hash) are intentionally NOT logged
+     * even at DEBUG level -- they would expose information useful for
+     * reversing the token algorithm if the log file is compromised.
+     */
 
-    // Store for replay protection
-    g_last_token = final_token;
+    g_last_token      = final_token;
     g_last_token_time = ts;
 
     return final_token;
 }
 
 /**
- * Validate a reboot confirmation token
- * 
- * Checks token against time windows within TTL. Also enforces:
- *   - Token format (6 digits)
+ * Validate a reboot confirmation token.
+ *
+ * Checks token against all time windows within TTL.  Also enforces:
+ *   - Token format (6 digits, non-negative)
  *   - Bruteforce block status
- *   - Replay protection (single-use)
- * 
+ *   - Replay protection (single-use: token is invalidated on first use)
+ *
  * @param chat_id      Authorized chat ID
- * @param input_token  Token to validate (provided by user)
- * @return             0 if valid, -1 if invalid/expired/replayed
+ * @param input_token  Token supplied by the user
+ * @param req_id       16-bit request identifier for log correlation
+ * @return             0 if valid, -1 if invalid / expired / replayed
  */
 int security_validate_reboot_token(long chat_id, int input_token, unsigned short req_id) {
 
-    // Validate token format (must be 6-digit positive integer)
     if (input_token < 0 || input_token > 999999) {
         LOG_SEC(LOG_WARN,
             "req=%04x Invalid token format: %d (chat_id=%ld)",
@@ -354,39 +410,31 @@ int security_validate_reboot_token(long chat_id, int input_token, unsigned short
 
     time_t now = time(NULL);
 
-    // Check if currently blocked (bruteforce protection)
     if (now < g_block_until) {
         LOG_SEC(LOG_WARN, "req=%04x Token validation blocked (bruteforce)", req_id);
         return -1;
     }
 
-    // Check all time windows within TTL
     for (int i = 0; i <= g_token_ttl; i++) {
 
-        time_t ts = (now - i);
-        int expected = (ts % 1000000) ^ make_token(chat_id, ts);
-
-        LOG_SEC(LOG_DEBUG,
-            "req=%04x check: ts=%d expected=%06d input=%06d",
-            req_id, ts, expected, input_token);
+        time_t       ts       = now - i;
+        unsigned int raw      = make_token(chat_id, ts);
+        int          expected = (int)(((unsigned int)(ts % 1000000) ^ raw) % 1000000u);
 
         if (expected == input_token) {
 
-            // Replay protection: must be the exact token we generated
             if (input_token == g_last_token &&
                 (now - g_last_token_time) <= g_token_ttl) {
 
-                // Invalidate after use (single-use token)
-                g_last_token = -1;
+                g_last_token = -1;  /* invalidate -- single use */
 
                 LOG_SEC(LOG_INFO,
                     "req=%04x Token accepted: chat_id=%ld token=%06d (age=%d sec)",
                     req_id, chat_id, input_token, i);
 
-                // Reset bruteforce state on success
                 g_failed_attempts = 0;
-                g_block_until = 0;
-                
+                g_block_until     = 0;
+
                 return 0;
             }
 
@@ -404,6 +452,5 @@ int security_validate_reboot_token(long chat_id, int input_token, unsigned short
         req_id, chat_id, input_token);
 
     register_failed_attempt(now, req_id);
-    
     return -1;
 }
