@@ -143,12 +143,15 @@ int main(int argc, char *argv[]) {
     LOG_STATE(LOG_INFO, "Bot started");
 
     /*
-     * Уведомляем systemd что инициализация завершена и бот готов к работе.
-     * Требуется при Type=notify в unit-файле.
+     * Уведомляем systemd, что инициализация завершена и бот готов к работе.
+     * Требуется при Type=notify в unit-файле бота.
      * Если NOTIFY_SOCKET не установлен — no-op.
      */
     sd_notify_ready();
 
+    /*
+     * Отправляем сообщение в Telegram о готовности к работе
+     */
     telegram_send_message(g_cfg.chat_id, "🟢 *Bot started*\n\nReady to serve.");
 
     LOG_STATE(LOG_INFO, "Entering main loop");
