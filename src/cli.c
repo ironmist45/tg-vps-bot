@@ -119,41 +119,6 @@ static int cli_parse(int argc, char *argv[], cli_args_t *args) {
     return 0;
 }
 
-/**
- * Process command-line arguments and handle help/version
- * 
- * @param argc        Argument count
- * @param argv        Argument vector
- * @param config_path Output buffer for config file path
- * @return            0 on success, -1 on error (message already printed)
- */
-int cli_process(int argc, char *argv[], char *config_path) {
-    cli_args_t args;
-    
-    if (cli_parse(argc, argv, &args) != 0) {
-        fprintf(stderr, "Invalid arguments\n");
-        return -1;
-    }
-    
-    if (args.show_help) {
-        cli_print_help();
-        return -1;  // Special: clean exit but not an error
-    }
-    
-    if (args.show_version) {
-        cli_print_version();
-        return -1;  // Special: clean exit but not an error
-    }
-    
-    if (args.config_path[0] == '\0') {
-        fprintf(stderr, "Config not specified\n");
-        return -1;
-    }
-    
-    // Copy config path to output buffer
-    snprintf(config_path, 256, "%s", args.config_path);
-    return 0;
-}
 
 // ============================================================================
 // HELP OUTPUT
@@ -194,4 +159,40 @@ static void cli_print_version(void) {
     printf("c-ares: %s\n", ares_version(NULL));
     printf("cJSON: %d.%d.%d\n", CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
     printf("(c) %s %s\n", APP_YEAR, APP_AUTHOR);
+}
+
+/**
+ * Process command-line arguments and handle help/version
+ * 
+ * @param argc        Argument count
+ * @param argv        Argument vector
+ * @param config_path Output buffer for config file path
+ * @return            0 on success, -1 on error (message already printed)
+ */
+int cli_process(int argc, char *argv[], char *config_path) {
+    cli_args_t args;
+    
+    if (cli_parse(argc, argv, &args) != 0) {
+        fprintf(stderr, "Invalid arguments\n");
+        return -1;
+    }
+    
+    if (args.show_help) {
+        cli_print_help();
+        return -1;  // Special: clean exit but not an error
+    }
+    
+    if (args.show_version) {
+        cli_print_version();
+        return -1;  // Special: clean exit but not an error
+    }
+    
+    if (args.config_path[0] == '\0') {
+        fprintf(stderr, "Config not specified\n");
+        return -1;
+    }
+    
+    // Copy config path to output buffer
+    snprintf(config_path, 256, "%s", args.config_path);
+    return 0;
 }
