@@ -51,10 +51,6 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-// ===== Прототипы вспомогательных функций =====
-static int try_reopen_logger(const char *path);
-static void log_config(const config_t *cfg);
-
 // ===== Глобальный конфиг =====
 config_t g_cfg;
 
@@ -188,27 +184,4 @@ int main(int argc, char *argv[]) {
     
     logger_close();
     return 0;
-}
-
-// =====================================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// =====================================================================
-
-/**
- * Переоткрытие лог-файла (например, после ротации или смены пути в конфиге)
- * 
- * @param path  путь к новому лог-файлу
- * @return      0 при успехе, -1 при ошибке
- */
-static int try_reopen_logger(const char *path) {
-    // Проверяем, что файл доступен для записи
-    FILE *f = fopen(path, "a");
-    if (!f) return -1;
-    fclose(f);
-
-    // Сбрасываем буферы перед закрытием старого логгера
-    fflush(NULL);
-    logger_close();
-    
-    return logger_init(path);
 }
