@@ -13,7 +13,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026 ironmist45
+ * Copyright (c) 2026
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,7 +34,6 @@
  * SOFTWARE.
  */
 
-#include "build_info.h"
 #include "version.h"
 #include "logger.h"
 #include "config.h"
@@ -44,15 +43,16 @@
 #include "security.h"
 #include "lifecycle.h"
 #include "environment.h"
-#include "metrics.h"
+#include "sd_notify.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
 
-// ===== Глобальный конфиг =====
-config_t g_cfg;
+// ===== Прототипы вспомогательных функций =====
+static int try_reopen_logger(const char *path);
+static void log_config(const config_t *cfg);
 
 // ===== MAIN =====
 
@@ -62,7 +62,6 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     lifecycle_init();
     lifecycle_register_handlers();
-    memset(&g_metrics, 0, sizeof(g_metrics));    // Обнулить метрики при старте
 
     // -----------------------------------------------------------
     // 2. Обработка аргументов командной строки
@@ -85,66 +84,80 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     LOG_SYS(LOG_INFO, "==== START ====");
     LOG_SYS(LOG_INFO, "%s v%s (%s)", APP_NAME, APP_VERSION, APP_CODENAME);
-    LOG_SYS(LOG_INFO, "Build: commit %s, %s", TG_BUILD_COMMIT, TG_BUILD_DATE);
-    LOG_SYS(LOG_INFO, "Process started (PID=%d)", getpid());
     fflush(NULL);
     
+    LOG_SYS(LOG_INFO, "Process started (PID=%d)", getpid());
+    
     // -----------------------------------------------------------
-    // 5. Логирование контекста
+    // 5. Логирование контекста и проверки окружения
     // -----------------------------------------------------------
     env_log_user_info();
     env_log_workdir();
+    env_check_all(fallback_log);
 
     // -----------------------------------------------------------
     // 6. Загрузка конфигурации
     // -----------------------------------------------------------
-    if (config_load(config_path, &g_cfg) != 0) {
+    config_t cfg;
+    if (config_load(config_path, &cfg) != 0) {
         LOG_CFG(LOG_ERROR, "Config load failed");
         logger_close();
         return 1;
     }
 
     // -----------------------------------------------------------
-    // 7. Переключение на лог-файл из конфига (если указан) 
-    //    и проверки окружения
+    // 7. Переключение на лог-файл из конфига (если указан)
     // -----------------------------------------------------------
-    if (logger_reopen(g_cfg.log_file) == 0) {
-        LOG_CFG(LOG_INFO, "Logger switched: %s", g_cfg.log_file);
+    if (try_reopen_logger(cfg.log_file) == 0) {
+        LOG_CFG(LOG_INFO, "Logger switched: %s", cfg.log_file);
     }
 
-    logger_set_level(g_cfg.log_level);
+    logger_set_level(cfg.log_level);
     LOG_SYS(LOG_INFO, "Logger level applied: %s", 
-            logger_level_to_string(g_cfg.log_level));
-
-    env_check_all(g_cfg.log_file);
+            logger_level_to_string(cfg.log_level));
     
-    config_log(&g_cfg);
+    log_config(&cfg);
 
     // -----------------------------------------------------------
     // 8. Инициализация модулей безопасности
     // -----------------------------------------------------------
-    security_set_allowed_chat(g_cfg.chat_id);
-    security_set_token_ttl(g_cfg.token_ttl);
+    security_set_allowed_chat(cfg.chat_id);
+    security_set_token_ttl(cfg.token_ttl);
     security_init();
 
     // -----------------------------------------------------------
     // 9. Инициализация Telegram
     // -----------------------------------------------------------
-    if (telegram_init(g_cfg.token) != 0) {
+    if (telegram_init(cfg.token) != 0) {
         LOG_NET(LOG_ERROR, "Telegram init failed");
         logger_close();
         return 1;
     }
 
     LOG_STATE(LOG_INFO, "Bot started");
+
+    /*
+     * Уведомляем systemd что инициализация завершена и бот готов к работе.
+     * Требуется при Type=notify в unit-файле.
+     * Если NOTIFY_SOCKET не установлен — no-op.
+     */
+    sd_notify_ready();
     LOG_STATE(LOG_INFO, "Entering main loop");
-    // Отправка стартового сообщения в чат
-    telegram_send_message(g_cfg.chat_id, "🟢 *Bot started*\n\nReady to serve.");
 
     // ===========================================================
     // 10. ГЛАВНЫЙ ЦИКЛ
     // ===========================================================
+    int consecutive_errors = 0;
+    const int max_consecutive_errors = 5;
+    
     while (1) {
+        /*
+         * Сбрасываем watchdog таймер systemd в каждой итерации.
+         * WatchdogSec=60 в unit-файле — ожидается каждые 30 сек.
+         * Одна итерация: poll (до 25 сек) + usleep(200мс) — укладываемся.
+         * Если NOTIFY_SOCKET не установлен — no-op.
+         */
+        sd_notify_watchdog();
         // -------------------------------------------------------
         // Проверка запроса на shutdown (от сигнала или команды)
         // -------------------------------------------------------
@@ -157,19 +170,53 @@ int main(int argc, char *argv[]) {
         // Проверка запроса на перезагрузку конфигурации (SIGHUP)
         // -------------------------------------------------------
         if (lifecycle_reload_requested()) {
-            config_reload(config_path, &g_cfg);
+            LOG_STATE(LOG_INFO, "Reload config");
+
+            config_t new_cfg;
+            if (config_load(config_path, &new_cfg) == 0) {
+                // Если изменился путь к лог-файлу — переоткрываем
+                if (strcmp(cfg.log_file, new_cfg.log_file) != 0) {
+                    try_reopen_logger(new_cfg.log_file);
+                }
+
+                logger_set_level(new_cfg.log_level);
+                security_set_allowed_chat(new_cfg.chat_id);
+                security_set_token_ttl(new_cfg.token_ttl);
+
+                cfg = new_cfg;
+                log_config(&cfg);
+            }
+
             lifecycle_clear_reload();
         }
 
         // -------------------------------------------------------
         // Polling Telegram API
         // -------------------------------------------------------
-        if (telegram_poll_safe(5) != 0) {
-            LOG_STATE(LOG_INFO, "Exiting main loop (shutdown requested)");
+        int poll_rc = telegram_poll();
+        if (poll_rc != 0) {
+
             if (lifecycle_shutdown_requested()) {
                 lifecycle_handle_shutdown();
+                break;
             }
-            break;
+            
+            consecutive_errors++;
+            LOG_NET(LOG_WARN, "Polling error (rc=%d, attempt=%d/%d)",
+                    poll_rc, consecutive_errors, max_consecutive_errors);
+
+            if (consecutive_errors >= max_consecutive_errors) {
+                LOG_SYS(LOG_ERROR, "Too many consecutive polling errors, exiting");
+                break;
+            }
+
+            if (lifecycle_shutdown_requested()) {
+                lifecycle_handle_shutdown();
+                break;
+            }
+            sleep(5);
+        } else {
+            consecutive_errors = 0;
         }
                     
         usleep(200000);  // небольшая пауза между циклами
@@ -178,10 +225,43 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     // 11. Завершение работы
     // -----------------------------------------------------------
-    char metrics_buf[512];
-    metrics_format_log(metrics_buf, sizeof(metrics_buf));
-    LOG_SYS(LOG_INFO, "%s", metrics_buf);
-    
     logger_close();
     return 0;
+}
+
+// =====================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// =====================================================================
+
+/**
+ * Переоткрытие лог-файла (например, после ротации или смены пути в конфиге)
+ * 
+ * @param path  путь к новому лог-файлу
+ * @return      0 при успехе, -1 при ошибке
+ */
+static int try_reopen_logger(const char *path) {
+    // Проверяем, что файл доступен для записи
+    FILE *f = fopen(path, "a");
+    if (!f) return -1;
+    fclose(f);
+
+    // Сбрасываем буферы перед закрытием старого логгера
+    fflush(NULL);
+    logger_close();
+    
+    return logger_init(path);
+}
+
+/**
+ * Логирование текущей конфигурации (для отладки)
+ * 
+ * @param cfg  указатель на структуру конфигурации
+ */
+static void log_config(const config_t *cfg) {
+    LOG_CFG(LOG_INFO, "===== CONFIG =====");
+    LOG_CFG(LOG_INFO, "CHAT_ID: %ld", cfg->chat_id);
+    LOG_CFG(LOG_INFO, "TOKEN_TTL: %d", cfg->token_ttl);
+    LOG_CFG(LOG_INFO, "POLL_TIMEOUT: %d", cfg->poll_timeout);
+    LOG_CFG(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
+    LOG_CFG(LOG_INFO, "LOG_LEVEL: %s", logger_level_to_string(cfg->log_level));
 }
