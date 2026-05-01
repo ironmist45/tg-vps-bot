@@ -24,6 +24,9 @@ typedef struct {
     unsigned long cmd_restart;
     unsigned long cmd_services;
     unsigned long cmd_users;
+    unsigned long cmd_status;
+    unsigned long cmd_about;
+    unsigned long cmd_ping;
     unsigned long cmd_health;
     unsigned long cmd_other;
 
