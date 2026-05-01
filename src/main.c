@@ -183,25 +183,10 @@ int main(int argc, char *argv[]) {
         // Проверка запроса на перезагрузку конфигурации (SIGHUP)
         // -------------------------------------------------------
         if (lifecycle_reload_requested()) {
-            LOG_STATE(LOG_INFO, "Reload config");
-
-            config_t new_cfg;
-            if (config_load(config_path, &new_cfg) == 0) {
-                // Если изменился путь к лог-файлу — переоткрываем
-                if (strcmp(g_cfg.log_file, new_cfg.log_file) != 0) {
-                    try_reopen_logger(new_cfg.log_file);
-                }
-
-                logger_set_level(new_cfg.log_level);
-                security_set_allowed_chat(new_cfg.chat_id);
-                security_set_token_ttl(new_cfg.token_ttl);
-
-                g_cfg = new_cfg;
-                config_log(&g_cfg);
-            }
-
+            config_reload(config_path, &g_cfg);
             lifecycle_clear_reload();
         }
+        
         // -------------------------------------------------------
         // Ротация лог-файла (SIGUSR1 от logrotate)
         // -------------------------------------------------------
