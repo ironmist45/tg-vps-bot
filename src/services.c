@@ -12,10 +12,13 @@
  *   - Status detection: active, inactive, failed, activating
  *   - Emoji indicators: 🟢 UP, 🔴 DOWN, 🟡 FAIL/STARTING, ⚪ UNKNOWN
  *   - Formatted output in Markdown code block
+ *
+ * Service list is defined in services_config.c — edit that file to
+ * add, remove, or rename monitored services.
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,32 +41,12 @@
 
 #include "exec.h"
 #include "services.h"
+#include "services_config.h"
 #include "logger.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
-
-// ============================================================================
-// SERVICE WHITELIST
-// ============================================================================
-
-typedef struct {
-    const char *name;     // Systemd unit name
-    const char *display;  // User-friendly display name
-} service_t;
-
-/**
- * Whitelist of allowed services.
- * Only services listed here can be queried.
- */
-static service_t services[] = {
-    {"ssh",               "SSH"},
-    {"shadowsocks-libev", "Shadowsocks"},
-    {"mtg",               "MTG"},
-};
-
-static const int services_count = sizeof(services) / sizeof(services[0]);
 
 // ============================================================================
 // SERVICE NAME VALIDATION
@@ -99,21 +82,19 @@ static int is_valid_service_name(const char *s) {
 /**
  * Get current status of a single service via systemctl
  * 
- * Executes: sudo systemctl is-active <service>
+ * Executes: sudo systemctl is-active <unit>
  * 
- * @param service  Systemd unit name (must be validated)
- * @param out      Output buffer for status string
- * @param size     Size of output buffer
- * @return         0 on success, -1 on error
+ * @param unit  Systemd unit name (must be validated)
+ * @param out   Output buffer for status string
+ * @param size  Size of output buffer
+ * @return      0 on success, -1 on error
  */
-static int get_service_status(const char *service, char *out, size_t size) {
+static int get_service_status(const char *unit, char *out, size_t size) {
 
-    // Validate service name before passing to shell
-    if (!is_valid_service_name(service)) {
-        LOG_SYS(LOG_ERROR, "Invalid service name: %s", service);
-        if (size > 0) {
+    if (!is_valid_service_name(unit)) {
+        LOG_SYS(LOG_ERROR, "Invalid service unit name: %s", unit);
+        if (size > 0)
             snprintf(out, size, "invalid");
-        }
         return -1;
     }
 
@@ -122,7 +103,7 @@ static int get_service_status(const char *service, char *out, size_t size) {
         "-n",
         "systemctl",
         "is-active",
-        (char *)service,
+        (char *)unit,
         NULL
     };
 
@@ -131,44 +112,37 @@ static int get_service_status(const char *service, char *out, size_t size) {
 
     if (rc != 0) {
         if (res.status == EXEC_TIMEOUT) {
-            LOG_SYS(LOG_ERROR, "service %s: timeout", service);
+            LOG_SYS(LOG_ERROR, "service %s: timeout", unit);
         } else {
             LOG_SYS(LOG_ERROR,
                 "service %s: exec failed (%s)",
-                service,
-                exec_status_str(res.status));
+                unit, exec_status_str(res.status));
         }
 
-        if (size > 0) {
+        if (size > 0)
             snprintf(out, size, "unknown");
-        }
         return -1;
     }
 
     if (res.exit_code != 0) {
         LOG_SYS(LOG_DEBUG,
-            "service %s: non-zero exit (%d)",
-            service,
-            res.exit_code);
+            "service %s: non-zero exit (%d)", unit, res.exit_code);
     }
 
-    // Remove trailing newline from systemctl output
+    /* Remove trailing newline from systemctl output */
     out[strcspn(out, "\n")] = 0;
 
-    // Handle empty output
-    if (out[0] == '\0') {
+    /* Handle empty output */
+    if (out[0] == '\0')
         snprintf(out, size, "unknown");
-    }
 
-    // Trim leading spaces (defensive)
+    /* Trim leading spaces (defensive) */
     char *p = out;
     while (*p == ' ') p++;
-
-    if (p != out) {
+    if (p != out)
         memmove(out, p, strlen(p) + 1);
-    }
 
-    LOG_SYS(LOG_DEBUG, "service=%s status=%s", service, out);
+    LOG_SYS(LOG_DEBUG, "service=%s status=%s", unit, out);
 
     return 0;
 }
@@ -185,17 +159,10 @@ static int get_service_status(const char *service, char *out, size_t size) {
  */
 static const char *format_status(const char *status) {
 
-    if (strcmp(status, "active") == 0)
-        return "🟢 UP";
-
-    if (strcmp(status, "inactive") == 0)
-        return "🔴 DOWN";
-
-    if (strcmp(status, "failed") == 0)
-        return "🟡 FAIL";
-
-    if (strcmp(status, "activating") == 0)
-        return "🟡 STARTING";
+    if (strcmp(status, "active")     == 0) return "🟢 UP";
+    if (strcmp(status, "inactive")   == 0) return "🔴 DOWN";
+    if (strcmp(status, "failed")     == 0) return "🟡 FAIL";
+    if (strcmp(status, "activating") == 0) return "🟡 STARTING";
 
     return "⚪ UNKNOWN";
 }
@@ -223,8 +190,8 @@ static const char *format_status(const char *status) {
  */
 int services_get_status(char *buffer, size_t size, unsigned short req_id) {
 
-    LOG_CMD(LOG_INFO, "req=%04x services_get_status()", req_id);
-    LOG_STATE(LOG_DEBUG, "req=%04x services count: %d", req_id, services_count);
+    LOG_CMD(LOG_INFO,  "req=%04x services_get_status()", req_id);
+    LOG_STATE(LOG_DEBUG, "req=%04x services count: %d", req_id, g_services_count);
 
     if (!buffer || size == 0) {
         LOG_SYS(LOG_ERROR, "req=%04x invalid buffer", req_id);
@@ -235,10 +202,9 @@ int services_get_status(char *buffer, size_t size, unsigned short req_id) {
     size_t offset = 0;
 
     // ------------------------------------------------------------------------
-    // Format header
+    // Header
     // ------------------------------------------------------------------------
-    int written = snprintf(buffer + offset,
-                           size - offset,
+    int written = snprintf(buffer + offset, size - offset,
                            "*🧩 SERVICES*\n\n```\n");
 
     if (written < 0) {
@@ -254,32 +220,27 @@ int services_get_status(char *buffer, size_t size, unsigned short req_id) {
     offset += (size_t)written;
 
     // ------------------------------------------------------------------------
-    // Query and format each service
+    // One row per service: query systemctl via g_services[i].unit,
+    // display via g_services[i].display
     // ------------------------------------------------------------------------
-    for (int i = 0; i < services_count; i++) {
+    for (int i = 0; i < g_services_count; i++) {
         char status[64] = {0};
 
-        if (get_service_status(services[i].name,
-                               status,
-                               sizeof(status)) != 0) {
+        if (get_service_status(g_services[i].unit,
+                               status, sizeof(status)) != 0) {
             LOG_SYS(LOG_WARN,
-                    "Failed to get status: %s",
-                    services[i].name);
+                    "Failed to get status: %s", g_services[i].unit);
         }
 
         const char *status_fmt = format_status(status);
 
         LOG_SYS(LOG_DEBUG,
                 "service=%s display=%s status=%s",
-                services[i].name,
-                services[i].display,
-                status_fmt);
+                g_services[i].unit, g_services[i].display, status_fmt);
 
-        int written = snprintf(buffer + offset,
-                               size - offset,
-                               "%-16s : %s\n",
-                               services[i].display,
-                               status_fmt);
+        written = snprintf(buffer + offset, size - offset,
+                           "%-16s : %s\n",
+                           g_services[i].display, status_fmt);
 
         if (written < 0) {
             LOG_SYS(LOG_ERROR, "snprintf error (line)");
@@ -297,11 +258,9 @@ int services_get_status(char *buffer, size_t size, unsigned short req_id) {
     }
 
     // ------------------------------------------------------------------------
-    // Format footer (close code block)
+    // Footer
     // ------------------------------------------------------------------------
-    int written_end = snprintf(buffer + offset,
-                               size - offset,
-                               "\n```");
+    int written_end = snprintf(buffer + offset, size - offset, "\n```");
 
     if (written_end < 0) {
         LOG_SYS(LOG_ERROR, "snprintf error (footer)");
@@ -310,8 +269,9 @@ int services_get_status(char *buffer, size_t size, unsigned short req_id) {
     } else {
         offset += (size_t)written_end;
     }
-    
-        LOG_STATE(LOG_DEBUG, "req=%04x services response ready: %zu bytes", req_id, offset);
+
+    LOG_STATE(LOG_DEBUG, "req=%04x services response ready: %zu bytes",
+              req_id, offset);
 
     return 0;
 }
