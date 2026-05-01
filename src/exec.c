@@ -42,6 +42,7 @@
 #include "logger.h"
 #include "config.h"
 #include "metrics.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -305,8 +306,7 @@ static int exec_command_internal(char *const argv[],
         close(pipefd[1]);
 
         clock_gettime(CLOCK_MONOTONIC, &t_end);
-        long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                          (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+        long elapsed_ms = elapsed_ms(t_start, t_end);
 
         if (result) result->duration_ms = elapsed_ms;
         exec_result_fail(result, EXEC_FORK_FAILED);
@@ -341,8 +341,7 @@ static int exec_command_internal(char *const argv[],
         close(pipefd[0]);
 
         clock_gettime(CLOCK_MONOTONIC, &t_end);
-        long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                          (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+        long elapsed_ms = elapsed_ms(t_start, t_end);
 
         if (result) result->duration_ms = elapsed_ms;
         exec_result_fail(result, EXEC_READ_FAILED);
@@ -387,8 +386,7 @@ static int exec_command_internal(char *const argv[],
             waitpid(pid, NULL, 0);
 
             clock_gettime(CLOCK_MONOTONIC, &t_end);
-            long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                              (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+            long elapsed_ms = elapsed_ms(t_start, t_end);
 
             if (result) result->duration_ms = elapsed_ms;
             exec_result_fail(result, EXEC_TIMEOUT);
@@ -409,8 +407,7 @@ static int exec_command_internal(char *const argv[],
             waitpid(pid, NULL, 0);
 
             clock_gettime(CLOCK_MONOTONIC, &t_end);
-            long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                              (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+            long elapsed_ms = elapsed_ms(t_start, t_end);
 
             if (result) result->duration_ms = elapsed_ms;
             exec_result_fail(result, EXEC_READ_FAILED);
@@ -459,8 +456,7 @@ static int exec_command_internal(char *const argv[],
             }
 
             clock_gettime(CLOCK_MONOTONIC, &t_end);
-            long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                              (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+            long elapsed_ms = elapsed_ms(t_start, t_end);
 
             if (result) result->duration_ms = elapsed_ms;
             exec_result_fail(result, EXEC_READ_FAILED);
@@ -483,9 +479,8 @@ static int exec_command_internal(char *const argv[],
         waitpid(pid, &status, 0);
 
         clock_gettime(CLOCK_MONOTONIC, &t_end);
-        long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                          (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
-
+        long elapsed_ms = elapsed_ms(t_start, t_end);
+        
         if (result) result->duration_ms = elapsed_ms;
         exec_result_fail(result, EXEC_TIMEOUT);
         g_metrics.err_exec++;
@@ -496,8 +491,7 @@ static int exec_command_internal(char *const argv[],
     // Populate result structure
     // ------------------------------------------------------------------------
     clock_gettime(CLOCK_MONOTONIC, &t_end);
-    long elapsed_ms = (t_end.tv_sec - t_start.tv_sec) * 1000 +
-                      (t_end.tv_nsec - t_start.tv_nsec) / 1000000;
+    long elapsed_ms = elapsed_ms(t_start, t_end);
 
     // Process terminated by signal
     if (!WIFEXITED(status)) {
