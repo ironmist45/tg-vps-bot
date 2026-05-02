@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * commands.h - Command dispatcher types and API
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef COMMANDS_H
