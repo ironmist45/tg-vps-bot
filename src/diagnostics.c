@@ -55,8 +55,8 @@ void diag_loop_end(void) {
 
     if (ms >= DIAG_LOOP_WARN_MS) {
         g_slow_iter_count++;
-        log_msg(LOG_WARN,
-            "[DIAG] Main loop iteration took %ld ms"
+        LOG_SYS(LOG_WARN,
+            "Main loop iteration took %ld ms"
             " (threshold: %d ms, slow count: %lu)",
             ms, DIAG_LOOP_WARN_MS, g_slow_iter_count);
     }
