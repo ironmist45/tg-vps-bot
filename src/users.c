@@ -104,7 +104,7 @@ static void safe_append(char *dst, size_t size, const char *src) {
  * @param req_id  16-bit request identifier for log correlation
  * @return        Number of active sessions, or -1 on error
  */
-int users_get_logged(char *buffer, size_t size, unsigned short req_id) {
+static int users_get_logged(char *buffer, size_t size, unsigned short req_id) {
 
     LOG_CMD(LOG_DEBUG, "users_get_logged()");
 
