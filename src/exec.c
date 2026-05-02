@@ -84,7 +84,7 @@ const char* exec_status_str(exec_status_t s) {
  * @param r  Execution result
  * @return   1 if status is OK and exit code is 0, 0 otherwise
  */
-int exec_success(const exec_result_t *r) {
+static int exec_success(const exec_result_t *r) {
     if (!r) return 0;
     return (r->status == EXEC_OK && r->exit_code == 0);
 }
