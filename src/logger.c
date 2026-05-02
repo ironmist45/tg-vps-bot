@@ -15,7 +15,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -243,8 +243,6 @@ void log_msg(log_level_t level, const char *fmt, ...) {
     }
     // Handle truncation: add "..." at the end
     else if ((size_t)written >= sizeof(message)) {
-        size_t len = sizeof(message);
-        if (len > 4) {
             message[len - 4] = '.';
             message[len - 3] = '.';
             message[len - 2] = '.';
