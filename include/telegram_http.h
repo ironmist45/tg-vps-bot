@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * telegram_http.h - Low-level HTTP communication API
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef TELEGRAM_HTTP_H
