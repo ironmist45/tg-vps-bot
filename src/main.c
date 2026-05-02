@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------
     // 2. Обработка аргументов командной строки
     // -----------------------------------------------------------
-    char config_path[256];
+    char config_path[CLI_CONFIG_PATH_MAX];
     int rc = cli_process(argc, argv, config_path);
     if (rc != 0) {
         // Help / version printed or error — exit cleanly
