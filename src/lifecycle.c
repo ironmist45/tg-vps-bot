@@ -128,7 +128,7 @@ void lifecycle_request_shutdown(int mode, long requested_by) {
             mode, requested_by);
 }
 
-void lifecycle_log_uptime(void) {
+static void lifecycle_log_uptime(void) {
     time_t now = time(NULL);
     long uptime = now - g_start_time;
 
