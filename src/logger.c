@@ -8,6 +8,7 @@
  *   - Log level filtering (ERROR, WARN, INFO, DEBUG)
  *   - Thread-safe writes via pthread mutex
  *   - Automatic fallback to stderr if log file unavailable
+ *   - Mirror to stderr when running interactively (isatty detection)
  *   - Line buffering for real-time log visibility
  *   - Truncation protection for oversized messages
  * 
@@ -44,6 +45,7 @@
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
+#include <unistd.h>
 
 // ============================================================================
 // INTERNAL STATE
@@ -60,6 +62,14 @@ static log_level_t current_log_level = LOG_INFO;
 
 // Mutex for thread-safe writes
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/*
+ * Mirror flag: write to stderr in addition to the log file.
+ * Set automatically in logger_init() via isatty(STDERR_FILENO).
+ * True when running interactively (manual invocation from terminal).
+ * False when running as a systemd service (stderr is redirected).
+ */
+static int log_mirror_stderr = 0;
 
 // ============================================================================
 // LEVEL TO STRING CONVERSION
@@ -156,6 +166,15 @@ int logger_init(const char *path) {
     // Use line buffering for real-time log visibility
     setvbuf(log_file, NULL, _IOLBF, 0);
 
+    /*
+     * Mirror logs to stderr only when running interactively.
+     * isatty() returns 1 if stderr is a terminal (manual run),
+     * 0 if it is redirected (systemd service, pipe, etc.).
+     * This prevents double entries in the log file when
+     * StandardError= points to the same file as the logger.
+     */
+    log_mirror_stderr = isatty(STDERR_FILENO);
+
     return 0;
 }
 
@@ -217,7 +236,6 @@ void log_msg(log_level_t level, const char *fmt, ...) {
     if (!fmt) return;
 
     FILE *file_out = log_file;
-    FILE *console_out = stderr;
 
     // If neither file nor stderr fallback is available, drop the message
     if (!file_out && !log_to_stderr) {
@@ -280,14 +298,18 @@ void log_msg(log_level_t level, const char *fmt, ...) {
         return;
     }
 
-    // Duplicate to console if available (for debugging)
-    if (console_out) {
-        fprintf(console_out, "[%s] [%s] %s\n",
+    /*
+     * Mirror to stderr if running interactively (isatty check in logger_init).
+     * Skipped when running as a systemd service to prevent double entries
+     * in the log file (StandardError= redirects stderr to the same file).
+     */
+    if (log_mirror_stderr) {
+        fprintf(stderr, "[%s] [%s] %s\n",
                 timestamp,
                 logger_level_to_string(level),
                 message);
 
-        fflush(console_out);
+        fflush(stderr);
     }
 
     pthread_mutex_unlock(&log_mutex);
