@@ -185,6 +185,7 @@ int cmd_about_v2(command_ctx_t *ctx)
         "*%s v%s (%s)*\n"
         "*PID:* %d\n"
         "*Uptime:* %dd %dh %dm\n"
+        "*Build:* #%s\n"
         "*Commit:* %s\n"
         "*Built:* %s\n"
         "*libcurl:* %.14s\n"
@@ -193,7 +194,7 @@ int cmd_about_v2(command_ctx_t *ctx)
         "*cJSON:* %d.%d.%d",
         APP_NAME, APP_VERSION, APP_CODENAME,
         getpid(), days, hours, mins,
-        TG_BUILD_COMMIT, TG_BUILD_DATE,
+        TG_BUILD_NUMBER, TG_BUILD_COMMIT, TG_BUILD_DATE,
         curl_version(), OpenSSL_version(0),
         ares_version(NULL),
         CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
