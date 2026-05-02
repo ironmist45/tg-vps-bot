@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * logs.h - Systemd journal log retrieval and filtering
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef LOGS_H
