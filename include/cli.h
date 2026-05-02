@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * cli.h - Command-line interface parsing
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef CLI_H
