@@ -216,9 +216,13 @@ void log_msg(log_level_t level, const char *fmt, ...);
 // ============================================================================
 
 /**
- * Reopen log file (e.g., after rotation or config change)
- * @param path Path to new log file
- * @return 0 on success, -1 on error
+ * Reopen log file — used after rotation or config path change.
+ *
+ * Verifies write access, flushes all buffers, closes the current
+ * log file and reopens it via logger_init().
+ *
+ * @param path  Path to new log file
+ * @return      0 on success, -1 on error (file not writable)
  */
 int logger_reopen(const char *path);
 
