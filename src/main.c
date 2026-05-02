@@ -52,9 +52,6 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-// ===== Прототипы вспомогательных функций =====
-static int try_reopen_logger(const char *path);
-
 // ===== Глобальный конфиг (используется в exec.c, environment.c, services.c и др.) =====
 config_t g_cfg;
 
@@ -113,7 +110,7 @@ int main(int argc, char *argv[]) {
     // 7. Переключение на лог-файл из конфига (если указан)
     //    и проверки окружения (g_cfg заполнен, пути известны)
     // -----------------------------------------------------------
-    if (try_reopen_logger(g_cfg.log_file) == 0) {
+    if (logger_reopen(g_cfg.log_file) == 0) {
         LOG_CFG(LOG_INFO, "Logger switched: %s", g_cfg.log_file);
     }
 
@@ -192,7 +189,7 @@ int main(int argc, char *argv[]) {
         // -------------------------------------------------------
         if (lifecycle_rotate_requested()) {
             LOG_SYS(LOG_INFO, "Log rotation requested (SIGUSR1)");
-            if (try_reopen_logger(g_cfg.log_file) == 0) {
+            if (logger_reopen(g_cfg.log_file) == 0) {
                 LOG_SYS(LOG_INFO, "Log file reopened: %s", g_cfg.log_file);
             } else {
                 LOG_SYS(LOG_WARN, "Failed to reopen log file: %s", g_cfg.log_file);
@@ -245,27 +242,4 @@ int main(int argc, char *argv[]) {
 
     logger_close();
     return 0;
-}
-
-// =====================================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// =====================================================================
-
-/**
- * Переоткрытие лог-файла (например, после ротации или смены пути в конфиге)
- * 
- * @param path  путь к новому лог-файлу
- * @return      0 при успехе, -1 при ошибке
- */
-static int try_reopen_logger(const char *path) {
-    // Проверяем, что файл доступен для записи
-    FILE *f = fopen(path, "a");
-    if (!f) return -1;
-    fclose(f);
-
-    // Сбрасываем буферы перед закрытием старого логгера
-    fflush(NULL);
-    logger_close();
-    
-    return logger_init(path);
 }
