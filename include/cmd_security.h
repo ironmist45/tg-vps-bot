@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * cmd_security.h - Security command handlers (/fail2ban)
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef CMD_SECURITY_H
