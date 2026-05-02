@@ -1,36 +1,13 @@
 /**
  * tg-bot - Telegram bot for system administration
  * users.h - Active user session monitoring
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef USERS_H
 #define USERS_H
 
 #include <stddef.h>
-
-// ============================================================================
-// LOW-LEVEL API
-// ============================================================================
-
-/**
- * Retrieve raw list of active user sessions from utmp
- * 
- * Enumerates all USER_PROCESS entries from the utmp database.
- * Each session is formatted with user, TTY, host, and login time.
- * 
- * Output format (per session):
- *   • 👤 `username`
- *     🖥 `tty`
- *     🌐 host
- *     ⏱ login_time
- * 
- * @param buffer  Output buffer for formatted session list
- * @param size    Size of output buffer
- * @param req_id  16-bit request identifier for log correlation
- * @return        Number of active sessions, or -1 on error
- */
-int users_get_logged(char *buffer, size_t size, unsigned short req_id);
 
 // ============================================================================
 // HIGH-LEVEL API
