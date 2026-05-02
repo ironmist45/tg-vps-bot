@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * services.h - Systemd service status monitoring
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef SERVICES_H
