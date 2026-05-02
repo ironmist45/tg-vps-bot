@@ -162,8 +162,8 @@ static logs_result_t process_logs_output(char *tmp,
 
     /* Prepare multi-keyword filter */
     filter_t f = {0};
-    char filter_copy[128];
     if (filter) {
+        char filter_copy[128];
         snprintf(filter_copy, sizeof(filter_copy), "%s", filter);
         filter_copy[sizeof(filter_copy) - 1] = '\0';
         parse_filter(filter_copy, &f);
