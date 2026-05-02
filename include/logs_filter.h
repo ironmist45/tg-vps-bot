@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * logs_filter.h - Semantic log filtering for /logs command
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef LOGS_FILTER_H
@@ -31,25 +31,6 @@ typedef struct {
 // ============================================================================
 // FILTER MATCHING API
 // ============================================================================
-
-/**
- * Match a single line against a semantic filter keyword
- * 
- * Supports special keyword groups:
- *   - "error"  : fail, error, invalid, denied, bad, closed
- *   - "auth"   : Accepted, Failed, session
- *   - "brute"  : Failed password, authentication failure, Invalid user, etc.
- *   - "ip"     : lines containing " from " or " rhost="
- *   - "session": session-related messages
- *   - "pam"    : PAM module messages
- * 
- * For other keywords, performs case-insensitive substring search.
- * 
- * @param line    Log line to check
- * @param filter  Filter keyword (semantic group or literal string)
- * @return        1 if line matches, 0 otherwise
- */
-int match_semantic(const char *line, const char *filter);
 
 /**
  * Parse space-separated filter string into keyword array
