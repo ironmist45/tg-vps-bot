@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * version.h - Application version and build information
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef VERSION_H
