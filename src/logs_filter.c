@@ -17,7 +17,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -66,7 +66,7 @@
  * @param filter  Filter keyword (semantic group or literal string)
  * @return        1 if line matches, 0 otherwise
  */
-int match_semantic(const char *line, const char *filter)
+static int match_semantic(const char *line, const char *filter)
 {
     // Empty filter matches everything
     if (!filter || !*filter)
