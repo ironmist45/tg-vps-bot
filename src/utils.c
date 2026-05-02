@@ -8,9 +8,7 @@
  *   - Output formatting (code blocks for Telegram Markdown)
  *   - Number parsing (int, long)
  *   - Argument splitting
- *   - URL encoding
  *   - Network utilities (IP validation)
- *   - Command validation
  * 
  * MIT License
  * 
@@ -54,7 +52,7 @@
  * @param s  String to trim (modified in-place conceptually)
  * @return   Pointer to first non-whitespace character
  */
-char *ltrim(char *s) {
+static char *ltrim(char *s) {
     while (isspace((unsigned char)*s)) s++;
     return s;
 }
@@ -64,7 +62,7 @@ char *ltrim(char *s) {
  * 
  * @param s  String to trim (modified in-place)
  */
-void rtrim(char *s) {
+static void rtrim(char *s) {
     char *back = s + strlen(s);
     while (back > s && isspace((unsigned char)*(--back))) {
         *back = '\0';
