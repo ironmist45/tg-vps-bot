@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * utils.h - General-purpose utility functions
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef UTILS_H
@@ -21,21 +21,6 @@
 // ============================================================================
 // STRING TRIMMING
 // ============================================================================
-
-/**
- * Trim leading whitespace from string
- * 
- * @param s  String to trim (modified in-place conceptually)
- * @return   Pointer to first non-whitespace character
- */
-char *ltrim(char *s);
-
-/**
- * Trim trailing whitespace from string (in-place)
- * 
- * @param s  String to trim (modified in-place)
- */
-void rtrim(char *s);
 
 /**
  * Trim both leading and trailing whitespace from string
