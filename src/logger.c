@@ -1,33 +1,35 @@
 /**
  * tg-bot - Telegram bot for system administration
- * 
+ *
  * logger.c - Thread-safe logging subsystem
- * 
+ *
  * Provides structured logging with the following features:
  *   - Timestamps with millisecond precision
  *   - Log level filtering (ERROR, WARN, INFO, DEBUG)
  *   - Thread-safe writes via pthread mutex
  *   - Automatic fallback to stderr if log file unavailable
+ *   - Early message buffer: messages logged before logger_init() are
+ *     buffered in memory and flushed to the log file on first open
  *   - Mirror to stderr when running interactively (isatty detection)
  *   - Line buffering for real-time log visibility
  *   - Truncation protection for oversized messages
- * 
+ *
  * Log format: [YYYY-MM-DD HH:MM:SS.mmm] [LEVEL] [TAG] message
- * 
+ *
  * MIT License
- * 
+ *
  * Copyright (c) 2026 ironmist45
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -48,28 +50,57 @@
 #include <unistd.h>
 
 // ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/*
+ * Early message buffer capacity.
+ * Holds messages logged before the log file is opened (during startup,
+ * before logger_init() succeeds). All buffered messages are flushed to
+ * the log file on first successful open.
+ *
+ * 32 messages of 512 bytes each = 16 KB maximum — negligible.
+ * Startup typically generates < 15 messages before the file opens.
+ */
+#define EARLY_LOG_MAX_MSGS  32
+#define EARLY_LOG_MSG_SIZE  512
+
+// ============================================================================
 // INTERNAL STATE
 // ============================================================================
 
-// Primary log file handle (NULL if not open)
+/* Primary log file handle (NULL if not open) */
 static FILE *log_file = NULL;
 
-// Fallback flag: write to stderr if log file unavailable
-static int log_to_stderr = 0;
-
-// Current log level threshold (messages with higher level are filtered)
+/* Current log level threshold (messages above this level are filtered) */
 static log_level_t current_log_level = LOG_INFO;
 
-// Mutex for thread-safe writes
+/* Mutex for thread-safe writes */
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /*
  * Mirror flag: write to stderr in addition to the log file.
  * Set automatically in logger_init() via isatty(STDERR_FILENO).
- * True when running interactively (manual invocation from terminal).
- * False when running as a systemd service (stderr is redirected).
+ * True  — running interactively (manual invocation from terminal).
+ * False — running as a systemd service (stderr is redirected to a file).
+ *
+ * This prevents double entries in the log file when
+ * StandardError= points to the same file as the logger.
  */
 static int log_mirror_stderr = 0;
+
+/*
+ * Early message buffer.
+ *
+ * Messages logged before the log file is opened are stored here
+ * (already formatted as complete "[timestamp] [LEVEL] text" lines).
+ * They are also written to stderr immediately so nothing is lost.
+ *
+ * On the first successful logger_init() all buffered lines are
+ * replayed into the newly opened file so the log is complete.
+ */
+static char early_log_buf[EARLY_LOG_MAX_MSGS][EARLY_LOG_MSG_SIZE];
+static int  early_log_count = 0;
 
 // ============================================================================
 // LEVEL TO STRING CONVERSION
@@ -77,7 +108,7 @@ static int log_mirror_stderr = 0;
 
 /**
  * Convert log level enum to human-readable string
- * 
+ *
  * @param level  Log level to convert
  * @return       String representation (e.g., "INFO ", "DEBUG")
  */
@@ -97,10 +128,10 @@ const char *logger_level_to_string(log_level_t level) {
 
 /**
  * Generate formatted timestamp with millisecond precision
- * 
+ *
  * Format: YYYY-MM-DD HH:MM:SS.mmm
  * Thread-safe: uses localtime_r() and clock_gettime()
- * 
+ *
  * @param buf   Output buffer
  * @param size  Size of output buffer
  */
@@ -113,17 +144,14 @@ static void get_timestamp(char *buf, size_t size) {
         return;
     }
 
-    // Format date and time (without milliseconds)
     strftime(buf, size, "%Y-%m-%d %H:%M:%S", &tm_info);
 
-    // Append milliseconds
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
 
     size_t len = strlen(buf);
     if (len < size) {
-        snprintf(buf + len, size - len, ".%03ld",
-                 ts.tv_nsec / 1000000);
+        snprintf(buf + len, size - len, ".%03ld", ts.tv_nsec / 1000000);
     }
 }
 
@@ -132,46 +160,52 @@ static void get_timestamp(char *buf, size_t size) {
 // ============================================================================
 
 /**
- * Initialize logger with specified log file path
- * 
- * Opens the log file in append mode. If the file cannot be opened,
- * falls back to writing logs to stderr.
- * 
+ * Initialize logger with specified log file path.
+ *
+ * Opens the log file in append mode.  On success:
+ *   - All messages buffered in early_log_buf are flushed to the file
+ *     so the log is complete from process start.
+ *   - log_mirror_stderr is set via isatty(STDERR_FILENO): true for
+ *     interactive runs, false for systemd service (prevents duplicates).
+ *
+ * On failure falls back to writing directly to stderr.
+ *
  * @param path  Path to log file
- * @return      0 on success, -1 on failure (fallback to stderr enabled)
+ * @return      0 on success, -1 on failure (stderr fallback active)
  */
 int logger_init(const char *path) {
 
-    // Validate path parameter
     if (!path) {
-        log_to_stderr = 1;
-        LOG_FALLBACK(LOG_ERROR,
-            "logger init failed: NULL path, using stderr");
+        LOG_FALLBACK(LOG_ERROR, "logger init failed: NULL path, using stderr");
         return -1;
     }
 
-    // Attempt to open log file
     log_file = fopen(path, "a");
 
     if (!log_file) {
-        // Fallback to stderr if file cannot be opened
-        log_to_stderr = 1;
         LOG_FALLBACK(LOG_ERROR,
             "logger init failed: cannot open %s, using stderr", path);
         return -1;
     }
 
-    log_to_stderr = 0;
-
-    // Use line buffering for real-time log visibility
+    /* Line buffering for real-time log visibility */
     setvbuf(log_file, NULL, _IOLBF, 0);
 
     /*
-     * Mirror logs to stderr only when running interactively.
-     * isatty() returns 1 if stderr is a terminal (manual run),
-     * 0 if it is redirected (systemd service, pipe, etc.).
-     * This prevents double entries in the log file when
-     * StandardError= points to the same file as the logger.
+     * Flush early buffer — replay messages that were logged before this
+     * file was opened.  Written without the mutex because we are still
+     * single-threaded at this point in main().
+     */
+    for (int i = 0; i < early_log_count; i++) {
+        fprintf(log_file, "%s", early_log_buf[i]);
+    }
+    fflush(log_file);
+    early_log_count = 0;   /* buffer consumed — reset for safety */
+
+    /*
+     * Mirror to stderr only when running interactively.
+     * isatty() returns 1 if stderr is a real terminal (./tg-bot run by hand),
+     * 0 if it is redirected (systemd unit, CI pipeline, pipe).
      */
     log_mirror_stderr = isatty(STDERR_FILENO);
 
@@ -179,10 +213,10 @@ int logger_init(const char *path) {
 }
 
 /**
- * Set minimum log level for output
- * 
- * Messages with level > current_level will be suppressed.
- * 
+ * Set minimum log level for output.
+ *
+ * Messages with level > current_level are suppressed.
+ *
  * @param level  New log level threshold
  */
 void logger_set_level(log_level_t level) {
@@ -190,20 +224,17 @@ void logger_set_level(log_level_t level) {
 }
 
 /**
- * Close logger and release resources
- * 
- * Flushes any buffered data and closes the log file.
- * Enables stderr fallback for any subsequent log attempts.
+ * Close logger and release resources.
+ *
+ * Flushes all buffered data and closes the log file.
  */
-void logger_close() {
+void logger_close(void) {
     if (log_file) {
-        fflush(log_file);  // Ensure all data is written
+        fflush(log_file);
         fclose(log_file);
         log_file = NULL;
     }
-
-    // Re-enable stderr fallback
-    log_to_stderr = 1;
+    log_mirror_stderr = 0;
 }
 
 // ============================================================================
@@ -211,104 +242,97 @@ void logger_close() {
 // ============================================================================
 
 /**
- * Write a log message (internal core function)
- * 
- * This is the primary logging entry point. All LOG_* macros eventually
- * call this function. It handles:
- *   - Level filtering
- *   - Timestamp generation
- *   - Message formatting (printf-style)
- *   - Thread-safe writes to file and/or stderr
- *   - Truncation of oversized messages
- * 
+ * Write a log message (internal core function).
+ *
+ * All LOG_* macros call this function.  Behaviour:
+ *
+ *   log file not yet open (early startup)
+ *     → store formatted line in early_log_buf (replayed on logger_init)
+ *     → always write to stderr so nothing is lost at the console
+ *
+ *   log file open, interactive run (isatty = 1)
+ *     → write to log file
+ *     → mirror to stderr  (user sees output in terminal)
+ *
+ *   log file open, systemd service (isatty = 0)
+ *     → write to log file only  (no stderr duplication)
+ *
  * @param level  Log level of this message
  * @param fmt    printf-style format string
  * @param ...    Variable arguments for format string
  */
 void log_msg(log_level_t level, const char *fmt, ...) {
 
-    // Filter messages below current log level
-    if (level > current_log_level) {
+    if (level > current_log_level)
         return;
-    }
 
-    // Protect against NULL format string
     if (!fmt) return;
 
-    FILE *file_out = log_file;
-
-    // If neither file nor stderr fallback is available, drop the message
-    if (!file_out && !log_to_stderr) {
-        return;
-    }
-
-    // Generate timestamp
+    /* Generate timestamp */
     char timestamp[40];
     get_timestamp(timestamp, sizeof(timestamp));
 
-    // Format the log message
+    /* Format the log message */
     char message[1024];
-
     va_list args;
     va_start(args, fmt);
     int written = vsnprintf(message, sizeof(message), fmt, args);
     va_end(args);
 
-    // Handle formatting errors
     if (written < 0) {
         strncpy(message, "log formatting error", sizeof(message) - 1);
         message[sizeof(message) - 1] = '\0';
-    }
-        
-    // Handle truncation: add "..." at the end
-    else if ((size_t)written >= sizeof(message)) {
+    } else if ((size_t)written >= sizeof(message)) {
         message[sizeof(message) - 4] = '.';
         message[sizeof(message) - 3] = '.';
         message[sizeof(message) - 2] = '.';
         message[sizeof(message) - 1] = '\0';
     }
 
+    /* Assemble the complete log line once — reused for file, stderr, buffer */
+    char line[EARLY_LOG_MSG_SIZE];
+    snprintf(line, sizeof(line), "[%s] [%s] %s\n",
+             timestamp, logger_level_to_string(level), message);
+
     // ------------------------------------------------------------------------
-    // Critical section: ensure atomic writes
+    // Critical section
     // ------------------------------------------------------------------------
     pthread_mutex_lock(&log_mutex);
 
-    // Write to log file (if available)
-    if (file_out) {
-        if (fprintf(file_out, "[%s] [%s] %s\n",
-                    timestamp,
-                    logger_level_to_string(level),
-                    message) < 0) {
-            // Notify about write failure (to stderr, bypassing normal logging)
-            fprintf(stderr, "[LOGGER ERROR] write to file failed\n");
+    if (!log_file) {
+        /*
+         * Log file not open yet (early startup phase).
+         * Buffer the line so it can be replayed into the file later,
+         * and always echo to stderr so the operator sees it immediately.
+         */
+        if (early_log_count < EARLY_LOG_MAX_MSGS) {
+            strncpy(early_log_buf[early_log_count], line,
+                    EARLY_LOG_MSG_SIZE - 1);
+            early_log_buf[early_log_count][EARLY_LOG_MSG_SIZE - 1] = '\0';
+            early_log_count++;
         }
 
-        fflush(file_out);
-    }
-
-    // Write to stderr as fallback (if file unavailable)
-    if (!file_out && log_to_stderr) {
-        fprintf(stderr, "[%s] [%s] %s\n",
-                timestamp,
-                logger_level_to_string(level),
-                message);
-
+        /* Always visible on stderr during early startup */
+        fprintf(stderr, "%s", line);
         fflush(stderr);
+
         pthread_mutex_unlock(&log_mutex);
         return;
     }
 
+    /* Write to log file */
+    if (fprintf(log_file, "%s", line) < 0) {
+        fprintf(stderr, "[LOGGER ERROR] write to file failed\n");
+    }
+    fflush(log_file);
+
     /*
-     * Mirror to stderr if running interactively (isatty check in logger_init).
-     * Skipped when running as a systemd service to prevent double entries
-     * in the log file (StandardError= redirects stderr to the same file).
+     * Mirror to stderr when running interactively (isatty = 1).
+     * Skipped for systemd service to prevent double entries when
+     * StandardError= redirects stderr to the same log file.
      */
     if (log_mirror_stderr) {
-        fprintf(stderr, "[%s] [%s] %s\n",
-                timestamp,
-                logger_level_to_string(level),
-                message);
-
+        fprintf(stderr, "%s", line);
         fflush(stderr);
     }
 
