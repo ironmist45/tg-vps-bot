@@ -15,7 +15,7 @@
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -107,11 +107,16 @@ static int reply_write(command_ctx_t *ctx,
 
 /**
  * Send plain text response (no Markdown formatting)
+ *
+ * Part of the public reply API — symmetric counterpart to reply_markdown().
+ * Not used internally yet but available for command handlers that need
+ * to send unformatted text without going through resp_type logic.
  * 
  * @param ctx   Command context
  * @param text  Plain text response
  * @return      0 on success, -1 on error
  */
+// cppcheck-suppress unusedFunction
 int reply_plain(command_ctx_t *ctx, const char *text)
 {
     return reply_write(ctx, RESP_PLAIN, text);
