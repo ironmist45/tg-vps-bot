@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * reply.h - Unified response formatting for command handlers
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #ifndef REPLY_H
