@@ -194,6 +194,6 @@ int cli_process(int argc, char *argv[], char *config_path) {
     }
     
     // Copy config path to output buffer
-    snprintf(config_path, 256, "%s", args.config_path);
+    snprintf(config_path, CLI_CONFIG_PATH_MAX, "%s", args.config_path);
     return 0;
 }
