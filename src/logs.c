@@ -6,7 +6,7 @@
  * Provides the /logs command for viewing systemd journal logs.
  * Features:
  *   - Service alias mapping via shared services_config (e.g., "ssh" → "ssh")
- *   - Configurable line count (default 30, max 200)
+ *   - Configurable line count (default 30, max LOGS_MAX_LINES)
  *   - Case-insensitive multi-keyword filtering
  *   - Automatic fallback to global journal if service has no logs
  *   - ANSI escape code stripping
@@ -60,6 +60,18 @@
 
 /* Number of lines to log at DEBUG level for troubleshooting */
 #define DEBUG_LINES 5
+
+/*
+ * Maximum number of lines per /logs request.
+ * Requests exceeding this value are clamped silently.
+ */
+#define LOGS_MAX_LINES       200
+
+/*
+ * Soft buffer cap: stop appending log lines when the response buffer
+ * exceeds this size to stay well within Telegram's 4096-char limit.
+ */
+#define LOGS_BUFFER_SOFT_CAP 3500
 
 // ============================================================================
 // INTERNAL HELPER FUNCTIONS
@@ -179,7 +191,7 @@ static logs_result_t process_logs_output(char *tmp,
             LOG_CMD(LOG_DEBUG, "raw[%d]: %s", raw_lines, line);
 
         /* Prevent Telegram message size limit issues */
-        if (strlen(buffer) > 3500) {
+        if (strlen(buffer) > LOGS_BUFFER_SOFT_CAP) {
             safe_append(buffer, size, "\n...\n⚠ logs truncated (limit reached)");
             LOG_CMD(LOG_WARN,
                 "logs truncated early (%s): raw=%d matched=%d",
@@ -376,9 +388,10 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     if (lines <= 0)
         lines = 30;
 
-    if (lines > 200) {
-        LOG_CMD(LOG_WARN, "req=%04x lines clamped: %d -> 200", req_id, lines);
-        lines = 200;
+    if (lines > LOGS_MAX_LINES) {
+        LOG_CMD(LOG_WARN, "req=%04x lines clamped: %d -> %d",
+                req_id, lines, LOGS_MAX_LINES);
+        lines = LOGS_MAX_LINES;
     }
 
     // ------------------------------------------------------------------------
