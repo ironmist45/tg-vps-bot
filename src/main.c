@@ -39,6 +39,7 @@
 #include "logger.h"
 #include "config.h"
 #include "cli.h"
+#include "diagnostics.h"
 #include "exec.h"
 #include "telegram.h"
 #include "security.h"
@@ -160,6 +161,7 @@ int main(int argc, char *argv[]) {
     const int max_consecutive_errors = 5;
     
     while (1) {
+        diag_loop_start();
         /*
          * Сбрасываем watchdog таймер systemd в каждой итерации.
          * WatchdogSec=60 в unit-файле — ожидается каждые 30 сек.
@@ -231,6 +233,7 @@ int main(int argc, char *argv[]) {
         }
                     
         usleep(200000);  // небольшая пауза между циклами
+        diag_loop_end();
     }
 
     // -----------------------------------------------------------
