@@ -241,13 +241,13 @@ void log_msg(log_level_t level, const char *fmt, ...) {
         strncpy(message, "log formatting error", sizeof(message) - 1);
         message[sizeof(message) - 1] = '\0';
     }
+        
     // Handle truncation: add "..." at the end
     else if ((size_t)written >= sizeof(message)) {
-            message[len - 4] = '.';
-            message[len - 3] = '.';
-            message[len - 2] = '.';
-            message[len - 1] = '\0';
-        }
+        message[sizeof(message) - 4] = '.';
+        message[sizeof(message) - 3] = '.';
+        message[sizeof(message) - 2] = '.';
+        message[sizeof(message) - 1] = '\0';
     }
 
     // ------------------------------------------------------------------------
