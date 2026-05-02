@@ -42,8 +42,4 @@ int lifecycle_rotate_requested(void);
 void lifecycle_clear_rotate(void);
 void lifecycle_clear_reload(void);
 
-// ===== Логирование =====
-
-void lifecycle_log_uptime(void);
-
 #endif // LIFECYCLE_H
