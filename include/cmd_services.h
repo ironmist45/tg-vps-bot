@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * cmd_services.h - Service-related command handlers (/services, /users, /logs)
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 inronmist45
  */
 
 #ifndef CMD_SERVICES_H
