@@ -293,10 +293,10 @@ int cmd_ping_v2(command_ctx_t *ctx)
     const char *status_text;
     const char *status_emoji;
     
-    if (processing_ms > 5000 || (inbound_ms > 0 && inbound_ms > 10000)) {
+    if (processing_ms > 5000 || (inbound_ms > 10000)) {
         status_text = "Slow";
         status_emoji = "⚠️";
-    } else if (processing_ms > 1000 || (inbound_ms > 0 && inbound_ms > 5000)) {
+    } else if (processing_ms > 1000 || (inbound_ms > 5000)) {
         status_text = "Laggy";
         status_emoji = "🟡";
     } else {
