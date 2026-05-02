@@ -82,14 +82,6 @@ typedef struct {
  */
 const char* exec_status_str(exec_status_t s);
 
-/**
- * Check if result indicates successful execution
- * 
- * @param r  Execution result
- * @return   1 if status == EXEC_OK and exit_code == 0, 0 otherwise
- */
-int exec_success(const exec_result_t *r);
-
 // Status check macros
 #define EXEC_IS_OK(r)      ((r) && (r)->status == EXEC_OK)
 #define EXEC_IS_TIMEOUT(r) ((r) && (r)->status == EXEC_TIMEOUT)
