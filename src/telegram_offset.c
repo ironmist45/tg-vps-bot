@@ -1,7 +1,7 @@
 /**
  * tg-bot - Telegram bot for system administration
  * telegram_offset.c - Offset persistence implementation
- * MIT License - Copyright (c) 2026
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #include "telegram_offset.h"
