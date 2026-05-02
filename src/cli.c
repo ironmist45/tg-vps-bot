@@ -152,6 +152,7 @@ static void cli_print_help() {
  */
 static void cli_print_version(void) {
     printf("%s v%s (%s)\n", APP_NAME, APP_VERSION, APP_CODENAME);
+    printf("Build: #%s\n", TG_BUILD_NUMBER);
     printf("Commit: %s\n", TG_BUILD_COMMIT);
     printf("Built: %s\n", TG_BUILD_DATE);
     printf("libcurl: %.14s\n", curl_version());
