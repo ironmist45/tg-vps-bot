@@ -82,7 +82,7 @@ void env_log_workdir(void) {
 
 // ===== Access checks =====
 
-void env_check_journal_access(void) {
+static void env_check_journal_access(void) {
     char *argv[] = {
         (char *)g_cfg.sudo_path, "-n",
         (char *)g_cfg.journalctl_path,
@@ -117,7 +117,7 @@ void env_check_journal_access(void) {
     LOG_SYS(LOG_INFO, "journalctl: access OK (via sudo)");
 }
 
-void env_check_systemctl_access(void) {
+static void env_check_systemctl_access(void) {
     char *const args[] = {
         (char *)g_cfg.sudo_path, "-n",
         (char *)g_cfg.systemctl_path,
@@ -161,7 +161,7 @@ void env_check_systemctl_access(void) {
     LOG_SYS(LOG_INFO, "systemctl: OK");
 }
 
-void env_check_fail2ban(void) {
+static void env_check_fail2ban(void) {
     if (env_is_ci()) {
         LOG_SYS(LOG_INFO, "fail2ban-wrapper: skipped (CI environment)");
         return;
@@ -195,7 +195,7 @@ void env_check_fail2ban(void) {
     LOG_SYS(LOG_INFO, "fail2ban-wrapper: OK");
 }
 
-void env_check_logfile_access(const char *path) {
+static void env_check_logfile_access(const char *path) {
     if (!path) {
         LOG_SYS(LOG_WARN, "No logfile path provided for access check");
         return;
