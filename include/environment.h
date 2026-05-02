@@ -6,12 +6,11 @@
  * Public API for:
  *   - CI environment detection
  *   - User context and working directory logging
- *   - System utility access validation (journalctl, systemctl, fail2ban)
- *   - Log file write permission verification
+ *   - Comprehensive environment check (env_check_all)
  * 
  * MIT License
  * 
- * Copyright (c) 2026
+ * Copyright (c) 2026 ironmist45
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -60,36 +59,6 @@ void env_log_user_info(void);
  * Output format: "Working directory: <path>"
  */
 void env_log_workdir(void);
-
-// ===== Access Checks =====
-
-/**
- * Check access to journalctl via sudo
- * Logs success or failure reason
- */
-void env_check_journal_access(void);
-
-/**
- * Check access to systemctl via sudo
- * Tests with "systemctl is-active ssh" command
- * Logs success or failure reason
- */
-void env_check_systemctl_access(void);
-
-/**
- * Check access to fail2ban-wrapper via sudo
- * Tests with "/usr/local/bin/f2b-wrapper status"
- * Logs success or failure reason (including GLIBC mismatch detection)
- */
-void env_check_fail2ban(void);
-
-/**
- * Check write access to log file
- * Attempts to open the specified file in append mode
- * 
- * @param path  path to log file to check
- */
-void env_check_logfile_access(const char *path);
 
 // ===== Comprehensive Check =====
 
