@@ -319,6 +319,16 @@ void log_msg(log_level_t level, const char *fmt, ...) {
 // UTILITIES
 // ============================================================================
 
+/**
+ * Reopen log file — used after rotation or config path change.
+ *
+ * Verifies write access, flushes all buffers, closes the current
+ * log file and reopens the new one via logger_init().
+ * isatty detection in logger_init() will re-evaluate mirror mode.
+ *
+ * @param path  Path to new log file
+ * @return      0 on success, -1 on error (file not writable)
+ */
 int logger_reopen(const char *path) {
     FILE *f = fopen(path, "a");
     if (!f) return -1;
