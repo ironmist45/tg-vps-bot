@@ -239,7 +239,7 @@ static int handle_confirm(command_ctx_t *ctx) {
 
     /* Parse the code */
     int code;
-    if (parse_int(ctx->args, &code) != 0) {
+    if (parse_int_nonneg(ctx->args, &code) != 0) {
         LOG_SEC(LOG_WARN, "req=%04x confirm: invalid code format '%s'",
                 ctx->req_id, ctx->args);
         snprintf(ctx->response, ctx->resp_size, "Invalid code format");
