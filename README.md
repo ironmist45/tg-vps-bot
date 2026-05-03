@@ -82,10 +82,10 @@ Built-in metrics collected since last bot start:
   poll=01a3 req=2212 ACCESS CHECK: chat_id=123456789 cmd=/start result=DENIED
   ```
 * 🔑 **Two-step confirmation** for dangerous commands (`/reboot`, `/restart`)
-  * Stateless time-based token
-  * Configurable TTL
+  * **TOTP mode** (when `TOTP_SECRET` is configured): time-based one-time code from Google Authenticator, Aegis, Authy or any RFC 6238 app
+  * **Token mode** (fallback): stateless time-based token with configurable TTL
   * Bruteforce protection (blocks after 5 failed attempts)
-  * Replay protection (single-use token)
+  * Replay protection (single-use)
 * 🧪 Input validation:
   * Message length limit
   * IP address validation (Fail2Ban)
@@ -106,7 +106,7 @@ Built-in metrics collected since last bot start:
 
 * `/restart` — restart the bot process (systemctl restart tg-bot)
 * `/reboot` — reboot the server
-* Both require two-step token confirmation
+* Both require two-step confirmation (TOTP or token)
 * Tracks who requested the operation
 
 ---
@@ -148,6 +148,53 @@ Built-in metrics collected since last bot start:
 * No stderr duplication when running as systemd service
 * Thread-safe writes via mutex
 * Safe formatting — no crashes on bad input
+
+---
+
+## 🔐 TOTP Two-Factor Authentication
+
+Dangerous commands (`/reboot`, `/restart`) support TOTP 2FA compatible with
+Google Authenticator, Aegis, Authy and any RFC 6238 application.
+
+### Setup
+
+**1. Generate a secret:**
+```bash
+python3 -c "import base64, os; print(base64.b32encode(os.urandom(20)).decode())"
+# or:
+openssl rand 20 | base32
+```
+
+**2. Add to config file:**
+```
+TOTP_SECRET=YOUR_BASE32_SECRET_HERE
+```
+
+**3. Reload config:**
+```bash
+kill -HUP $(pidof tg-bot)
+```
+
+**4. Get import link for your app:**
+```
+/totp_setup
+```
+Copy the `otpauth://` URI into Aegis, Google Authenticator or Authy.
+
+### How it works
+
+```
+you:  /reboot
+bot:  🔐 Confirm: /reboot
+      Enter the code from your authenticator app:
+      /confirm <code>
+
+you:  /confirm 428798
+bot:  ♻️ Rebooting system...
+```
+
+When `TOTP_SECRET` is not configured, the bot falls back to the classic
+stateless token flow automatically — no configuration change needed.
 
 ---
 
@@ -202,8 +249,10 @@ Security
 /fail2ban unban 1.2.3.4    — unban IP
 
 System control (two-step confirmation required)
-/reboot   — reboot the server
-/restart  — restart the bot process
+/reboot      — reboot the server
+/restart     — restart the bot process
+/totp_setup  — show TOTP setup info and import link
+/confirm     — confirm a pending operation (TOTP code or token)
 ```
 
 ---
@@ -218,8 +267,9 @@ Modular C design — each module has a single responsibility:
 * `telegram_http.c` — low-level HTTP via libcurl
 * `telegram_parser.c` — JSON parsing, markdown escaping
 * `telegram_offset.c` — update offset persistence
-* `commands.c` — command dispatcher and routing
+* `commands.c` — command dispatcher, two-step confirmation logic
 * `security.c` — access control, rate limiting, token validation
+* `totp.c` — TOTP implementation (RFC 6238, HMAC-SHA1 via OpenSSL)
 * `config.c` — configuration file parsing and reload
 * `logger.c` — thread-safe logging with early buffer
 * `diagnostics.c` — runtime diagnostics (loop timing)
@@ -244,6 +294,7 @@ Modular C design — each module has a single responsibility:
 * All timeout constants in `telegram_timeouts.h` with `_Static_assert` chain
 * Config reload on `SIGHUP` without restart
 * Log reopen on `SIGUSR1` for logrotate integration
+* TOTP verification uses ±1 step window to compensate for clock skew
 
 ---
 
@@ -254,6 +305,7 @@ Modular C design — each module has a single responsibility:
 * No shell injection — IP validation via `inet_pton`, service names via character whitelist
 * No direct root commands — all privileged operations via sudo whitelist
 * Token salt generated via `getrandom(2)` at startup — unpredictable across restarts
+* TOTP secret never logged — not even at DEBUG level
 
 ---
 
@@ -313,7 +365,6 @@ Rebuild `f2b-wrapper` locally on the target machine.
 ## 🚧 Roadmap
 
 * `/service start|stop|restart` — service management via Telegram
-* TOTP (2FA) for dangerous commands — Google Authenticator / Authy
 * Alerts — bot notifies on service failure or high CPU
 * Prometheus metrics export
 * Log filtering by time (`--since 1h`)
