@@ -184,16 +184,16 @@ int cmd_totp_setup_v2(command_ctx_t *ctx)
                 ctx->chat_id);
 
     char msg[TOTP_URI_MAX + 256];
-        snprintf(msg, sizeof(msg),
-            "🔐 *TOTP Setup*\n\n"
-            "*Secret:*\n"
-            "`%s`\n\n"
-            "*Import link \\(Aegis / Google Authenticator\\):*\n"
-            "`%s`\n\n"
-            "Paste this link into your authenticator app,\n"
-            "or scan a QR code generated from it\\.",
-            g_cfg.totp_secret,
-            uri);
+    snprintf(msg, sizeof(msg),
+        "🔐 *TOTP Setup*\n\n"
+        "*Secret:*\n"
+        "`%s`\n\n"
+        "*Import link \\(Aegis / Google Authenticator\\):*\n"
+        "`%s`\n\n"
+        "Paste this link into your authenticator app,\n"
+        "or scan a QR code generated from it\\.",
+        g_cfg.totp_secret,
+        uri);
 
     return reply_markdown(ctx, msg);
 }
