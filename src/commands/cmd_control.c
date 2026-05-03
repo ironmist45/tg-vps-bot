@@ -156,21 +156,19 @@ int cmd_restart_confirm_v2(command_ctx_t *ctx)
 int cmd_totp_setup_v2(command_ctx_t *ctx)
 {
     if (g_cfg.totp_secret[0] == '\0') {
-        /* TOTP not configured */
-        return reply_markdown(ctx,
-            "🔐 *TOTP Setup*\n\n"
-            "TOTP is not configured\\.\n\n"
-            "*To enable TOTP 2FA:*\n"
-            "1\\. Generate a secret:\n"
-            "`openssl rand -base32 20`\n\n"
-            "2\\. Add to config file:\n"
-            "`TOTP_SECRET=YOUR_SECRET_HERE`\n\n"
-            "3\\. Reload config:\n"
-            "`kill -HUP $(pidof tg-bot)`\n\n"
-            "4\\. Send /totp\\_setup again to get the import link\\.");
+        return reply_plain(ctx,
+            "🔐 TOTP Setup\n\n"
+            "TOTP is not configured.\n\n"
+            "To enable TOTP 2FA:\n"
+            "1. Generate a secret:\n"
+            "   openssl rand -base32 20\n\n"
+            "2. Add to config file:\n"
+            "   TOTP_SECRET=YOUR_SECRET_HERE\n\n"
+            "3. Reload config:\n"
+            "   kill -HUP $(pidof tg-bot)\n\n"
+            "4. Send /totp_setup again to get the import link.");
     }
 
-    /* Build otpauth:// URI with chat_id as account label */
     char label[64];
     snprintf(label, sizeof(label), "tg-bot:%ld", ctx->chat_id);
 
@@ -185,15 +183,15 @@ int cmd_totp_setup_v2(command_ctx_t *ctx)
 
     char msg[TOTP_URI_MAX + 256];
     snprintf(msg, sizeof(msg),
-        "🔐 *TOTP Setup*\n\n"
-        "*Secret:*\n"
-        "`%s`\n\n"
-        "*Import link \\(Aegis / Google Authenticator\\):*\n"
-        "`%s`\n\n"
+        "🔐 TOTP Setup\n\n"
+        "Secret:\n"
+        "%s\n\n"
+        "Import link (Aegis / Google Authenticator):\n"
+        "%s\n\n"
         "Paste this link into your authenticator app,\n"
-        "or scan a QR code generated from it\\.",
+        "or scan a QR code generated from it.",
         g_cfg.totp_secret,
         uri);
 
-    return reply_markdown(ctx, msg);
+    return reply_plain(ctx, msg);
 }
