@@ -1,14 +1,16 @@
 /**
  * tg-bot - Telegram bot for system administration
- * cmd_control.c - System control commands (/reboot, /restart) (V2)
+ * cmd_control.c - System control commands (/reboot, /restart, /totp_setup) (V2)
  * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #include "cmd_control.h"
+#include "config.h"
 #include "logger.h"
 #include "security.h"
 #include "lifecycle.h"
 #include "reply.h"
+#include "totp.h"
 #include "utils.h"
 #include "metrics.h"
 
@@ -25,44 +27,42 @@
  * The token is stateless (derived from chat_id + time + runtime salt)
  * and valid for TOKEN_TTL seconds (configurable in config file).
  * The user must send /reboot_confirm <token> to proceed.
+ *
+ * Note: when requires_confirmation = 1 in the command table, this handler
+ * is called AFTER the dispatcher has already validated /confirm <code>.
+ * The token generation here is kept for the legacy /reboot_confirm flow.
  */
 int cmd_reboot_v2(command_ctx_t *ctx)
 {
-    int token = security_generate_reboot_token(ctx->chat_id, ctx->req_id);
-    int ttl   = security_get_token_ttl();
+    LOG_CMD_CTX(ctx, LOG_INFO, "reboot confirmed and executing");
+    METRICS_CMD(reboot);
 
-    char msg[128];
-    snprintf(msg, sizeof(msg),
-        "⚠️ *Confirm reboot*\n\n"
-        "`/reboot_confirm %d`\n\n"
-        "Token valid for %d seconds",
-        token, ttl);
+    lifecycle_request_shutdown(SHUTDOWN_REBOOT, ctx->chat_id);
 
-    LOG_CMD_CTX(ctx, LOG_INFO, "reboot token generated: %06d (ttl=%d)", token, ttl);
-
-    return reply_markdown(ctx, msg);
+    return reply_markdown(ctx, "♻️ *Rebooting system\\.\\.\\.*");
 }
 
 // ============================================================================
-// /reboot_confirm COMMAND (V2)
+// /reboot_confirm COMMAND (V2) — legacy fallback
 // ============================================================================
 
 /**
- * Step 2 of 2: validate the token and execute system reboot.
+ * Legacy two-step confirmation for /reboot (kept for backward compatibility).
  *
- * Rejects invalid, expired, or replayed tokens.
- * After 5 consecutive failures the token check is blocked for 30 seconds.
- * On success triggers reboot via lifecycle_request_shutdown(SHUTDOWN_REBOOT).
+ * Used when the user sends /reboot_confirm <token> directly instead of
+ * going through the new /confirm flow. Will be removed after full TOTP
+ * migration is complete.
  */
 int cmd_reboot_confirm_v2(command_ctx_t *ctx)
 {
     if (!ctx->args || ctx->args[0] == '\0') {
-        return reply_error(ctx, "Usage: /reboot_confirm <token>");
+        return reply_error(ctx, "Usage: /reboot\\_confirm <token>");
     }
 
     int token;
     if (parse_int(ctx->args, &token) != 0) {
-        LOG_CMD_CTX(ctx, LOG_WARN, "reboot_confirm: invalid token format '%s'", ctx->args);
+        LOG_CMD_CTX(ctx, LOG_WARN, "reboot_confirm: invalid token format '%s'",
+                    ctx->args);
         return reply_error(ctx, "Invalid token format");
     }
 
@@ -71,12 +71,12 @@ int cmd_reboot_confirm_v2(command_ctx_t *ctx)
         return reply_error(ctx, "Invalid or expired token");
     }
 
-    LOG_CMD_CTX(ctx, LOG_INFO, "reboot confirmed and executing");
+    LOG_CMD_CTX(ctx, LOG_INFO, "reboot confirmed via legacy flow");
     METRICS_CMD(reboot);
 
     lifecycle_request_shutdown(SHUTDOWN_REBOOT, ctx->chat_id);
 
-    return reply_markdown(ctx, "♻️ Rebooting system...");
+    return reply_markdown(ctx, "♻️ *Rebooting system\\.\\.\\.*");
 }
 
 // ============================================================================
@@ -84,50 +84,43 @@ int cmd_reboot_confirm_v2(command_ctx_t *ctx)
 // ============================================================================
 
 /**
- * Step 1 of 2: generate a confirmation token and send it to the user.
+ * Execute bot restart after confirmation.
  *
- * Behaves identically to /reboot step 1 — same token mechanism,
- * same TTL. The difference is in step 2: only the bot process is
- * restarted (systemctl restart tg-bot), the server is not affected.
+ * Called by the dispatcher after /confirm <code> has been validated.
+ * Only the bot process is restarted (systemctl restart tg-bot) —
+ * the server itself is not affected.
  */
 int cmd_restart_v2(command_ctx_t *ctx)
 {
-    int token = security_generate_reboot_token(ctx->chat_id, ctx->req_id);
-    int ttl   = security_get_token_ttl();
+    LOG_CMD_CTX(ctx, LOG_INFO, "restart confirmed and executing");
+    METRICS_CMD(restart);
 
-    char msg[128];
-    snprintf(msg, sizeof(msg),
-        "🔄 *Confirm bot restart*\n\n"
-        "`/restart_confirm %d`\n\n"
-        "Token valid for %d seconds",
-        token, ttl);
+    lifecycle_request_shutdown(SHUTDOWN_RESTART, ctx->chat_id);
 
-    LOG_CMD_CTX(ctx, LOG_INFO, "restart token generated: %06d (ttl=%d)", token, ttl);
-
-    return reply_markdown(ctx, msg);
+    return reply_markdown(ctx, "🔄 *Restarting bot\\.\\.\\.*");
 }
 
 // ============================================================================
-// /restart_confirm COMMAND (V2)
+// /restart_confirm COMMAND (V2) — legacy fallback
 // ============================================================================
 
 /**
- * Step 2 of 2: validate the token and restart the bot process.
+ * Legacy two-step confirmation for /restart (kept for backward compatibility).
  *
- * Same token validation as /reboot_confirm.
- * On success triggers restart via lifecycle_request_shutdown(SHUTDOWN_RESTART)
- * which executes: execl(systemctl, "restart", "tg-bot").
- * The server itself is not rebooted.
+ * Used when the user sends /restart_confirm <token> directly instead of
+ * going through the new /confirm flow. Will be removed after full TOTP
+ * migration is complete.
  */
 int cmd_restart_confirm_v2(command_ctx_t *ctx)
 {
     if (!ctx->args || ctx->args[0] == '\0') {
-        return reply_error(ctx, "Usage: /restart_confirm <token>");
+        return reply_error(ctx, "Usage: /restart\\_confirm <token>");
     }
 
     int token;
     if (parse_int(ctx->args, &token) != 0) {
-        LOG_CMD_CTX(ctx, LOG_WARN, "restart_confirm: invalid token format '%s'", ctx->args);
+        LOG_CMD_CTX(ctx, LOG_WARN, "restart_confirm: invalid token format '%s'",
+                    ctx->args);
         return reply_error(ctx, "Invalid token format");
     }
 
@@ -136,10 +129,71 @@ int cmd_restart_confirm_v2(command_ctx_t *ctx)
         return reply_error(ctx, "Invalid or expired token");
     }
 
-    LOG_CMD_CTX(ctx, LOG_INFO, "restart confirmed and executing");
+    LOG_CMD_CTX(ctx, LOG_INFO, "restart confirmed via legacy flow");
     METRICS_CMD(restart);
 
     lifecycle_request_shutdown(SHUTDOWN_RESTART, ctx->chat_id);
 
-    return reply_markdown(ctx, "🔄 Restarting bot...");
+    return reply_markdown(ctx, "🔄 *Restarting bot\\.\\.\\.*");
+}
+
+// ============================================================================
+// /totp_setup COMMAND (V2)
+// ============================================================================
+
+/**
+ * Show TOTP setup information for Aegis / Google Authenticator.
+ *
+ * If TOTP_SECRET is set in the config:
+ *   - Shows the base32 secret
+ *   - Shows the otpauth:// URI ready to import into any RFC 6238 app
+ *
+ * If TOTP_SECRET is not configured:
+ *   - Explains how to generate a secret and configure the bot
+ *
+ * Does not require confirmation (circular dependency).
+ */
+int cmd_totp_setup_v2(command_ctx_t *ctx)
+{
+    if (g_cfg.totp_secret[0] == '\0') {
+        /* TOTP not configured */
+        return reply_markdown(ctx,
+            "🔐 *TOTP Setup*\n\n"
+            "TOTP is not configured\\.\n\n"
+            "*To enable TOTP 2FA:*\n"
+            "1\\. Generate a secret:\n"
+            "`openssl rand -base32 20`\n\n"
+            "2\\. Add to config file:\n"
+            "`TOTP_SECRET=YOUR_SECRET_HERE`\n\n"
+            "3\\. Reload config:\n"
+            "`kill -HUP $(pidof tg-bot)`\n\n"
+            "4\\. Send `/totp_setup` again to get the import link\\.");
+    }
+
+    /* Build otpauth:// URI with chat_id as account label */
+    char label[64];
+    snprintf(label, sizeof(label), "tg-bot:%ld", ctx->chat_id);
+
+    char uri[TOTP_URI_MAX];
+    if (totp_uri(g_cfg.totp_secret, label, "tg-bot", uri, sizeof(uri)) != 0) {
+        LOG_CMD_CTX(ctx, LOG_ERROR, "totp_setup: failed to generate URI");
+        return reply_error(ctx, "Failed to generate TOTP URI");
+    }
+
+    LOG_CMD_CTX(ctx, LOG_INFO, "totp_setup: URI generated for chat_id=%ld",
+                ctx->chat_id);
+
+    char msg[TOTP_URI_MAX + 256];
+    snprintf(msg, sizeof(msg),
+        "🔐 *TOTP Setup*\n\n"
+        "*Secret:*\n"
+        "`%s`\n\n"
+        "*Import link \\(Aegis / Google Authenticator\\):*\n"
+        "`%s`\n\n"
+        "_Paste this link into your authenticator app,_\n"
+        "_or scan a QR code generated from it\\._",
+        g_cfg.totp_secret,
+        uri);
+
+    return reply_markdown(ctx, msg);
 }
