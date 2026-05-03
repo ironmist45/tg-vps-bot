@@ -1,6 +1,6 @@
 /**
  * tg-bot - Telegram bot for system administration
- * cmd_control.h - System control command handlers (/reboot, /restart)
+ * cmd_control.h - System control command handlers (/reboot, /restart, /totp_setup)
  * MIT License - Copyright (c) 2026 ironmist45
  */
 
@@ -80,4 +80,22 @@ int cmd_restart_v2(command_ctx_t *ctx);
  */
 int cmd_restart_confirm_v2(command_ctx_t *ctx);
 
-#endif // CMD_CONTROL_H
+/**
+ * Show TOTP setup information
+ *
+ * If TOTP_SECRET is configured in the config file, displays:
+ *   - The base32-encoded secret
+ *   - An otpauth:// URI ready to import into Aegis, Google Authenticator,
+ *     Authy, or any RFC 6238 compatible application
+ *
+ * If TOTP_SECRET is not configured, explains how to set it up.
+ *
+ * This command does NOT require confirmation — it would be circular
+ * to require TOTP in order to set up TOTP.
+ *
+ * @param ctx  Command context
+ * @return     0 on success, -1 on error
+ */
+int cmd_totp_setup_v2(command_ctx_t *ctx);
+
+#endif /* CMD_CONTROL_H */
