@@ -75,12 +75,19 @@ int cmd_help_v2(command_ctx_t *ctx)
         
         if (desc && *desc) {
             written = snprintf(buffer + used, size - used,
-                "%s — %s\n", name, desc); // ← без подчёркиваний
+                "%s%s — %s\n",
+                commands[i].requires_confirmation ? "🔐 " : "",
+                name, desc);
         } else {
-            written = snprintf(buffer + used, size - used, "%s\n", name);
+            written = snprintf(buffer + used, size - used,
+                "%s%s\n",
+                commands[i].requires_confirmation ? "🔐 " : "",
+                name);
         }
+        
         if (written < 0 || (size_t)written >= size - used) break;
         used += written;
+        
     }
 
     LOG_CMD_CTX(ctx, LOG_INFO, "help: displayed %zu bytes", used);
