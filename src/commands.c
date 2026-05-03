@@ -257,10 +257,7 @@ static int handle_confirm(command_ctx_t *ctx) {
             LOG_SEC(LOG_WARN, "req=%04x confirm: invalid TOTP code for %s",
                     ctx->req_id, g_pending.command);
             pending_clear();
-            snprintf(ctx->response, ctx->resp_size,
-                "❌ Invalid or expired TOTP code\\.");
-            *ctx->resp_type = RESP_MARKDOWN;
-            return -1;
+            return reply_plain(ctx, "❌ Invalid or expired TOTP code");
         }
     } else {
         /* Classic token validation */
@@ -271,10 +268,7 @@ static int handle_confirm(command_ctx_t *ctx) {
             LOG_SEC(LOG_WARN, "req=%04x confirm: invalid token for %s",
                     ctx->req_id, g_pending.command);
             pending_clear();
-            snprintf(ctx->response, ctx->resp_size,
-                "❌ Invalid or expired token\\.");
-            *ctx->resp_type = RESP_MARKDOWN;
-            return -1;
+            return reply_plain(ctx, "❌ Invalid or expired token");
         }
     }
 
