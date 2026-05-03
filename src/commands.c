@@ -48,6 +48,7 @@
 #include "config.h"
 #include "lifecycle.h"
 #include "logger.h"
+#include "reply.h"
 #include "security.h"
 #include "telegram.h"
 #include "totp.h"
@@ -242,8 +243,7 @@ static int handle_confirm(command_ctx_t *ctx) {
     if (parse_int_nonneg(ctx->args, &code) != 0) {
         LOG_SEC(LOG_WARN, "req=%04x confirm: invalid code format '%s'",
                 ctx->req_id, ctx->args);
-        snprintf(ctx->response, ctx->resp_size, "Invalid code format");
-        return -1;
+        return reply_plain(ctx, "❌ Invalid code format");
     }
 
     /* Validate — TOTP or classic token */
