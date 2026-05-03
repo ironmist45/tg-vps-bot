@@ -167,7 +167,7 @@ int cmd_totp_setup_v2(command_ctx_t *ctx)
             "`TOTP_SECRET=YOUR_SECRET_HERE`\n\n"
             "3\\. Reload config:\n"
             "`kill -HUP $(pidof tg-bot)`\n\n"
-            "4\\. Send `/totp_setup` again to get the import link\\.");
+            "4\\. Send /totp\\_setup again to get the import link\\.");
     }
 
     /* Build otpauth:// URI with chat_id as account label */
@@ -184,16 +184,16 @@ int cmd_totp_setup_v2(command_ctx_t *ctx)
                 ctx->chat_id);
 
     char msg[TOTP_URI_MAX + 256];
-    snprintf(msg, sizeof(msg),
-        "🔐 *TOTP Setup*\n\n"
-        "*Secret:*\n"
-        "`%s`\n\n"
-        "*Import link \\(Aegis / Google Authenticator\\):*\n"
-        "`%s`\n\n"
-        "_Paste this link into your authenticator app,_\n"
-        "_or scan a QR code generated from it\\._",
-        g_cfg.totp_secret,
-        uri);
+        snprintf(msg, sizeof(msg),
+            "🔐 *TOTP Setup*\n\n"
+            "*Secret:*\n"
+            "`%s`\n\n"
+            "*Import link \\(Aegis / Google Authenticator\\):*\n"
+            "`%s`\n\n"
+            "Paste this link into your authenticator app,\n"
+            "or scan a QR code generated from it\\.",
+            g_cfg.totp_secret,
+            uri);
 
     return reply_markdown(ctx, msg);
 }
