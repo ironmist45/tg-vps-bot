@@ -221,6 +221,26 @@ int parse_int(const char *str, int *out) {
     return 0;
 }
 
+/**
+ * Parse string to non-negative integer (allows zero)
+ *
+ * Unlike parse_int(), accepts 0 as a valid value.
+ * Used for TOTP codes and other contexts where 0 is valid input.
+ *
+ * @param str  String to parse
+ * @param out  Pointer to store result
+ * @return     0 on success, -1 on error (invalid, negative, or too large)
+ */
+int parse_int_nonneg(const char *str, int *out) {
+    if (!str || !out) return -1;
+    char *end;
+    long val = strtol(str, &end, 10);
+    if (*end != '\0' || val < 0 || val > INT_MAX)
+        return -1;
+    *out = (int)val;
+    return 0;
+}
+
 // ============================================================================
 // ARGUMENT SPLITTING
 // ============================================================================
