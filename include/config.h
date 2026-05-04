@@ -7,9 +7,10 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include <stddef.h>
 #include "logger.h"
 #include "totp.h"
+
+#include <stddef.h>
 
 // ============================================================================
 // TYPES
@@ -51,6 +52,21 @@ typedef struct {
      *   TOTP_SECRET=JBSWY3DPEHPK3PXP
      */
     char totp_secret[TOTP_SECRET_MAX];  /* Base32 TOTP secret, empty = disabled */
+
+    /*
+     * TOTP setup command visibility (optional).
+     *
+     * When 0 (default): /totp_setup shows secret and URI only if
+     *   TOTP_SECRET is not yet configured. Once secret is set,
+     *       /totp_setup returns "Setup disabled" to prevent secret exposure.
+     *
+     * When 1: /totp_setup always shows secret and URI.
+     *   Use only during initial setup, then disable.
+     *
+     * Config key: TOTP_SETUP=enabled / disabled
+     * Default: disabled (0)
+     */
+    int totp_setup_enabled;    /* 1 = show URI, 0 = hide after setup */
 
     /* System paths (with defaults) */
     char sudo_path[128];
