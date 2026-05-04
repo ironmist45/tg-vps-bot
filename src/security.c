@@ -96,7 +96,7 @@ void security_init(void) {
     g_runtime_salt = salt;
 
     if (g_cfg.totp_secret[0] != '\0') {
-        LOG_SEC(LOG_INFO, "Security initialized (TOTP enabled, getrandom salt)");
+        LOG_SEC(LOG_INFO, "Security initialized (TOTP 2FA enabled, getrandom salt)");
     } else {
         LOG_SEC(LOG_INFO, "Security initialized (stateless tokens, getrandom salt)");
     }
