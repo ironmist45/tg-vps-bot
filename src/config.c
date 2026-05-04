@@ -83,6 +83,7 @@ int config_load(const char *path, config_t *cfg) {
 
     /* TOTP disabled by default */
     cfg->totp_secret[0] = '\0';
+    cfg->totp_setup_enabled = 0;  /* TOTP Setup disabled by default */
 
     char line[LINE_MAX_LEN];
     int  line_num = 0;
@@ -176,6 +177,15 @@ int config_load(const char *path, config_t *cfg) {
                 }
             }
         }
+        else if (strcasecmp(key, "TOTP_SETUP") == 0) {
+            if (strcasecmp(value, "enabled") == 0) {
+                cfg->totp_setup_enabled = 1;
+                LOG_CFG(LOG_INFO, "TOTP_SETUP: enabled");
+            } else {
+                cfg->totp_setup_enabled = 0;
+                LOG_CFG(LOG_DEBUG, "TOTP_SETUP: disabled");
+            }
+        }
         else if (strcasecmp(key, "SUDO_PATH") == 0) {
             safe_copy(cfg->sudo_path, sizeof(cfg->sudo_path), value);
         }
@@ -224,6 +234,8 @@ void config_log(const config_t *cfg) {
     LOG_CFG(LOG_INFO, "LOG_LEVEL: %s", logger_level_to_string(cfg->log_level));
     LOG_CFG(LOG_INFO, "TOTP: %s",
             cfg->totp_secret[0] != '\0' ? "enabled" : "disabled (token flow)");
+    LOG_CFG(LOG_INFO, "TOTP_SETUP: %s",
+            cfg->totp_setup_enabled ? "enabled" : "disabled");
 }
 
 // ============================================================================
