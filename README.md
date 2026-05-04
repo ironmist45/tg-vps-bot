@@ -165,9 +165,10 @@ python3 -c "import base64, os; print(base64.b32encode(os.urandom(20)).decode())"
 openssl rand 20 | base32
 ```
 
-**2. Add to config file:**
+**2. Add to config file and enable setup mode:**
 ```
 TOTP_SECRET=YOUR_BASE32_SECRET_HERE
+TOTP_SETUP=enabled
 ```
 
 **3. Reload config:**
@@ -180,6 +181,13 @@ kill -HUP $(pidof tg-bot)
 /totp_setup
 ```
 Copy the `otpauth://` URI into Aegis, Google Authenticator or Authy.
+
+**5. After adding to your app — disable setup mode:**
+```
+TOTP_SETUP=disabled
+```
+Then reload config again. This prevents the secret from being exposed
+if someone gains access to the bot.
 
 ### How it works
 
@@ -195,6 +203,12 @@ bot:  ♻️ Rebooting system...
 
 When `TOTP_SECRET` is not configured, the bot falls back to the classic
 stateless token flow automatically — no configuration change needed.
+
+### Security note
+
+`TOTP_SETUP=disabled` (default) prevents `/totp_setup` from showing the
+secret after initial setup. Even if someone gains access to the bot,
+they cannot retrieve the TOTP secret via chat.
 
 ---
 
@@ -306,6 +320,7 @@ Modular C design — each module has a single responsibility:
 * No direct root commands — all privileged operations via sudo whitelist
 * Token salt generated via `getrandom(2)` at startup — unpredictable across restarts
 * TOTP secret never logged — not even at DEBUG level
+* `TOTP_SETUP=disabled` by default — secret not exposed via `/totp_setup` after setup
 
 ---
 
