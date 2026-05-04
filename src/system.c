@@ -277,7 +277,7 @@ static void make_bar(char *buf, size_t size, int percent) {
  * @return  Number of active user processes
  */
 static int get_user_count() {
-    struct utmp *entry;
+    const struct utmp *entry;
     int count = 0;
 
     setutent();
@@ -381,7 +381,7 @@ static void get_host(char *buf, size_t size) {
     // Extract model from QEMU-style product string (e.g., "Standard PC (Q35 + ICH9, 2009)")
     char model[64] = {0};
     char *start = strchr(product, '(');
-    char *end   = strchr(product, ')');
+    const char *end = strchr(product, ')');
 
     if (start && end && end > start + 1) {
         size_t len = (size_t)(end - start - 1);
