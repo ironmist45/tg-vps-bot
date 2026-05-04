@@ -63,6 +63,7 @@ static int base32_char_value(char c) {
  *
  * @return  Number of decoded bytes, or -1 on invalid input
  */
+// cppcheck-suppress unusedFunction
 int base32_decode(const char *encoded, uint8_t *decoded, size_t decoded_size) {
     if (!encoded || !decoded || decoded_size == 0)
         return -1;
@@ -200,6 +201,7 @@ static int hotp_compute(const char *secret_b32,
 /**
  * Generate a TOTP code for a given Unix timestamp (RFC 6238).
  */
+// cppcheck-suppress unusedFunction
 int totp_generate(const char *secret_b32, time_t t, int *code) {
     if (!secret_b32 || !code)
         return -1;
