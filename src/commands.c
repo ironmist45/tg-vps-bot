@@ -147,10 +147,10 @@ command_t commands[] = {
      * /reboot_confirm and /restart_confirm are kept for backward compatibility
      * but hidden from /help. After full TOTP migration they will be removed.
      */
-    {"/reboot",          cmd_reboot_v2,          "Reboot system", "System", 1},
-    {"/reboot_confirm",  cmd_reboot_confirm_v2,  NULL,            NULL,     0},  /* hidden, legacy */
-    {"/restart",         cmd_restart_v2,         "Restart bot",   "System", 1},
-    {"/restart_confirm", cmd_restart_confirm_v2, NULL,            NULL,     0},  /* hidden, legacy */
+    {"/reboot",          cmd_reboot_v2,          "Reboot system", "System control", 1},
+    {"/reboot_confirm",  cmd_reboot_confirm_v2,  NULL,            NULL,     0},          /* hidden, legacy */
+    {"/restart",         cmd_restart_v2,         "Restart bot",   "System control", 1},
+    {"/restart_confirm", cmd_restart_confirm_v2, NULL,            NULL,     0},          /* hidden, legacy */
 
     /* Universal confirmation handler — hidden from /help */
     {"/confirm", NULL, NULL, NULL, 0},  /* handled inline in dispatcher */
