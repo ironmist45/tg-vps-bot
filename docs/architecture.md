@@ -81,11 +81,12 @@ tg-bot/
 │   ├── logs_filter.c            # 🔹 semantic log filtering engine
 │   ├── utils.c                  # 🔹 helper functions implementation
 │   │
-│   ├── cmd_help.c               # 🧩 /help (V2)
-│   ├── cmd_system.c             # 🧩 /start, /status, /health, /ping, /about (V2)
-│   ├── cmd_services.c           # 🧩 /services, /users, /logs (V2)
-│   ├── cmd_security.c           # 🧩 /fail2ban (V2)
-│   └── cmd_control.c            # 🧩 /reboot, /restart, /totp_setup (V2)
+│   └── commands/                # 📂 command handlers (V2)
+│       ├── cmd_help.c           # 🧩 /help
+│       ├── cmd_system.c         # 🧩 /start, /status, /health, /ping, /about
+│       ├── cmd_services.c       # 🧩 /services, /users, /logs
+│       ├── cmd_security.c       # 🧩 /fail2ban
+│       └── cmd_control.c        # 🧩 /reboot, /restart, /totp_setup
 │
 ├── tools/                       # 🔧 internal utilities
 │   └── f2b-wrapper.c            # 🔹 Fail2Ban wrapper (ban/unban/status)
