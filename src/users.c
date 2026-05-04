@@ -108,7 +108,7 @@ static int users_get_logged(char *buffer, size_t size, unsigned short req_id) {
 
     LOG_CMD(LOG_DEBUG, "users_get_logged()");
 
-    struct utmp *entry;
+    const struct utmp *entry;
 
     buffer[0] = '\0';
 
