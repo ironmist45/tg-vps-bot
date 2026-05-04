@@ -7,10 +7,10 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include <stddef.h>
+
 #include "logger.h"
 #include "totp.h"
-
-#include <stddef.h>
 
 // ============================================================================
 // TYPES
