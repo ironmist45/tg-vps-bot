@@ -107,7 +107,7 @@ int telegram_parse_updates(const char *raw_data, size_t data_size,
 
     for (int i = 0; i < arr_size; i++) {
         cJSON *update    = cJSON_GetArrayItem(result, i);
-        cJSON *update_id = cJSON_GetObjectItem(update, "update_id");
+        const cJSON *update_id = cJSON_GetObjectItem(update, "update_id");
         if (!update_id) continue;
 
         long uid = (long)update_id->valuedouble;
@@ -128,7 +128,7 @@ int telegram_parse_updates(const char *raw_data, size_t data_size,
         cJSON *text = cJSON_GetObjectItem(message, "text");
         if (!chat || !text || !cJSON_IsString(text)) continue;
 
-        cJSON *chat_id = cJSON_GetObjectItem(chat, "id");
+        const cJSON *chat_id = cJSON_GetObjectItem(chat, "id");
         if (!chat_id) continue;
 
         parsed[parsed_count].chat_id = (long)chat_id->valuedouble;
@@ -152,7 +152,7 @@ int telegram_parse_updates(const char *raw_data, size_t data_size,
         /* strdup username — опциональное поле, NULL допустим */
         cJSON *from = cJSON_GetObjectItem(message, "from");
         if (from) {
-            cJSON *user_id  = cJSON_GetObjectItem(from, "id");
+            const cJSON *user_id = cJSON_GetObjectItem(from, "id");
             cJSON *username = cJSON_GetObjectItem(from, "username");
 
             if (user_id)
