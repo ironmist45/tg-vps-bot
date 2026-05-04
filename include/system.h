@@ -32,7 +32,7 @@
  * @param req_id  16-bit request identifier for log correlation
  * @return      0 on success, -1 on error
  */
-int system_get_status(char *buf, size_t size, unsigned short req_id);
+int system_get_status(char *buffer, size_t size, unsigned short req_id);
 
 /**
  * Get compact system status with emoji heat indicators
@@ -54,7 +54,7 @@ int system_get_status(char *buf, size_t size, unsigned short req_id);
  * @param req_id  16-bit request identifier for log correlation
  * @return      0 on success, -1 on error
  */
-int system_get_status_mini(char *buf, size_t size, unsigned short req_id);
+int system_get_status_mini(char *buffer, size_t size, unsigned short req_id);
 
 /**
  * Get bot process uptime as formatted string
