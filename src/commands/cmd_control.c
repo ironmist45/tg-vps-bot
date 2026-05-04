@@ -144,31 +144,57 @@ int cmd_restart_confirm_v2(command_ctx_t *ctx)
 /**
  * Show TOTP setup information for Aegis / Google Authenticator.
  *
- * If TOTP_SECRET is set in the config:
- *   - Shows the base32 secret
- *   - Shows the otpauth:// URI ready to import into any RFC 6238 app
+ * Three states:
  *
- * If TOTP_SECRET is not configured:
- *   - Explains how to generate a secret and configure the bot
+ *   1. TOTP_SECRET not configured:
+ *      Shows setup instructions (generate secret, add to config,
+ *      set TOTP_SETUP=enabled, reload, then /totp_setup again).
+ *
+ *   2. TOTP_SECRET configured, TOTP_SETUP=disabled (default):
+ *      Returns "TOTP is configured and active. Setup is disabled."
+ *      This is the safe default — prevents secret exposure after
+ *      initial setup is complete.
+ *
+ *   3. TOTP_SECRET configured, TOTP_SETUP=enabled:
+ *      Shows the base32 secret and otpauth:// URI for import into
+ *      Aegis, Google Authenticator, Authy or any RFC 6238 app.
+ *      After adding to the app — set TOTP_SETUP=disabled.
  *
  * Does not require confirmation (circular dependency).
  */
 int cmd_totp_setup_v2(command_ctx_t *ctx)
 {
+    /* TOTP not configured at all — show setup instructions regardless */
     if (g_cfg.totp_secret[0] == '\0') {
         return reply_plain(ctx,
             "🔐 TOTP Setup\n\n"
             "TOTP is not configured.\n\n"
             "To enable TOTP 2FA:\n"
             "1. Generate a secret:\n"
-            "   openssl rand -base32 20\n\n"
+            "   python3 -c \"import base64, os; "
+                "print(base64.b32encode(os.urandom(20)).decode())\"\n"
+            "   or: openssl rand 20 | base32\n\n"
             "2. Add to config file:\n"
-            "   TOTP_SECRET=YOUR_SECRET_HERE\n\n"
+            "   TOTP_SECRET=YOUR_BASE32_SECRET_HERE\n"
+            "   TOTP_SETUP=enabled\n\n"
             "3. Reload config:\n"
             "   kill -HUP $(pidof tg-bot)\n\n"
-            "4. Send /totp_setup again to get the import link.");
+            "4. Send /totp_setup to get the import link.\n\n"
+            "5. After adding to your app, set TOTP_SETUP=disabled\n"
+            "   and reload config.");
     }
 
+    /* TOTP is configured but setup is disabled — safe default */
+    if (!g_cfg.totp_setup_enabled) {
+        LOG_CMD_CTX(ctx, LOG_INFO,
+            "totp_setup: disabled in config (TOTP is active)");
+        return reply_plain(ctx,
+            "🔐 TOTP is configured and active.\n\n"
+            "Setup is disabled. To re-enable:\n"
+            "   TOTP_SETUP=enabled in config file");
+    }
+
+    /* TOTP configured and setup explicitly enabled — show URI */
     char label[64];
     snprintf(label, sizeof(label), "tg-bot:%ld", ctx->chat_id);
 
@@ -178,8 +204,8 @@ int cmd_totp_setup_v2(command_ctx_t *ctx)
         return reply_error(ctx, "Failed to generate TOTP URI");
     }
 
-    LOG_CMD_CTX(ctx, LOG_INFO, "totp_setup: URI generated for chat_id=%ld",
-                ctx->chat_id);
+    LOG_CMD_CTX(ctx, LOG_INFO,
+        "totp_setup: URI generated for chat_id=%ld", ctx->chat_id);
 
     char msg[TOTP_URI_MAX + 256];
     snprintf(msg, sizeof(msg),
@@ -188,8 +214,8 @@ int cmd_totp_setup_v2(command_ctx_t *ctx)
         "%s\n\n"
         "Import link (Aegis / Google Authenticator):\n"
         "%s\n\n"
-        "Paste this link into your authenticator app,\n"
-        "or scan a QR code generated from it.",
+        "After adding to your app:\n"
+        "Set TOTP_SETUP=disabled in config and reload.",
         g_cfg.totp_secret,
         uri);
 
