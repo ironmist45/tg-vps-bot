@@ -61,7 +61,7 @@ int cmd_help_v2(command_ctx_t *ctx)
         if (!current_category ||
             strcmp(current_category, commands[i].category) != 0) {
             written = snprintf(buffer + used, size - used,
-                "%s*%s*\n",
+                "%s*── %s*\n",
                 current_category ? "\n" : "",
                 commands[i].category);
             if (written < 0 || (size_t)written >= size - used) break;
