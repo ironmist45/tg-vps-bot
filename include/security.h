@@ -122,6 +122,6 @@ int security_generate_reboot_token(long chat_id, unsigned short req_id);
  * @param req_id       16-bit request identifier for log correlation
  * @return             0 if valid, -1 if invalid/expired/replayed
  */
-int security_validate_reboot_token(long chat_id, int token, unsigned short req_id);
+int security_validate_reboot_token(long chat_id, int input_token, unsigned short req_id);
 
 #endif // SECURITY_H
