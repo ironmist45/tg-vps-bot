@@ -162,18 +162,18 @@ int config_load(const char *path, config_t *cfg) {
             if (value[0] == '\0') {
                 /* Explicit empty value — TOTP disabled */
                 cfg->totp_secret[0] = '\0';
-                LOG_CFG(LOG_DEBUG, "TOTP_SECRET is empty — TOTP disabled");
+                LOG_CFG(LOG_DEBUG, "TOTP_SECRET is empty — TOTP 2FA disabled");
             } else if (totp_validate_secret(value) != 0) {
                 LOG_CFG(LOG_WARN,
-                    "TOTP_SECRET at line %d is invalid (bad base32) — TOTP disabled",
+                    "TOTP_SECRET at line %d is invalid (bad base32) — TOTP 2FA disabled",
                     line_num);
                 cfg->totp_secret[0] = '\0';
             } else {
                 if (safe_copy(cfg->totp_secret, sizeof(cfg->totp_secret), value) != 0) {
-                    LOG_CFG(LOG_WARN, "TOTP_SECRET too long — TOTP disabled");
+                    LOG_CFG(LOG_WARN, "TOTP_SECRET too long — TOTP 2FA disabled");
                     cfg->totp_secret[0] = '\0';
                 } else {
-                    LOG_CFG(LOG_INFO, "TOTP_SECRET loaded (TOTP enabled)");
+                    LOG_CFG(LOG_INFO, "TOTP_SECRET loaded (TOTP 2FA enabled)");
                 }
             }
         }
