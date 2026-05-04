@@ -175,7 +175,7 @@ void parse_filter(char *input, filter_t *f) {
  * @param f     Parsed filter structure
  * @return      1 if line matches all keywords, 0 otherwise
  */
-int match_filter_multi(const char *line, filter_t *f) {
+int match_filter_multi(const char *line, const filter_t *f) {
     // Empty filter matches everything
     if (f->count == 0)
         return 1;
