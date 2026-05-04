@@ -135,6 +135,7 @@ command_t commands[] = {
 
     /* Security */
     {"/fail2ban", cmd_fail2ban_v2, "Manage Fail2Ban", "Security", 0},
+    {"/totp_setup", cmd_totp_setup_v2, "TOTP 2FA setup", "Security", 0},
 
     /*
      * System control — requires two-step confirmation.
@@ -150,9 +151,6 @@ command_t commands[] = {
     {"/reboot_confirm",  cmd_reboot_confirm_v2,  NULL,            NULL,     0},  /* hidden, legacy */
     {"/restart",         cmd_restart_v2,         "Restart bot",   "System", 1},
     {"/restart_confirm", cmd_restart_confirm_v2, NULL,            NULL,     0},  /* hidden, legacy */
-
-    /* TOTP setup — no confirmation required (cannot TOTP-protect TOTP setup) */
-    {"/totp_setup", cmd_totp_setup_v2, "TOTP 2FA setup", "Security", 0},
 
     /* Universal confirmation handler — hidden from /help */
     {"/confirm", NULL, NULL, NULL, 0},  /* handled inline in dispatcher */
