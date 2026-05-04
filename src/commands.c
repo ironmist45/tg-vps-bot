@@ -445,7 +445,7 @@ int commands_handle(const char *text,
 
     /* Unknown command */
     METRICS_CMD(other);
-    log_msg(LOG_WARN, "UNKNOWN CMD %.32s (chat_id=%ld)", argv[0], chat_id);
+    LOG_CMD(LOG_WARN, "UNKNOWN CMD %.32s (chat_id=%ld)", argv[0], chat_id);
     snprintf(response, resp_size, "Unknown command");
     return -1;
 }
