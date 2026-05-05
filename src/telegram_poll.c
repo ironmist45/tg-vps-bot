@@ -25,6 +25,8 @@
  * MIT License - Copyright (c) 2026 ironmist45
  */
 
+#define _GNU_SOURCE
+
 #include "telegram.h"
 #include "telegram_poll.h"
 #include "telegram_http.h"
