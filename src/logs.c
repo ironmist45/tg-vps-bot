@@ -107,7 +107,9 @@ static const char *resolve_service(const char *alias) {
 }
 
 /**
- * Safely append string with overflow protection
+ * Safely append string with overflow protection.
+ * Used for short menu output in logs_get() where position tracking
+ * is not needed.
  */
 static void safe_append(char *dst, size_t size, const char *src) {
     size_t len  = strlen(dst);
@@ -115,6 +117,29 @@ static void safe_append(char *dst, size_t size, const char *src) {
 
     if (left > 0)
         strncat(dst, src, left);
+}
+
+/**
+ * Append string at known position — O(1), avoids repeated strlen().
+ *
+ * @param dst   Output buffer
+ * @param size  Total buffer size
+ * @param pos   Current write position (offset from dst)
+ * @param src   String to append
+ * @return      New write position after append
+ */
+static size_t append_at(char *dst, size_t size, size_t pos, const char *src)
+{
+    if (pos >= size - 1) return pos;
+
+    size_t left = size - pos - 1;
+    size_t slen = strlen(src);
+    size_t copy = slen < left ? slen : left;
+
+    memcpy(dst + pos, src, copy);
+    dst[pos + copy] = '\0';
+
+    return pos + copy;
 }
 
 /**
@@ -145,6 +170,7 @@ static void sanitize_line(char *line) {
  * @param lines       Number of lines requested
  * @param filter      Filter string (may be NULL)
  * @param is_fallback 1 if this is fallback (global journal), 0 otherwise
+ * @param out_used    Output: final write position in buffer (may be NULL)
  * @return            Result with matched and raw line counts
  */
 static logs_result_t process_logs_output(char *tmp,
@@ -153,7 +179,8 @@ static logs_result_t process_logs_output(char *tmp,
                                          const char *svc,
                                          int lines,
                                          const char *filter,
-                                         int is_fallback)
+                                         int is_fallback,
+                                         size_t *out_used)
 {
     LOG_CMD(LOG_DEBUG,
         "process_logs_output start: svc=%s filter=%s is_fallback=%d",
@@ -161,12 +188,14 @@ static logs_result_t process_logs_output(char *tmp,
 
     buffer[0] = '\0';
 
-    snprintf(buffer, size,
+    int hdr = snprintf(buffer, size,
         "📜 LOGS: %s (%s%d lines)%s\n\n",
         svc,
         is_fallback ? "fallback, " : "",
         lines,
         filter ? " [filtered]" : "");
+
+    size_t used = (hdr > 0 && (size_t)hdr < size) ? (size_t)hdr : 0;
 
     int line_count = 0;
     int dropped    = 0;
@@ -191,8 +220,9 @@ static logs_result_t process_logs_output(char *tmp,
             LOG_CMD(LOG_DEBUG, "raw[%d]: %s", raw_lines, line);
 
         /* Prevent Telegram message size limit issues */
-        if (strlen(buffer) > LOGS_BUFFER_SOFT_CAP) {
-            safe_append(buffer, size, "\n...\n⚠ logs truncated (limit reached)");
+        if (used > LOGS_BUFFER_SOFT_CAP) {
+            used = append_at(buffer, size, used,
+                "\n...\n⚠ logs truncated (limit reached)");
             LOG_CMD(LOG_WARN,
                 "logs truncated early (%s): raw=%d matched=%d",
                 is_fallback ? "fallback" : svc, raw_lines, line_count);
@@ -203,7 +233,7 @@ static logs_result_t process_logs_output(char *tmp,
 
         /* Highlight reboot markers */
         if (strstr(line, "-- Reboot --")) {
-            safe_append(buffer, size, "\n=== REBOOT ===\n");
+            used = append_at(buffer, size, used, "\n=== REBOOT ===\n");
             line = strtok_r(NULL, "\n", &saveptr);
             continue;
         }
@@ -237,26 +267,28 @@ static logs_result_t process_logs_output(char *tmp,
         line_count++;
 
         /* Check buffer capacity before appending */
-        if (strlen(buffer) + strlen(line) >= size - 5) {
+        if (used + strlen(line) >= size - 5) {
             LOG_CMD(LOG_WARN,
                 "buffer limit reached (svc=%s, matched=%d)", svc, line_count);
             break;
         }
 
-        safe_append(buffer, size, line);
-        safe_append(buffer, size, "\n");
+        used = append_at(buffer, size, used, line);
+        used = append_at(buffer, size, used, "\n");
 
         line = strtok_r(NULL, "\n", &saveptr);
     }
 
     LOG_CMD(LOG_DEBUG,
         "logs_done: svc=%s raw=%d matched=%d dropped=%d bytes=%zu",
-        svc, raw_lines, line_count, dropped, strlen(buffer));
+        svc, raw_lines, line_count, dropped, used);
 
     if (line_count == 0) {
         LOG_CMD(LOG_DEBUG,
             "no matches (svc=%s filter=%s)", svc, filter ? filter : "NULL");
     }
+
+    if (out_used) *out_used = used;
 
     logs_result_t res = {
         .matched = line_count,
@@ -425,8 +457,9 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         return -1;
     }
 
+    size_t used = 0;
     logs_result_t res = process_logs_output(
-        tmp, buffer, size, svc, lines, filter, 0 /* not fallback */);
+        tmp, buffer, size, svc, lines, filter, 0 /* not fallback */, &used);
 
     // ------------------------------------------------------------------------
     // Fallback: try global journal if service has no logs
@@ -435,15 +468,12 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         LOG_CMD(LOG_WARN,
             "req=%04x no logs for %s, trying global journal", req_id, svc);
 
-        char lines_str2[16];
-        snprintf(lines_str2, sizeof(lines_str2), "%d", lines);
-
         char *const fallback_args[] = {
             (char *)g_cfg.sudo_path,
             "-n",
             (char *)g_cfg.journalctl_path,
             "-n",
-            lines_str2,
+            lines_str,
             "--no-pager",
             NULL
         };
@@ -458,11 +488,11 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         }
 
         res = process_logs_output(
-            tmp, buffer, size, svc, lines, filter, 1 /* is fallback */);
+            tmp, buffer, size, svc, lines, filter, 1 /* is fallback */, &used);
 
         LOG_CMD(LOG_INFO,
             "req=%04x fallback done: svc=%s matched=%d raw=%d bytes=%zu",
-            req_id, svc, res.matched, res.raw, strlen(buffer));
+            req_id, svc, res.matched, res.raw, used);
     }
 
     if (res.raw > 0 && res.matched == 0) {
