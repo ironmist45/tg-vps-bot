@@ -17,20 +17,69 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Label buffer size for otpauth:// URI (e.g. "tg-bot:123456789") */
+#define TOTP_LABEL_MAX 64
+
+// ============================================================================
+// INTERNAL: LEGACY CONFIRM FLOW
+// ============================================================================
+
+/**
+ * Shared logic for legacy /reboot_confirm and /restart_confirm handlers.
+ *
+ * Validates a classic stateless token (not TOTP) and executes shutdown.
+ * Kept permanently — legacy tokens remain supported alongside TOTP.
+ *
+ * @param ctx           Command context
+ * @param shutdown_type SHUTDOWN_REBOOT or SHUTDOWN_RESTART
+ * @param cmd_name      Command name for logging (e.g. "reboot")
+ * @param reply_text    Markdown reply text on success
+ * @return              0 on success, -1 on error
+ */
+static int legacy_confirm(command_ctx_t *ctx,
+                           shutdown_type_t shutdown_type,
+                           const char *cmd_name,
+                           const char *reply_text)
+{
+    if (!ctx->args || ctx->args[0] == '\0') {
+        char usage[64];
+        snprintf(usage, sizeof(usage), "Usage: /%s\\_confirm <token>", cmd_name);
+        return reply_error(ctx, usage);
+    }
+
+    int token;
+    if (parse_int(ctx->args, &token) != 0) {
+        LOG_CMD_CTX(ctx, LOG_WARN, "%s_confirm: invalid token format '%s'",
+                    cmd_name, ctx->args);
+        return reply_error(ctx, "Invalid token format");
+    }
+
+    if (security_validate_reboot_token(ctx->chat_id, token, ctx->req_id) != 0) {
+        LOG_CMD_CTX(ctx, LOG_WARN, "%s_confirm: invalid or expired token", cmd_name);
+        return reply_error(ctx, "Invalid or expired token");
+    }
+
+    LOG_CMD_CTX(ctx, LOG_INFO, "%s confirmed via legacy flow", cmd_name);
+
+    if (shutdown_type == SHUTDOWN_REBOOT)
+        METRICS_CMD(reboot);
+    else
+        METRICS_CMD(restart);
+
+    lifecycle_request_shutdown(shutdown_type, ctx->chat_id);
+    return reply_markdown(ctx, reply_text);
+}
+
 // ============================================================================
 // /reboot COMMAND (V2)
 // ============================================================================
 
 /**
- * Step 1 of 2: generate a confirmation token and send it to the user.
+ * Execute system reboot after confirmation.
  *
- * The token is stateless (derived from chat_id + time + runtime salt)
- * and valid for TOKEN_TTL seconds (configurable in config file).
- * The user must send /reboot_confirm <token> to proceed.
- *
- * Note: when requires_confirmation = 1 in the command table, this handler
- * is called AFTER the dispatcher has already validated /confirm <code>.
- * The token generation here is kept for the legacy /reboot_confirm flow.
+ * Called by the dispatcher after /confirm <code> has been validated.
+ * requires_confirmation = 1 in command table — dispatcher handles
+ * the confirmation step (TOTP or legacy token).
  */
 int cmd_reboot_v2(command_ctx_t *ctx)
 {
@@ -47,36 +96,13 @@ int cmd_reboot_v2(command_ctx_t *ctx)
 // ============================================================================
 
 /**
- * Legacy two-step confirmation for /reboot (kept for backward compatibility).
- *
- * Used when the user sends /reboot_confirm <token> directly instead of
- * going through the new /confirm flow. Will be removed after full TOTP
- * migration is complete.
+ * Legacy two-step confirmation for /reboot.
+ * Kept permanently — supports classic token flow alongside TOTP.
  */
 int cmd_reboot_confirm_v2(command_ctx_t *ctx)
 {
-    if (!ctx->args || ctx->args[0] == '\0') {
-        return reply_error(ctx, "Usage: /reboot\\_confirm <token>");
-    }
-
-    int token;
-    if (parse_int(ctx->args, &token) != 0) {
-        LOG_CMD_CTX(ctx, LOG_WARN, "reboot_confirm: invalid token format '%s'",
-                    ctx->args);
-        return reply_error(ctx, "Invalid token format");
-    }
-
-    if (security_validate_reboot_token(ctx->chat_id, token, ctx->req_id) != 0) {
-        LOG_CMD_CTX(ctx, LOG_WARN, "reboot_confirm: invalid or expired token");
-        return reply_error(ctx, "Invalid or expired token");
-    }
-
-    LOG_CMD_CTX(ctx, LOG_INFO, "reboot confirmed via legacy flow");
-    METRICS_CMD(reboot);
-
-    lifecycle_request_shutdown(SHUTDOWN_REBOOT, ctx->chat_id);
-
-    return reply_markdown(ctx, "♻️ *Rebooting system\\.\\.\\.*");
+    return legacy_confirm(ctx, SHUTDOWN_REBOOT, "reboot",
+                          "♻️ *Rebooting system\\.\\.\\.*");
 }
 
 // ============================================================================
@@ -87,8 +113,7 @@ int cmd_reboot_confirm_v2(command_ctx_t *ctx)
  * Execute bot restart after confirmation.
  *
  * Called by the dispatcher after /confirm <code> has been validated.
- * Only the bot process is restarted (systemctl restart tg-bot) —
- * the server itself is not affected.
+ * Only the bot process is restarted — the server itself is not affected.
  */
 int cmd_restart_v2(command_ctx_t *ctx)
 {
@@ -105,36 +130,13 @@ int cmd_restart_v2(command_ctx_t *ctx)
 // ============================================================================
 
 /**
- * Legacy two-step confirmation for /restart (kept for backward compatibility).
- *
- * Used when the user sends /restart_confirm <token> directly instead of
- * going through the new /confirm flow. Will be removed after full TOTP
- * migration is complete.
+ * Legacy two-step confirmation for /restart.
+ * Kept permanently — supports classic token flow alongside TOTP.
  */
 int cmd_restart_confirm_v2(command_ctx_t *ctx)
 {
-    if (!ctx->args || ctx->args[0] == '\0') {
-        return reply_error(ctx, "Usage: /restart\\_confirm <token>");
-    }
-
-    int token;
-    if (parse_int(ctx->args, &token) != 0) {
-        LOG_CMD_CTX(ctx, LOG_WARN, "restart_confirm: invalid token format '%s'",
-                    ctx->args);
-        return reply_error(ctx, "Invalid token format");
-    }
-
-    if (security_validate_reboot_token(ctx->chat_id, token, ctx->req_id) != 0) {
-        LOG_CMD_CTX(ctx, LOG_WARN, "restart_confirm: invalid or expired token");
-        return reply_error(ctx, "Invalid or expired token");
-    }
-
-    LOG_CMD_CTX(ctx, LOG_INFO, "restart confirmed via legacy flow");
-    METRICS_CMD(restart);
-
-    lifecycle_request_shutdown(SHUTDOWN_RESTART, ctx->chat_id);
-
-    return reply_markdown(ctx, "🔄 *Restarting bot\\.\\.\\.*");
+    return legacy_confirm(ctx, SHUTDOWN_RESTART, "restart",
+                          "🔄 *Restarting bot\\.\\.\\.*");
 }
 
 // ============================================================================
@@ -152,19 +154,18 @@ int cmd_restart_confirm_v2(command_ctx_t *ctx)
  *
  *   2. TOTP_SECRET configured, TOTP_SETUP=disabled (default):
  *      Returns "TOTP is configured and active. Setup is disabled."
- *      This is the safe default — prevents secret exposure after
- *      initial setup is complete.
+ *      Safe default — prevents secret exposure after initial setup.
  *
  *   3. TOTP_SECRET configured, TOTP_SETUP=enabled:
  *      Shows the base32 secret and otpauth:// URI for import into
  *      Aegis, Google Authenticator, Authy or any RFC 6238 app.
  *      After adding to the app — set TOTP_SETUP=disabled.
  *
- * Does not require confirmation (circular dependency).
+ * Does not require confirmation (circular dependency with TOTP).
  */
 int cmd_totp_setup_v2(command_ctx_t *ctx)
 {
-    /* TOTP not configured at all — show setup instructions regardless */
+    /* TOTP not configured — show setup instructions */
     if (g_cfg.totp_secret[0] == '\0') {
         return reply_plain(ctx,
             "🔐 TOTP Setup\n\n"
@@ -184,7 +185,7 @@ int cmd_totp_setup_v2(command_ctx_t *ctx)
             "   and reload config.");
     }
 
-    /* TOTP is configured but setup is disabled — safe default */
+    /* TOTP configured but setup disabled — safe default */
     if (!g_cfg.totp_setup_enabled) {
         LOG_CMD_CTX(ctx, LOG_INFO,
             "totp_setup: disabled in config (TOTP is active)");
@@ -194,8 +195,8 @@ int cmd_totp_setup_v2(command_ctx_t *ctx)
             "   TOTP_SETUP=enabled in config file");
     }
 
-    /* TOTP configured and setup explicitly enabled — show URI */
-    char label[64];
+    /* TOTP configured and setup enabled — show URI */
+    char label[TOTP_LABEL_MAX];
     snprintf(label, sizeof(label), "tg-bot:%ld", ctx->chat_id);
 
     char uri[TOTP_URI_MAX];
@@ -207,6 +208,7 @@ int cmd_totp_setup_v2(command_ctx_t *ctx)
     LOG_CMD_CTX(ctx, LOG_INFO,
         "totp_setup: URI generated for chat_id=%ld", ctx->chat_id);
 
+    /* TOTP_URI_MAX for URI + 256 for surrounding text */
     char msg[TOTP_URI_MAX + 256];
     snprintf(msg, sizeof(msg),
         "🔐 TOTP Setup\n\n"
