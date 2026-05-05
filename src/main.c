@@ -1,37 +1,17 @@
 /**
  * tg-bot - Telegram bot for system administration
- * 
+ *
  * Main entry point and orchestration layer.
  * Coordinates initialization, main event loop, and graceful shutdown.
- * 
+ *
  * Business logic is delegated to:
  *   - lifecycle.c   (signal handling, reboot/restart logic)
  *   - environment.c (startup checks and diagnostics)
  *   - telegram.c    (bot API communication)
  *   - commands.c    (command processing)
  *   - security.c    (access control and token validation)
- * 
- * MIT License
- * 
- * Copyright (c) 2026 ironmist45
- * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- * 
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ *
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #include "version.h"
@@ -53,85 +33,100 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-// ===== Глобальный конфиг (используется в exec.c, environment.c, services.c и др.) =====
+/* Maximum consecutive polling errors before exiting */
+#define MAIN_MAX_CONSECUTIVE_ERRORS 5
+
+/* Sleep duration between polling retries on error */
+#define MAIN_POLL_ERROR_SLEEP_SEC   5
+
+/* Pause between main loop iterations (microseconds) */
+#define MAIN_LOOP_SLEEP_US          200000
+
+// ============================================================================
+// GLOBAL CONFIG
+// ============================================================================
+
+/* Used by exec.c, environment.c, services.c and other modules */
 config_t g_cfg;
 
-// ===== MAIN =====
+// ============================================================================
+// MAIN
+// ============================================================================
 
 int main(int argc, char *argv[]) {
-    // -----------------------------------------------------------
-    // 1. Инициализация жизненного цикла (сигналы, таймеры)
-    // -----------------------------------------------------------
+
+    // -----------------------------------------------------------------------
+    // 1. Lifecycle initialization (signals, timers)
+    // -----------------------------------------------------------------------
     lifecycle_init();
     lifecycle_register_handlers();
     memset(&g_metrics, 0, sizeof(g_metrics));
 
-    // -----------------------------------------------------------
-    // 2. Обработка аргументов командной строки
-    // -----------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // 2. Command-line argument processing
+    // -----------------------------------------------------------------------
     char config_path[CLI_CONFIG_PATH_MAX];
     int rc = cli_process(argc, argv, config_path);
     if (rc != 0) {
-        // Help / version printed or error — exit cleanly
         return (rc == -1 && (argc == 2)) ? 0 : 1;
     }
 
-    // -----------------------------------------------------------
-    // 3. Инициализация логгера с fallback-путём
-    // -----------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // 3. Logger initialization with fallback path
+    // -----------------------------------------------------------------------
     const char *fallback_log = "/var/log/tg-bot.log";
     logger_init(fallback_log);
 
-    // -----------------------------------------------------------
-    // 4. Стартовое логирование
-    // -----------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // 4. Startup logging
+    // -----------------------------------------------------------------------
     LOG_SYS(LOG_INFO, "==== START ====");
     LOG_SYS(LOG_INFO, "%s v%s (%s)", APP_NAME, APP_VERSION, APP_CODENAME);
-    LOG_SYS(LOG_INFO, "Build #%s, commit %s, %s", TG_BUILD_NUMBER, TG_BUILD_COMMIT, TG_BUILD_DATE);
+    LOG_SYS(LOG_INFO, "Build #%s, commit %s, %s",
+            TG_BUILD_NUMBER, TG_BUILD_COMMIT, TG_BUILD_DATE);
     fflush(NULL);
-    
+
     LOG_SYS(LOG_INFO, "Process started (PID=%d)", getpid());
-    
-    // -----------------------------------------------------------
-    // 5. Логирование контекста и проверки окружения
-    // -----------------------------------------------------------
+
+    // -----------------------------------------------------------------------
+    // 5. Environment context logging
+    // -----------------------------------------------------------------------
     env_log_user_info();
     env_log_workdir();
 
-    // -----------------------------------------------------------
-    // 6. Загрузка конфигурации
-    // -----------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // 6. Config loading
+    // -----------------------------------------------------------------------
     if (config_load(config_path, &g_cfg) != 0) {
         LOG_CFG(LOG_ERROR, "Config load failed");
         logger_close();
         return 1;
     }
 
-    // -----------------------------------------------------------
-    // 7. Переключение на лог-файл из конфига (если указан)
-    //    и проверки окружения (g_cfg заполнен, пути известны)
-    // -----------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // 7. Switch to log file from config, run environment checks
+    // -----------------------------------------------------------------------
     if (logger_reopen(g_cfg.log_file) == 0) {
         LOG_CFG(LOG_INFO, "Logger switched: %s", g_cfg.log_file);
     }
 
     logger_set_level(g_cfg.log_level);
-    LOG_SYS(LOG_INFO, "Logger level applied: %s", 
+    LOG_SYS(LOG_INFO, "Logger level applied: %s",
             logger_level_to_string(g_cfg.log_level));
 
     env_check_all(g_cfg.log_file);
     config_log(&g_cfg);
 
-    // -----------------------------------------------------------
-    // 8. Инициализация модулей безопасности
-    // -----------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // 8. Security module initialization
+    // -----------------------------------------------------------------------
     security_set_allowed_chat(g_cfg.chat_id);
     security_set_token_ttl(g_cfg.token_ttl);
     security_init();
 
-    // -----------------------------------------------------------
-    // 9. Инициализация Telegram
-    // -----------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // 9. Telegram initialization
+    // -----------------------------------------------------------------------
     if (telegram_init(g_cfg.token) != 0) {
         LOG_NET(LOG_ERROR, "Telegram init failed");
         logger_close();
@@ -141,54 +136,58 @@ int main(int argc, char *argv[]) {
     LOG_STATE(LOG_INFO, "Bot started");
 
     /*
-     * Уведомляем systemd, что инициализация завершена и бот готов к работе.
-     * Требуется при Type=notify в unit-файле бота.
-     * Если NOTIFY_SOCKET не установлен — no-op.
+     * Notify systemd that initialization is complete and bot is ready.
+     * Required when Type=notify is set in the unit file.
+     * No-op if NOTIFY_SOCKET is not set.
      */
     sd_notify_ready();
 
     /*
-     * Отправляем сообщение в Telegram о готовности к работе
+     * Send startup notification to Telegram.
+     * Log a warning if delivery fails — bot continues regardless.
      */
-    telegram_send_message(g_cfg.chat_id, "🟢 *Bot started*\n\nReady to serve.");
+    if (telegram_send_message(g_cfg.chat_id,
+            "🟢 *Bot started*\n\nReady to serve.") != 0) {
+        LOG_NET(LOG_WARN, "Failed to send startup message");
+    }
 
     LOG_STATE(LOG_INFO, "Entering main loop");
 
-    // ===========================================================
-    // 10. ГЛАВНЫЙ ЦИКЛ
-    // ===========================================================
+    // =======================================================================
+    // 10. MAIN LOOP
+    // =======================================================================
     int consecutive_errors = 0;
-    const int max_consecutive_errors = 5;
-    
+
     while (1) {
         diag_loop_start();
+
         /*
-         * Сбрасываем watchdog таймер systemd в каждой итерации.
-         * WatchdogSec=60 в unit-файле — ожидается каждые 30 сек.
-         * Одна итерация: poll (до 25 сек) + usleep(200мс) — укладываемся.
-         * Если NOTIFY_SOCKET не установлен — no-op.
+         * Reset systemd watchdog timer on every iteration.
+         * WatchdogSec=60 in unit file — expected every ~30s.
+         * One iteration: poll (up to 25s) + sleep (200ms) — fits easily.
+         * No-op if NOTIFY_SOCKET is not set.
          */
         sd_notify_watchdog();
 
-        // -------------------------------------------------------
-        // Проверка запроса на shutdown (от сигнала или команды)
-        // -------------------------------------------------------
+        // -------------------------------------------------------------------
+        // Check for shutdown request (from signal or command)
+        // -------------------------------------------------------------------
         if (lifecycle_shutdown_requested()) {
             lifecycle_handle_shutdown();
             break;
         }
 
-        // -------------------------------------------------------
-        // Проверка запроса на перезагрузку конфигурации (SIGHUP)
-        // -------------------------------------------------------
+        // -------------------------------------------------------------------
+        // Check for config reload request (SIGHUP)
+        // -------------------------------------------------------------------
         if (lifecycle_reload_requested()) {
             config_reload(config_path, &g_cfg);
             lifecycle_clear_reload();
         }
-        
-        // -------------------------------------------------------
-        // Ротация лог-файла (SIGUSR1 от logrotate)
-        // -------------------------------------------------------
+
+        // -------------------------------------------------------------------
+        // Log rotation request (SIGUSR1 from logrotate)
+        // -------------------------------------------------------------------
         if (lifecycle_rotate_requested()) {
             LOG_SYS(LOG_INFO, "Log rotation requested (SIGUSR1)");
             if (logger_reopen(g_cfg.log_file) == 0) {
@@ -199,46 +198,45 @@ int main(int argc, char *argv[]) {
             lifecycle_clear_rotate();
         }
 
-        // -------------------------------------------------------
-        // Polling Telegram API
-        // -------------------------------------------------------
+        // -------------------------------------------------------------------
+        // Telegram API polling
+        // -------------------------------------------------------------------
         int poll_rc = telegram_poll();
-        if (poll_rc != 0) {
 
+        if (poll_rc != 0) {
+            /* Check shutdown before sleeping on error */
             if (lifecycle_shutdown_requested()) {
                 lifecycle_handle_shutdown();
                 break;
             }
-            
+
             g_metrics.api_calls_failed++;
             consecutive_errors++;
             LOG_NET(LOG_WARN, "Polling error (rc=%d, attempt=%d/%d)",
-                    poll_rc, consecutive_errors, max_consecutive_errors);
+                    poll_rc, consecutive_errors, MAIN_MAX_CONSECUTIVE_ERRORS);
 
-            if (consecutive_errors >= max_consecutive_errors) {
+            if (consecutive_errors >= MAIN_MAX_CONSECUTIVE_ERRORS) {
                 g_metrics.err_timeout++;
-                LOG_SYS(LOG_ERROR, "Too many consecutive polling errors, exiting");
+                LOG_SYS(LOG_ERROR,
+                    "Too many consecutive polling errors, exiting");
                 break;
             }
 
-            if (lifecycle_shutdown_requested()) {
-                lifecycle_handle_shutdown();
-                break;
-            }
-            sleep(5);
+            sleep(MAIN_POLL_ERROR_SLEEP_SEC);
         } else {
             g_metrics.api_calls_total++;
             g_metrics.poll_count++;
             consecutive_errors = 0;
         }
-                    
-        usleep(200000);  // небольшая пауза между циклами
+
+        /* Sleep before next iteration, then record loop timing */
+        usleep(MAIN_LOOP_SLEEP_US);
         diag_loop_end();
     }
 
-    // -----------------------------------------------------------
-    // 11. Завершение работы
-    // -----------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // 11. Shutdown
+    // -----------------------------------------------------------------------
     char metrics_buf[512];
     metrics_format_log(metrics_buf, sizeof(metrics_buf));
     LOG_SYS(LOG_INFO, "%s", metrics_buf);
