@@ -52,6 +52,7 @@ jobs:
             update-ca-certificates
 
             # ===== generate build info =====
+            git config --global --add safe.directory /app
             BUILD_COMMIT=\$(git -C /app rev-parse --short HEAD 2>/dev/null || echo 'unknown')
             BUILD_DATE=\$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
