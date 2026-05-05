@@ -79,6 +79,7 @@ jobs:
             
             make -j\$(nproc)
             make install
+            echo '[OK] OpenSSL 3.0.20 built'
 
             # ===== build static c-ares 1.34.6 =====
             echo ''
@@ -100,6 +101,7 @@ jobs:
 
             make -j\$(nproc)
             make install
+            echo '[OK] c-ares 1.34.6 built'
 
             # ===== build static curl 8.20.0 (linked with new openssl and c-ares) =====
             echo ''
@@ -131,6 +133,7 @@ jobs:
             
             make -j\$(nproc)
             make install
+            echo '[OK] curl 8.20.0 built'
 
             # ===== build cJSON (STATIC) =====
             echo ''
@@ -151,6 +154,7 @@ jobs:
             make
             make install
             ldconfig
+            echo '[OK] cJSON 1.7.19 built'
 
             # ===== build f2b-wrapper =====
             cd /app
@@ -162,6 +166,7 @@ jobs:
             gcc -O2 -Wall -Wextra tools/f2b-wrapper.c -o f2b-wrapper
             chmod +x f2b-wrapper
             cp f2b-wrapper /usr/local/bin/f2b-wrapper
+            echo '[OK] f2b-wrapper built'
 
             # ===== build tg-bot =====
             cd /app
