@@ -47,10 +47,25 @@
 #include <poll.h>
 #include <errno.h>
 #include <time.h>
+#include <fcntl.h>
 
-#define URL_MAX      1024
-#define RESP_MAX     8192
+/*
+ * Maximum URL length for Telegram API request.
+ * Accounts for getUpdates path + timeout + offset parameters.
+ */
+#define URL_MAX 1024
 
+/*
+ * Response buffer size — must fit a full Telegram getUpdates JSON response.
+ * Telegram allows up to 100 updates per poll; 8192 bytes is sufficient.
+ */
+#define RESP_MAX 8192
+
+/*
+ * Interval between shutdown checks inside wait_for_child().
+ * poll() wakes up every N ms to check g_shutdown_requested.
+ */
+#define POLL_SHUTDOWN_CHECK_MS 200
 
 static long           g_last_processed_update = 0;
 static int            g_offset_counter        = 0;
@@ -198,7 +213,8 @@ static int wait_for_child(pid_t pid, int pipe_read_fd,
             return -1;
         }
 
-        int rc = poll(&pfd, 1, 200);   /* просыпаемся каждые 200мс для проверки shutdown */
+        /* Просыпаемся каждые POLL_SHUTDOWN_CHECK_MS мс для проверки shutdown */
+        int rc = poll(&pfd, 1, POLL_SHUTDOWN_CHECK_MS);
 
         if (rc > 0) {
             /*
@@ -221,8 +237,8 @@ static int wait_for_child(pid_t pid, int pipe_read_fd,
         }
 
         if (rc == 0) {
-            /* Истёк квант 200мс, уменьшаем оставшееся время */
-            remaining_ms -= 200;
+            /* Истёк квант POLL_SHUTDOWN_CHECK_MS, уменьшаем оставшееся время */
+            remaining_ms -= POLL_SHUTDOWN_CHECK_MS;
             continue;
         }
 
@@ -384,11 +400,13 @@ int telegram_poll(void) {
     LOG_NET(LOG_DEBUG, "poll=%04x request (offset=%ld)", poll_id, last_update_id);
 
     // -----------------------------------------------------------------------
-    // Создаём pipe ДО fork
+    // Создаём pipe ДО fork.
+    // O_CLOEXEC: fd закрываются автоматически при execv() в дочернем —
+    // защита от утечки дескрипторов в дочерние процессы.
     // -----------------------------------------------------------------------
     int pipefd[2];
-    if (pipe(pipefd) == -1) {
-        LOG_NET(LOG_ERROR, "poll=%04x pipe() failed: errno=%d", poll_id, errno);
+    if (pipe2(pipefd, O_CLOEXEC) == -1) {
+        LOG_NET(LOG_ERROR, "poll=%04x pipe2() failed: errno=%d", poll_id, errno);
         return -1;
     }
 
