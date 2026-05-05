@@ -37,7 +37,7 @@
  * @return              0 on success, -1 on error
  */
 static int legacy_confirm(command_ctx_t *ctx,
-                           shutdown_type_t shutdown_type,
+                           int shutdown_type,
                            const char *cmd_name,
                            const char *reply_text)
 {
