@@ -24,12 +24,7 @@ jobs:
         id: cache-deps
         uses: actions/cache@v4
         with:
-          path: |
-            /usr/local/openssl-static
-            /usr/local/cares-static
-            /usr/local/curl-static
-            /usr/local/lib/libcjson*
-            /usr/local/include/cjson
+          path: deps
           key: static-deps-openssl${{ env.VER_OPENSSL }}-cares${{ env.VER_CARES }}-curl${{ env.VER_CURL }}-cjson${{ env.VER_CJSON }}
 
       # =========================
@@ -37,13 +32,11 @@ jobs:
       # =========================
       - name: Build in Ubuntu 18.04 container
         run: |
+          mkdir -p deps
+
           docker run --rm \
             -v $PWD:/app \
-            -v /usr/local/openssl-static:/usr/local/openssl-static \
-            -v /usr/local/cares-static:/usr/local/cares-static \
-            -v /usr/local/curl-static:/usr/local/curl-static \
-            -v /usr/local/lib:/usr/local/lib \
-            -v /usr/local/include:/usr/local/include \
+            -v $PWD/deps:/deps \
             -w /app \
             -e BUILD_NUMBER=${{ github.run_number }} \
             -e VER_OPENSSL=${{ env.VER_OPENSSL }} \
@@ -89,7 +82,6 @@ jobs:
 
             if [ \"\${CACHE_HIT}\" = \"true\" ]; then
               echo '[INFO] Cache hit — skipping dependency builds'
-              ldconfig
             else
               echo '[INFO] Cache miss — building all dependencies'
 
@@ -105,8 +97,8 @@ jobs:
               tar -xzf openssl-\${VER_OPENSSL}.tar.gz
               cd openssl-\${VER_OPENSSL}
               ./Configure linux-x86_64 no-shared \
-                --prefix=/usr/local/openssl-static \
-                --openssldir=/usr/local/openssl-static/ssl
+                --prefix=/deps/openssl \
+                --openssldir=/deps/openssl/ssl
               make -j\$(nproc)
               make install
               echo \"[OK] OpenSSL \${VER_OPENSSL} built\"
@@ -125,7 +117,7 @@ jobs:
               ./configure \
                 --enable-static \
                 --disable-shared \
-                --prefix=/usr/local/cares-static \
+                --prefix=/deps/cares \
                 CFLAGS='-Wno-conversion -Wno-format-truncation -Wno-unused-result -Wno-sign-conversion'
               make -j\$(nproc)
               make install
@@ -142,20 +134,20 @@ jobs:
               wget https://curl.se/download/curl-\${VER_CURL}.tar.xz
               tar -xf curl-\${VER_CURL}.tar.xz
               cd curl-\${VER_CURL}
-              export PKG_CONFIG_PATH=/usr/local/openssl-static/lib64/pkgconfig:/usr/local/cares-static/lib/pkgconfig:\$PKG_CONFIG_PATH
+              export PKG_CONFIG_PATH=/deps/openssl/lib64/pkgconfig:/deps/cares/lib/pkgconfig:\$PKG_CONFIG_PATH
               ./configure \
                 --disable-shared \
                 --enable-static \
-                --enable-ares=/usr/local/cares-static \
+                --enable-ares=/deps/cares \
                 --without-libpsl \
                 --disable-ldap \
                 --without-libidn2 \
-                --with-openssl=/usr/local/openssl-static \
+                --with-openssl=/deps/openssl \
                 --with-ca-path=/etc/ssl/certs \
                 --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt \
-                --prefix=/usr/local/curl-static \
-                LDFLAGS='-L/usr/local/openssl-static/lib64 -L/usr/local/cares-static/lib' \
-                CPPFLAGS='-I/usr/local/openssl-static/include -I/usr/local/cares-static/include'
+                --prefix=/deps/curl \
+                LDFLAGS='-L/deps/openssl/lib64 -L/deps/cares/lib' \
+                CPPFLAGS='-I/deps/openssl/include -I/deps/cares/include'
               make -j\$(nproc)
               make install
               echo \"[OK] curl \${VER_CURL} built\"
@@ -173,10 +165,10 @@ jobs:
               mkdir build && cd build
               cmake .. \
                 -DBUILD_SHARED_LIBS=OFF \
-                -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+                -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+                -DCMAKE_INSTALL_PREFIX=/deps/cjson
               make
               make install
-              ldconfig
               echo \"[OK] cJSON \${VER_CJSON} built\"
 
             fi
@@ -203,8 +195,8 @@ jobs:
             echo '========================================'
             echo ''
 
-            make LDFLAGS='-L/usr/local/curl-static/lib -L/usr/local/openssl-static/lib64 -L/usr/local/cares-static/lib -Wl,-Bstatic -lcjson -lcurl -lssl -lcrypto -lcares -Wl,-Bdynamic -lz -lpthread -ldl' \
-                 CFLAGS='-Iinclude -I/usr/local/curl-static/include -I/usr/local/openssl-static/include -I/usr/local/cares-static/include'
+            make LDFLAGS='-L/deps/curl/lib -L/deps/openssl/lib64 -L/deps/cares/lib -L/deps/cjson/lib -Wl,-Bstatic -lcjson -lcurl -lssl -lcrypto -lcares -Wl,-Bdynamic -lz -lpthread -ldl' \
+                 CFLAGS='-Iinclude -I/deps/curl/include -I/deps/openssl/include -I/deps/cares/include -I/deps/cjson/include'
 
             chmod +x tg-bot || true
 
