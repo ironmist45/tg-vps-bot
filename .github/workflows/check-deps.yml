@@ -40,7 +40,7 @@ jobs:
               return
             fi
 
-            # Strip prefix (e.g. "v", "curl-", "OpenSSL_")
+            # Strip prefix (e.g. "v", "curl-", "openssl-")
             if [ -n "$strip_prefix" ]; then
               latest_ver=$(echo "$latest" | sed "s/^${strip_prefix}//")
             else
@@ -54,10 +54,27 @@ jobs:
             fi
           }
 
-          check_version "OpenSSL" "openssl/openssl"     "$VER_OPENSSL" "openssl-"
-          check_version "c-ares"  "c-ares/c-ares"       "$VER_CARES"   "v"
-          check_version "curl"    "curl/curl"            "$VER_CURL"    "curl-"
-          check_version "cJSON"   "DaveGamble/cJSON"     "$VER_CJSON"   "v"
+          # OpenSSL: track 3.0.x LTS branch only (not 4.x)
+          latest_openssl=$(curl -sf "https://api.github.com/repos/openssl/openssl/releases" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            | grep '"tag_name"' \
+            | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/' \
+            | grep '^openssl-3\.0\.' \
+            | head -1 \
+            | sed 's/^openssl-//')
+
+          if [ -z "$latest_openssl" ]; then
+            echo "[WARN] Could not fetch latest OpenSSL 3.0.x version"
+          else
+            echo "[INFO] OpenSSL: current=${VER_OPENSSL} latest=${latest_openssl}"
+            if [ "$latest_openssl" != "$VER_OPENSSL" ]; then
+              UPDATES="${UPDATES}\n- **OpenSSL** (3.0.x LTS): \`${VER_OPENSSL}\` → \`${latest_openssl}\`"
+            fi
+          fi
+
+          check_version "c-ares"  "c-ares/c-ares"    "$VER_CARES" "v"
+          check_version "curl"    "curl/curl"         "$VER_CURL"  "curl-"
+          check_version "cJSON"   "DaveGamble/cJSON"  "$VER_CJSON" "v"
 
           if [ -z "$UPDATES" ]; then
             echo "[OK] All dependencies are up to date"
