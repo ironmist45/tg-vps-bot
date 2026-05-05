@@ -1,11 +1,9 @@
 /**
  * tg-bot - Telegram bot for system administration
- * 
  * logs.c - Systemd journal log retrieval and filtering
- * 
- * Provides the /logs command for viewing systemd journal logs.
+ *
  * Features:
- *   - Service alias mapping via shared services_config (e.g., "ssh" → "ssh")
+ *   - Service alias mapping via shared services_config
  *   - Configurable line count (default 30, max LOGS_MAX_LINES)
  *   - Case-insensitive multi-keyword filtering
  *   - Automatic fallback to global journal if service has no logs
@@ -15,28 +13,8 @@
  *
  * Service list is defined in services_config.c — edit that file to
  * add, remove, or rename monitored services.
- * 
- * MIT License
- * 
- * Copyright (c) 2026 ironmist45
- * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- * 
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ *
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #define _GNU_SOURCE
@@ -49,32 +27,33 @@
 #include "services_config.h"
 #include "config.h"
 
-#include <strings.h>   /* strcasestr */
+#include <strings.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
 
-/* Maximum line length for processing */
-#define MAX_LINE    256
-
 /* Number of lines to log at DEBUG level for troubleshooting */
-#define DEBUG_LINES 5
+#define DEBUG_LINES          5
 
-/*
- * Maximum number of lines per /logs request.
- * Requests exceeding this value are clamped silently.
- */
+/* Maximum number of lines per /logs request (clamped silently) */
 #define LOGS_MAX_LINES       200
 
-/*
- * Soft buffer cap: stop appending log lines when the response buffer
- * exceeds this size to stay well within Telegram's 4096-char limit.
- */
+/* Default number of lines when not specified */
+#define LOGS_DEFAULT_LINES   30
+
+/* Soft buffer cap — stay well within Telegram's 4096-char limit */
 #define LOGS_BUFFER_SOFT_CAP 3500
 
 /* Max args for journalctl command array */
 #define JOURNALCTL_ARGS_MAX  16
+
+/* Argument buffer size for svc/arg1/arg2 parsing */
+#define LOGS_ARG_SIZE        64
+
+/* Filter string length limits */
+#define LOGS_FILTER_MAX_LEN  32
+#define LOGS_FILTER_MIN_LEN  3
 
 // ============================================================================
 // INTERNAL HELPER FUNCTIONS
@@ -85,21 +64,18 @@
  */
 static int is_number(const char *s) {
     if (!s || *s == '\0') return 0;
-
     for (int i = 0; s[i]; i++) {
-        if (!isdigit((unsigned char)s[i]))
-            return 0;
+        if (!isdigit((unsigned char)s[i])) return 0;
     }
     return 1;
 }
 
 /**
  * Resolve user-facing service alias to systemd unit name.
- *
  * Looks up alias in the shared g_services table (services_config.c).
  *
  * @param alias  User-provided service name (e.g. "shadowsocks")
- * @return       Systemd unit name (e.g. "shadowsocks-libev"), or NULL if not allowed
+ * @return       Systemd unit name, or NULL if not allowed
  */
 static const char *resolve_service(const char *alias) {
     for (int i = 0; i < g_services_count; i++) {
@@ -111,13 +87,11 @@ static const char *resolve_service(const char *alias) {
 
 /**
  * Safely append string with overflow protection.
- * Used for short menu output in logs_get() where position tracking
- * is not needed.
+ * Used for short menu output where position tracking is not needed.
  */
 static void safe_append(char *dst, size_t size, const char *src) {
     size_t len  = strlen(dst);
     size_t left = (len < size) ? (size - len - 1) : 0;
-
     if (left > 0)
         strncat(dst, src, left);
 }
@@ -127,21 +101,18 @@ static void safe_append(char *dst, size_t size, const char *src) {
  *
  * @param dst   Output buffer
  * @param size  Total buffer size
- * @param pos   Current write position (offset from dst)
+ * @param pos   Current write position
  * @param src   String to append
  * @return      New write position after append
  */
 static size_t append_at(char *dst, size_t size, size_t pos, const char *src)
 {
     if (pos >= size - 1) return pos;
-
     size_t left = size - pos - 1;
     size_t slen = strlen(src);
     size_t copy = slen < left ? slen : left;
-
     memcpy(dst + pos, src, copy);
     dst[pos + copy] = '\0';
-
     return pos + copy;
 }
 
@@ -171,7 +142,6 @@ static int build_journalctl_args(char **argv, size_t argv_size,
                                   const char *lines_str)
 {
     int i = 0;
-
     if (argv_size < 9) return -1;
 
     argv[i++] = (char *)sudo_path;
@@ -197,22 +167,18 @@ static int build_journalctl_args(char **argv, size_t argv_size,
 // ============================================================================
 
 /**
- * Process raw journalctl output into formatted Telegram response
- * 
- * Handles:
- *   - Multi-keyword filtering (case-insensitive)
- *   - Reboot marker detection
- *   - ANSI escape code stripping
- *   - Journal header suppression
- *   - Truncation when buffer limit reached
- * 
+ * Process raw journalctl output into formatted Telegram response.
+ *
+ * Header is pre-formatted by caller and passed via buffer/used.
+ * Function appends log lines to the existing buffer content.
+ *
  * @param tmp         Raw output from journalctl
- * @param buffer      Output buffer for formatted response
+ * @param buffer      Output buffer (header already written)
  * @param size        Size of output buffer
  * @param svc         Service alias being queried (for display)
- * @param lines       Number of lines requested
  * @param filter      Filter string (may be NULL)
  * @param is_fallback 1 if this is fallback (global journal), 0 otherwise
+ * @param used        Current write position (after header)
  * @param out_used    Output: final write position in buffer (may be NULL)
  * @return            Result with matched and raw line counts
  */
@@ -220,25 +186,14 @@ static logs_result_t process_logs_output(char *tmp,
                                          char *buffer,
                                          size_t size,
                                          const char *svc,
-                                         int lines,
                                          const char *filter,
                                          int is_fallback,
+                                         size_t used,
                                          size_t *out_used)
 {
     LOG_CMD(LOG_DEBUG,
         "process_logs_output start: svc=%s filter=%s is_fallback=%d",
         svc, filter ? filter : "NULL", is_fallback);
-
-    buffer[0] = '\0';
-
-    int hdr = snprintf(buffer, size,
-        "📜 LOGS: %s (%s%d lines)%s\n\n",
-        svc,
-        is_fallback ? "fallback, " : "",
-        lines,
-        filter ? " [filtered]" : "");
-
-    size_t used = (hdr > 0 && (size_t)hdr < size) ? (size_t)hdr : 0;
 
     int line_count = 0;
     int dropped    = 0;
@@ -290,8 +245,7 @@ static logs_result_t process_logs_output(char *tmp,
 
         /* Strip ANSI escape codes */
         char *esc = strchr(line, '\x1b');
-        if (esc)
-            *esc = '\0';
+        if (esc) *esc = '\0';
 
         /* Apply multi-keyword filter */
         if (!match_filter_multi(line, &f)) {
@@ -326,18 +280,13 @@ static logs_result_t process_logs_output(char *tmp,
         "logs_done: svc=%s raw=%d matched=%d dropped=%d bytes=%zu",
         svc, raw_lines, line_count, dropped, used);
 
-    if (line_count == 0) {
+    if (line_count == 0)
         LOG_CMD(LOG_DEBUG,
             "no matches (svc=%s filter=%s)", svc, filter ? filter : "NULL");
-    }
 
     if (out_used) *out_used = used;
 
-    logs_result_t res = {
-        .matched = line_count,
-        .raw     = raw_lines
-    };
-
+    logs_result_t res = { .matched = line_count, .raw = raw_lines };
     return res;
 }
 
@@ -346,25 +295,25 @@ static logs_result_t process_logs_output(char *tmp,
 // ============================================================================
 
 /**
- * Main entry point for /logs command
- * 
+ * Main entry point for /logs command.
+ *
  * Parses arguments, validates service and filter, executes journalctl,
  * and formats the response.
- * 
+ *
  * Usage:
- *   /logs                          - List available services
- *   /logs <service>                - Show last 30 lines
- *   /logs <service> <lines>        - Show last N lines (max 200)
+ *   /logs                            - List available services
+ *   /logs <service>                  - Show last 30 lines
+ *   /logs <service> <lines>          - Show last N lines (max 200)
  *   /logs <service> <lines> <filter> - Filter results
- * 
+ *
  * @param service  Command arguments string
  * @param buffer   Output buffer for Telegram response
  * @param size     Size of output buffer
  * @param req_id   16-bit request identifier for log correlation
  * @return         0 on success, -1 on error
  */
-int logs_get(const char *service, char *buffer, size_t size, unsigned short req_id) {
-
+int logs_get(const char *service, char *buffer, size_t size, unsigned short req_id)
+{
     LOG_STATE(LOG_INFO, "req=%04x logs_get() called with service='%s'",
         req_id, service ? service : "NULL");
 
@@ -374,28 +323,25 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     if (!service || service[0] == '\0') {
         buffer[0] = '\0';
         safe_append(buffer, size, "📜 Available services:\n\n");
-
         for (int i = 0; i < g_services_count; i++) {
             safe_append(buffer, size, "- ");
             safe_append(buffer, size, g_services[i].alias);
             safe_append(buffer, size, "\n");
         }
-
         safe_append(buffer, size,
             "\nUsage:\n"
             "/logs <service>\n"
             "/logs <service> <lines>\n"
             "/logs <service> <lines> <filter>\n");
-
         return 0;
     }
 
     // ------------------------------------------------------------------------
     // Parse arguments: service [lines] [filter]
     // ------------------------------------------------------------------------
-    char svc[64]  = {0};
-    char arg1[64] = {0};
-    char arg2[64] = {0};
+    char svc[LOGS_ARG_SIZE]  = {0};
+    char arg1[LOGS_ARG_SIZE] = {0};
+    char arg2[LOGS_ARG_SIZE] = {0};
 
     int parsed = sscanf(service, "%63s %63s %63s", svc, arg1, arg2);
 
@@ -407,7 +353,7 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         return -1;
     }
 
-    int         lines  = 30;
+    int         lines  = LOGS_DEFAULT_LINES;
     const char *filter = NULL;
 
     if (parsed >= 2) {
@@ -431,13 +377,13 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     if (filter) {
         size_t flen = strlen(filter);
 
-        if (flen > 32) {
+        if (flen > LOGS_FILTER_MAX_LEN) {
             LOG_CMD(LOG_WARN, "req=%04x filter too long: %s", req_id, filter);
             snprintf(buffer, size, "❌ Filter too long");
             return -1;
         }
 
-        if (flen < 3) {
+        if (flen < LOGS_FILTER_MIN_LEN) {
             LOG_CMD(LOG_WARN, "req=%04x filter too short: %s", req_id, filter);
             snprintf(buffer, size, "❌ Filter too short");
             return -1;
@@ -445,12 +391,11 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
 
         for (size_t i = 0; i < flen; i++) {
             char c = filter[i];
-
             if (!isalnum((unsigned char)c) &&
                 c != '-' && c != '_' && c != '.') {
                 LOG_CMD(LOG_WARN,
-                        "req=%04x invalid filter rejected: %s (bad char: %c)",
-                        req_id, filter, c);
+                    "req=%04x invalid filter rejected: %s (bad char: %c)",
+                    req_id, filter, c);
                 snprintf(buffer, size, "❌ Invalid filter");
                 return -1;
             }
@@ -460,17 +405,16 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     }
 
     /* Clamp line count to reasonable range */
-    if (lines <= 0)
-        lines = 30;
+    if (lines <= 0) lines = LOGS_DEFAULT_LINES;
 
     if (lines > LOGS_MAX_LINES) {
         LOG_CMD(LOG_WARN, "req=%04x lines clamped: %d -> %d",
-                req_id, lines, LOGS_MAX_LINES);
+            req_id, lines, LOGS_MAX_LINES);
         lines = LOGS_MAX_LINES;
     }
 
     // ------------------------------------------------------------------------
-    // Execute journalctl
+    // Build header, then execute journalctl
     // ------------------------------------------------------------------------
     char lines_str[16];
     snprintf(lines_str, sizeof(lines_str), "%d", lines);
@@ -478,6 +422,12 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     char  *argv[JOURNALCTL_ARGS_MAX] = {0};
     char   tmp[8192]                 = {0};
     size_t used                      = 0;
+
+    /* Write header into buffer before calling process_logs_output() */
+    int hdr = snprintf(buffer, size,
+        "📜 LOGS: %s (%d lines)%s\n\n",
+        svc, lines, filter ? " [filtered]" : "");
+    used = (hdr > 0 && (size_t)hdr < size) ? (size_t)hdr : 0;
 
     build_journalctl_args(argv, JOURNALCTL_ARGS_MAX,
         g_cfg.sudo_path, g_cfg.journalctl_path,
@@ -495,7 +445,7 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     }
 
     logs_result_t res = process_logs_output(
-        tmp, buffer, size, svc, lines, filter, 0 /* not fallback */, &used);
+        tmp, buffer, size, svc, filter, 0 /* not fallback */, used, &used);
 
     // ------------------------------------------------------------------------
     // Fallback: try global journal if service has no logs
@@ -503,6 +453,12 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     if (res.raw == 0) {
         LOG_CMD(LOG_WARN,
             "req=%04x no logs for %s, trying global journal", req_id, svc);
+
+        /* Rewrite header with fallback marker */
+        hdr = snprintf(buffer, size,
+            "📜 LOGS: %s (fallback, %d lines)%s\n\n",
+            svc, lines, filter ? " [filtered]" : "");
+        used = (hdr > 0 && (size_t)hdr < size) ? (size_t)hdr : 0;
 
         build_journalctl_args(argv, JOURNALCTL_ARGS_MAX,
             g_cfg.sudo_path, g_cfg.journalctl_path,
@@ -517,7 +473,7 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         }
 
         res = process_logs_output(
-            tmp, buffer, size, svc, lines, filter, 1 /* is fallback */, &used);
+            tmp, buffer, size, svc, filter, 1 /* is fallback */, used, &used);
 
         LOG_CMD(LOG_INFO,
             "req=%04x fallback done: svc=%s matched=%d raw=%d bytes=%zu",
@@ -543,11 +499,9 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
                 "- /logs %s\n"
                 "- /logs %s fail\n"
                 "- /logs %s Accepted\n",
-                svc, filter, res.raw,
-                svc, svc, svc);
+                svc, filter, res.raw, svc, svc, svc);
         } else {
-            snprintf(buffer, size,
-                "📜 LOGS: %s\n\nNo logs found", svc);
+            snprintf(buffer, size, "📜 LOGS: %s\n\nNo logs found", svc);
         }
     }
 
