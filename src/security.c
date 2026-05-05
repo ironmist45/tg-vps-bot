@@ -40,6 +40,19 @@
  */
 #define RATE_LIMIT_MAX 16
 
+/* Input validation */
+#define SECURITY_TEXT_MAX_LEN        1024
+
+/* Bruteforce protection */
+#define SECURITY_MAX_FAILED_ATTEMPTS 5
+#define SECURITY_BLOCK_DURATION_SEC  30
+
+/* Rate limiting — max commands per second before blocking */
+#define SECURITY_RATE_BURST_MAX      5
+
+/* Token TTL upper bound */
+#define SECURITY_TOKEN_TTL_MAX       3600
+
 // ============================================================================
 // INTERNAL STATE
 // ============================================================================
@@ -112,7 +125,7 @@ void security_set_allowed_chat(long chat_id) {
 }
 
 void security_set_token_ttl(int ttl) {
-    if (ttl > 0 && ttl <= 3600)
+    if (ttl > 0 && ttl <= SECURITY_TOKEN_TTL_MAX)
         g_token_ttl = ttl;
 }
 
@@ -137,7 +150,7 @@ int security_validate_text(const char *text) {
         return -1;
 
     size_t len = strlen(text);
-    if (len == 0 || len > 1024)
+    if (len == 0 || len > SECURITY_TEXT_MAX_LEN)
         return -1;
 
     for (size_t i = 0; i < len; i++) {
@@ -174,11 +187,12 @@ static void register_failed_attempt(time_t now, unsigned short req_id) {
 
     LOG_SEC(LOG_DEBUG, "req=%04x failed attempts: %d", req_id, g_failed_attempts);
 
-    if (g_failed_attempts >= 5) {
-        g_block_until     = now + 30;
+    if (g_failed_attempts >= SECURITY_MAX_FAILED_ATTEMPTS) {
+        g_block_until     = now + SECURITY_BLOCK_DURATION_SEC;
         g_failed_attempts = 0;
         LOG_SEC(LOG_WARN,
-            "req=%04x Too many invalid tokens, blocking for 30 seconds", req_id);
+            "req=%04x Too many invalid tokens, blocking for %d seconds",
+            req_id, SECURITY_BLOCK_DURATION_SEC);
     }
 }
 
@@ -193,7 +207,7 @@ int security_rate_limit(void) {
         if (g_cmd_burst < RATE_LIMIT_MAX)
             g_cmd_burst++;
 
-        if (g_cmd_burst > 5) {
+        if (g_cmd_burst > SECURITY_RATE_BURST_MAX) {
             LOG_SEC(LOG_WARN, "Rate limit triggered (burst=%d)", g_cmd_burst);
             return -1;
         }
@@ -212,7 +226,7 @@ int security_rate_limit(void) {
  * Compute the raw hash component for a (chat_id, timestamp) pair.
  *
  * Combines chat_id, timestamp, compile-time TOKEN_SALT, and the
- * getrandom-derived runtime salt.  Three-step integer mix gives good
+ * getrandom-derived runtime salt. Three-step integer mix gives good
  * avalanche behaviour so adjacent timestamps produce different values.
  */
 static unsigned int make_token(long chat_id, time_t ts) {
@@ -241,8 +255,8 @@ static unsigned int make_token(long chat_id, time_t ts) {
 int security_generate_reboot_token(long chat_id, unsigned short req_id) {
     time_t ts = time(NULL);
 
-    unsigned int raw    = make_token(chat_id, ts);
-    int final_token     = (int)(((unsigned int)(ts % 1000000) ^ raw) % 1000000u);
+    unsigned int raw  = make_token(chat_id, ts);
+    int final_token   = (int)(((unsigned int)(ts % 1000000) ^ raw) % 1000000u);
 
     LOG_SEC(LOG_INFO,
         "req=%04x Generated token: chat_id=%ld ts=%ld token=%06d",
@@ -262,7 +276,7 @@ int security_generate_reboot_token(long chat_id, unsigned short req_id) {
 /**
  * Validate a reboot confirmation token.
  *
- * Checks all time windows within TTL.  Enforces:
+ * Checks all time windows within TTL. Enforces:
  *   - Token format (6 digits, non-negative)
  *   - Bruteforce block status
  *   - Replay protection (single-use: invalidated on first successful use)
