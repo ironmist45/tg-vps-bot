@@ -18,16 +18,39 @@ jobs:
         uses: actions/checkout@v5
 
       # =========================
+      # CACHE
+      # =========================
+      - name: Cache static dependencies
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/openssl-static
+            /usr/local/cares-static
+            /usr/local/curl-static
+            /usr/local/lib/libcjson*
+            /usr/local/include/cjson
+          key: static-deps-openssl${{ env.VER_OPENSSL }}-cares${{ env.VER_CARES }}-curl${{ env.VER_CURL }}-cjson${{ env.VER_CJSON }}
+
+      # =========================
       # BUILD (Ubuntu 18.04)
       # =========================
       - name: Build in Ubuntu 18.04 container
         run: |
-          docker run --rm -v $PWD:/app -w /app \
+          docker run --rm \
+            -v $PWD:/app \
+            -v /usr/local/openssl-static:/usr/local/openssl-static \
+            -v /usr/local/cares-static:/usr/local/cares-static \
+            -v /usr/local/curl-static:/usr/local/curl-static \
+            -v /usr/local/lib:/usr/local/lib \
+            -v /usr/local/include:/usr/local/include \
+            -w /app \
             -e BUILD_NUMBER=${{ github.run_number }} \
             -e VER_OPENSSL=${{ env.VER_OPENSSL }} \
             -e VER_CARES=${{ env.VER_CARES }} \
             -e VER_CURL=${{ env.VER_CURL }} \
             -e VER_CJSON=${{ env.VER_CJSON }} \
+            -e CACHE_HIT=${{ steps.cache-deps.outputs.cache-hit }} \
             ubuntu:18.04 bash -c "
             set -e
             export DEBIAN_FRONTEND=noninteractive
@@ -64,91 +87,99 @@ jobs:
             echo \"#endif\"                                             >> /app/include/build_info.h
             echo \"[INFO] Build info: commit=\${BUILD_COMMIT} date=\${BUILD_DATE} build=\${BUILD_NUMBER}\"
 
-            # ===== build static openssl =====
-            echo ''
-            echo '========================================'
-            echo \" Building OpenSSL \${VER_OPENSSL} (static)\"
-            echo '========================================'
-            echo ''
+            if [ \"\${CACHE_HIT}\" = \"true\" ]; then
+              echo '[INFO] Cache hit — skipping dependency builds'
+              ldconfig
+            else
+              echo '[INFO] Cache miss — building all dependencies'
 
-            cd /tmp
-            wget https://www.openssl.org/source/openssl-\${VER_OPENSSL}.tar.gz
-            tar -xzf openssl-\${VER_OPENSSL}.tar.gz
-            cd openssl-\${VER_OPENSSL}
-            ./Configure linux-x86_64 no-shared \
-              --prefix=/usr/local/openssl-static \
-              --openssldir=/usr/local/openssl-static/ssl
-            make -j\$(nproc)
-            make install
-            echo \"[OK] OpenSSL \${VER_OPENSSL} built\"
+              # ===== build static openssl =====
+              echo ''
+              echo '========================================'
+              echo \" Building OpenSSL \${VER_OPENSSL} (static)\"
+              echo '========================================'
+              echo ''
 
-            # ===== build static c-ares =====
-            echo ''
-            echo '========================================'
-            echo \" Building c-ares \${VER_CARES} (static)\"
-            echo '========================================'
-            echo ''
+              cd /tmp
+              wget https://www.openssl.org/source/openssl-\${VER_OPENSSL}.tar.gz
+              tar -xzf openssl-\${VER_OPENSSL}.tar.gz
+              cd openssl-\${VER_OPENSSL}
+              ./Configure linux-x86_64 no-shared \
+                --prefix=/usr/local/openssl-static \
+                --openssldir=/usr/local/openssl-static/ssl
+              make -j\$(nproc)
+              make install
+              echo \"[OK] OpenSSL \${VER_OPENSSL} built\"
 
-            cd /tmp
-            wget https://github.com/c-ares/c-ares/releases/download/v\${VER_CARES}/c-ares-\${VER_CARES}.tar.gz
-            tar -xzf c-ares-\${VER_CARES}.tar.gz
-            cd c-ares-\${VER_CARES}
-            ./configure \
-              --enable-static \
-              --disable-shared \
-              --prefix=/usr/local/cares-static \
-              CFLAGS='-Wno-conversion -Wno-format-truncation -Wno-unused-result -Wno-sign-conversion'
-            make -j\$(nproc)
-            make install
-            echo \"[OK] c-ares \${VER_CARES} built\"
+              # ===== build static c-ares =====
+              echo ''
+              echo '========================================'
+              echo \" Building c-ares \${VER_CARES} (static)\"
+              echo '========================================'
+              echo ''
 
-            # ===== build static curl =====
-            echo ''
-            echo '========================================'
-            echo \" Building curl \${VER_CURL} (static)\"
-            echo '========================================'
-            echo ''
+              cd /tmp
+              wget https://github.com/c-ares/c-ares/releases/download/v\${VER_CARES}/c-ares-\${VER_CARES}.tar.gz
+              tar -xzf c-ares-\${VER_CARES}.tar.gz
+              cd c-ares-\${VER_CARES}
+              ./configure \
+                --enable-static \
+                --disable-shared \
+                --prefix=/usr/local/cares-static \
+                CFLAGS='-Wno-conversion -Wno-format-truncation -Wno-unused-result -Wno-sign-conversion'
+              make -j\$(nproc)
+              make install
+              echo \"[OK] c-ares \${VER_CARES} built\"
 
-            cd /tmp
-            wget https://curl.se/download/curl-\${VER_CURL}.tar.xz
-            tar -xf curl-\${VER_CURL}.tar.xz
-            cd curl-\${VER_CURL}
-            export PKG_CONFIG_PATH=/usr/local/openssl-static/lib64/pkgconfig:/usr/local/cares-static/lib/pkgconfig:\$PKG_CONFIG_PATH
-            ./configure \
-              --disable-shared \
-              --enable-static \
-              --enable-ares=/usr/local/cares-static \
-              --without-libpsl \
-              --disable-ldap \
-              --without-libidn2 \
-              --with-openssl=/usr/local/openssl-static \
-              --with-ca-path=/etc/ssl/certs \
-              --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt \
-              --prefix=/usr/local/curl-static \
-              LDFLAGS='-L/usr/local/openssl-static/lib64 -L/usr/local/cares-static/lib' \
-              CPPFLAGS='-I/usr/local/openssl-static/include -I/usr/local/cares-static/include'
-            make -j\$(nproc)
-            make install
-            echo \"[OK] curl \${VER_CURL} built\"
+              # ===== build static curl =====
+              echo ''
+              echo '========================================'
+              echo \" Building curl \${VER_CURL} (static)\"
+              echo '========================================'
+              echo ''
 
-            # ===== build cJSON =====
-            echo ''
-            echo '========================================'
-            echo \" Building cJSON \${VER_CJSON} (static)\"
-            echo '========================================'
-            echo ''
+              cd /tmp
+              wget https://curl.se/download/curl-\${VER_CURL}.tar.xz
+              tar -xf curl-\${VER_CURL}.tar.xz
+              cd curl-\${VER_CURL}
+              export PKG_CONFIG_PATH=/usr/local/openssl-static/lib64/pkgconfig:/usr/local/cares-static/lib/pkgconfig:\$PKG_CONFIG_PATH
+              ./configure \
+                --disable-shared \
+                --enable-static \
+                --enable-ares=/usr/local/cares-static \
+                --without-libpsl \
+                --disable-ldap \
+                --without-libidn2 \
+                --with-openssl=/usr/local/openssl-static \
+                --with-ca-path=/etc/ssl/certs \
+                --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt \
+                --prefix=/usr/local/curl-static \
+                LDFLAGS='-L/usr/local/openssl-static/lib64 -L/usr/local/cares-static/lib' \
+                CPPFLAGS='-I/usr/local/openssl-static/include -I/usr/local/cares-static/include'
+              make -j\$(nproc)
+              make install
+              echo \"[OK] curl \${VER_CURL} built\"
 
-            cd /tmp
-            git clone --depth 1 --branch v\${VER_CJSON} https://github.com/DaveGamble/cJSON.git
-            cd cJSON
-            mkdir build && cd build
-            cmake .. \
-              -DBUILD_SHARED_LIBS=OFF \
-              -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-            make
-            make install
-            ldconfig
-            echo \"[OK] cJSON \${VER_CJSON} built\"
+              # ===== build cJSON =====
+              echo ''
+              echo '========================================'
+              echo \" Building cJSON \${VER_CJSON} (static)\"
+              echo '========================================'
+              echo ''
+
+              cd /tmp
+              git clone --depth 1 --branch v\${VER_CJSON} https://github.com/DaveGamble/cJSON.git
+              cd cJSON
+              mkdir build && cd build
+              cmake .. \
+                -DBUILD_SHARED_LIBS=OFF \
+                -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+              make
+              make install
+              ldconfig
+              echo \"[OK] cJSON \${VER_CJSON} built\"
+
+            fi
 
             # ===== build f2b-wrapper =====
             cd /app
