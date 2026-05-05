@@ -1,39 +1,14 @@
 /**
  * tg-bot - Telegram bot for system administration
- * 
  * exec.c - External command execution with timeout and capture
- * 
- * Provides a robust wrapper for executing external commands via sudo.
+ *
  * Features:
  *   - Timeout protection (prevents hung processes)
  *   - Output capture (stdout/stderr)
- *   - Comprehensive status reporting
  *   - Non-blocking I/O with select() and deadline-based timeout
  *   - Graceful termination (SIGTERM → SIGKILL escalation)
- * 
- * All commands are executed through configurable sudo path for privilege escalation.
- * 
- * MIT License
- * 
- * Copyright (c) 2026 ironmist45
- * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- * 
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ *
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #define _GNU_SOURCE
@@ -54,17 +29,17 @@
 #include <signal.h>
 #include <time.h>
 
+/* Size of command line string buffer used for logging only */
+#define EXEC_CMDLINE_MAX 256
+
 // ============================================================================
 // STATUS STRING CONVERSION
 // ============================================================================
 
 /**
  * Convert execution status enum to human-readable string
- * 
- * @param s  Execution status
- * @return   String representation (e.g., "OK", "TIMEOUT")
  */
-const char* exec_status_str(exec_status_t s) {
+const char *exec_status_str(exec_status_t s) {
     switch (s) {
         case EXEC_OK:            return "OK";
         case EXEC_FORK_FAILED:   return "FORK_FAILED";
@@ -80,9 +55,6 @@ const char* exec_status_str(exec_status_t s) {
 
 /**
  * Check if command executed successfully
- * 
- * @param r  Execution result
- * @return   1 if status is OK and exit code is 0, 0 otherwise
  */
 static int exec_success(const exec_result_t *r) {
     if (!r) return 0;
@@ -95,15 +67,6 @@ static int exec_success(const exec_result_t *r) {
 
 /**
  * Convenience wrapper: execute command and check success
- * 
- * Combines exec_command() and exec_success() into a single call.
- * 
- * @param argv    Command argument array (NULL-terminated)
- * @param output  Buffer for captured output
- * @param size    Size of output buffer
- * @param opts    Execution options (may be NULL for defaults)
- * @param res     Result structure to populate (may be NULL)
- * @return        1 if command succeeded, 0 otherwise
  */
 int exec_check_cmd(char *const argv[],
                    char *output,
@@ -112,35 +75,24 @@ int exec_check_cmd(char *const argv[],
                    exec_result_t *res)
 {
     int rc = exec_command(argv, output, size, opts, res);
-
-    if (rc != 0) {
-        return 0;
-    }
-
-    if (!exec_success(res)) {
-        return 0;
-    }
-
+    if (rc != 0)      return 0;
+    if (!exec_success(res)) return 0;
     return 1;
 }
 
 /**
  * Populate result structure with failure status
- * 
- * @param r       Result structure to populate
- * @param status  Failure status to set
  */
 static void exec_result_fail(exec_result_t *r, exec_status_t status)
 {
     if (!r) return;
-
-    r->status     = status;
-    r->exit_code  = -1;
+    r->status      = status;
+    r->exit_code   = -1;
     r->term_signal = 0;
-    r->timed_out  = (status == EXEC_TIMEOUT);
-    r->signaled   = 0;
-    r->stdout_len = 0;
-    r->stderr_len = 0;
+    r->timed_out   = (status == EXEC_TIMEOUT);
+    r->signaled    = 0;
+    r->stdout_len  = 0;
+    r->stderr_len  = 0;
     r->duration_ms = 0;
 }
 
@@ -151,40 +103,28 @@ static void exec_result_fail(exec_result_t *r, exec_status_t status)
 /**
  * Kill child process and reap it immediately.
  *
- * Escalation: SIGTERM → 100 ms grace period → SIGKILL → blocking waitpid.
- * Used from all timeout/error paths to guarantee no zombie is left behind.
- *
- * @param pid         Child PID to kill
- * @param fp          Open FILE* wrapping the read-end of the pipe (may be NULL)
- * @param pipefd_r    Raw read-end fd (closed after fclose if fp != NULL)
- * @param log_enabled Whether to emit log messages
- * @param cmdline     Command string for log messages
+ * Escalation: SIGTERM → 100ms grace → SIGKILL → blocking waitpid.
+ * Guarantees no zombie is left behind.
  */
 static void kill_and_reap(pid_t pid, FILE *fp,
-                          int log_enabled, const char *cmdline)
+                           int log_enabled, const char *cmdline)
 {
     kill(pid, SIGTERM);
-    usleep(100000);     /* 100 ms grace for SIGTERM */
+    usleep(100000);     /* 100ms grace for SIGTERM */
     kill(pid, SIGKILL);
 
-    /*
-     * fclose() closes the underlying fd too, so do it before waitpid()
-     * to avoid a short window where the fd is still open while we wait.
-     */
-    if (fp) fclose(fp);
+    if (fp) fclose(fp); /* closes underlying fd before waitpid */
 
-    waitpid(pid, NULL, 0);  /* blocking: SIGKILL guarantees fast return */
+    waitpid(pid, NULL, 0);
 
-    if (log_enabled) {
+    if (log_enabled)
         LOG_EXEC(LOG_DEBUG, "killed and reaped cmd='%s' pid=%d", cmdline, pid);
-    }
 }
 
 /**
  * Compute remaining milliseconds until a CLOCK_MONOTONIC deadline.
  *
- * @param deadline  Absolute deadline (from clock_gettime)
- * @return          Remaining ms, or 0 if deadline already passed
+ * @return Remaining ms, or 0 if deadline already passed
  */
 static long deadline_remaining_ms(const struct timespec *deadline)
 {
@@ -195,6 +135,29 @@ static long deadline_remaining_ms(const struct timespec *deadline)
             + (deadline->tv_nsec - now.tv_nsec) / 1000000L;
 
     return (ms > 0) ? ms : 0;
+}
+
+/**
+ * Handle timeout: log, kill child, populate result, update duration.
+ * Returns -1 (to be returned by caller).
+ */
+static int handle_timeout(pid_t pid, FILE *fp,
+                           int log_enabled, const char *cmdline,
+                           struct timespec t_start,
+                           exec_result_t *result)
+{
+    if (log_enabled)
+        LOG_EXEC(LOG_ERROR, "timeout cmd='%s' pid=%d", cmdline, pid);
+
+    kill_and_reap(pid, fp, log_enabled, cmdline);
+
+    struct timespec t_end;
+    clock_gettime(CLOCK_MONOTONIC, &t_end);
+    if (result) result->duration_ms = elapsed_ms(t_start, t_end);
+
+    exec_result_fail(result, EXEC_TIMEOUT);
+    g_metrics.err_exec++;
+    return -1;
 }
 
 // ============================================================================
@@ -212,10 +175,8 @@ static int exec_command_internal(char *const argv[],
 // ============================================================================
 
 /**
- * Execute external command with full options
- * 
- * This is the primary execution interface. Commands are run via sudo.
- * 
+ * Execute external command with full options.
+ *
  * @param argv    Command argument array (NULL-terminated)
  * @param output  Buffer for captured output (may be NULL)
  * @param size    Size of output buffer
@@ -233,7 +194,6 @@ int exec_command(char *const argv[],
         memset(result, 0, sizeof(*result));
         result->status = EXEC_OK;
     }
-
     return exec_command_internal(argv, output, size, opts, result);
 }
 
@@ -242,9 +202,7 @@ int exec_command(char *const argv[],
 // ============================================================================
 
 /**
- * Core command execution logic
- * 
- * Handles fork/exec, I/O capture, timeout monitoring, and process cleanup.
+ * Core command execution logic.
  *
  * Timeout implementation uses a single absolute deadline computed once at
  * fork time (CLOCK_MONOTONIC). Each select() call receives the remaining
@@ -253,7 +211,7 @@ int exec_command(char *const argv[],
  *
  * After fclose(fp) the child is guaranteed to have exited (EOF on pipe =
  * write-end closed = _exit() called). waitpid() is therefore called once,
- * blocking, and returns immediately — no busy-wait loop, no zombie window.
+ * blocking, and returns immediately — no busy-wait, no zombie window.
  */
 static int exec_command_internal(char *const argv[],
                                  char *resp,
@@ -276,9 +234,8 @@ static int exec_command_internal(char *const argv[],
     // Validate arguments
     // ------------------------------------------------------------------------
     if (!argv || !argv[0]) {
-        if (log_enabled) {
+        if (log_enabled)
             LOG_EXEC(LOG_ERROR, "invalid argv (empty command)");
-        }
         exec_result_fail(result, EXEC_EXEC_FAILED);
         g_metrics.err_exec++;
         return -1;
@@ -293,7 +250,7 @@ static int exec_command_internal(char *const argv[],
     // ------------------------------------------------------------------------
     // Build command line string for logging
     // ------------------------------------------------------------------------
-    char cmdline[256] = {0};
+    char cmdline[EXEC_CMDLINE_MAX] = {0};
     size_t cmd_used = 0;
 
     for (int i = 0; argv[i]; i++) {
@@ -304,29 +261,31 @@ static int exec_command_internal(char *const argv[],
                                argv[i + 1] ? " " : "");
 
         if (written < 0 || (size_t)written >= sizeof(cmdline) - cmd_used) {
-            if (log_enabled) {
-                LOG_EXEC(LOG_WARN, "cmdline truncated: %.200s", cmdline);
+            /* Mark truncation visibly in the log string */
+            if (cmd_used + 3 < sizeof(cmdline)) {
+                cmdline[cmd_used]     = '.';
+                cmdline[cmd_used + 1] = '.';
+                cmdline[cmd_used + 2] = '.';
+                cmdline[cmd_used + 3] = '\0';
             }
+            if (log_enabled)
+                LOG_EXEC(LOG_WARN, "cmdline truncated: %s", cmdline);
             break;
         }
-
         cmd_used += (size_t)written;
     }
 
-    if (log_enabled) {
+    if (log_enabled)
         LOG_EXEC(LOG_DEBUG, "start cmd='%s'", cmdline);
-    }
 
     // ------------------------------------------------------------------------
     // Create pipe for child process I/O.
-    // O_CLOEXEC ensures the fds are closed automatically on execv() in the
-    // child — defensive measure so they are never leaked into grandchildren.
+    // O_CLOEXEC ensures fds are closed automatically on execv() in child.
     // ------------------------------------------------------------------------
     int pipefd[2];
     if (pipe2(pipefd, O_CLOEXEC) < 0) {
-        if (log_enabled) {
+        if (log_enabled)
             LOG_EXEC(LOG_ERROR, "pipe2 failed cmd='%s' errno=%d", cmdline, errno);
-        }
         exec_result_fail(result, EXEC_PIPE_FAILED);
         g_metrics.err_exec++;
         return -1;
@@ -341,13 +300,10 @@ static int exec_command_internal(char *const argv[],
     pid_t pid = fork();
 
     if (pid < 0) {
-        if (log_enabled) {
+        if (log_enabled)
             LOG_EXEC(LOG_ERROR, "fork failed cmd='%s' errno=%d", cmdline, errno);
-        }
-
         close(pipefd[0]);
         close(pipefd[1]);
-
         clock_gettime(CLOCK_MONOTONIC, &t_end);
         if (result) result->duration_ms = elapsed_ms(t_start, t_end);
         exec_result_fail(result, EXEC_FORK_FAILED);
@@ -358,24 +314,14 @@ static int exec_command_internal(char *const argv[],
     // Child process: redirect I/O and exec
     // ------------------------------------------------------------------------
     if (pid == 0) {
-        /*
-         * dup2 clears O_CLOEXEC on the new fd numbers (STDOUT/STDERR),
-         * so output reaches the pipe even after execv.
-         */
         if (dup2(pipefd[1], STDOUT_FILENO) < 0 ||
             (capture_stderr && dup2(pipefd[1], STDERR_FILENO) < 0)) {
             _exit(127);
         }
-
-        /*
-         * pipefd[0] and pipefd[1] carry O_CLOEXEC and will be closed
-         * automatically by execv. Explicit close here is belt-and-suspenders.
-         */
         close(pipefd[0]);
         close(pipefd[1]);
-
         execv(g_cfg.sudo_path, argv);
-        _exit(127);  /* only reached if execv fails */
+        _exit(127);
     }
 
     // ------------------------------------------------------------------------
@@ -386,13 +332,10 @@ static int exec_command_internal(char *const argv[],
     FILE *fp = fdopen(pipefd[0], "r");
     if (!fp) {
         close(pipefd[0]);
-
         clock_gettime(CLOCK_MONOTONIC, &t_end);
         if (result) result->duration_ms = elapsed_ms(t_start, t_end);
         exec_result_fail(result, EXEC_READ_FAILED);
         g_metrics.err_exec++;
-
-        /* Child is still running — must kill and reap to avoid zombie. */
         kill(pid, SIGKILL);
         waitpid(pid, NULL, 0);
         return -1;
@@ -403,10 +346,9 @@ static int exec_command_internal(char *const argv[],
         : EXEC_DEFAULT_TIMEOUT_MS;
 
     /*
-     * Compute an absolute deadline once.  Every select() call below
+     * Compute an absolute deadline once. Every select() call below
      * receives the *remaining* time until this deadline, so the total
-     * wall-clock budget is always exactly timeout_ms — even when the
-     * child produces output in many small bursts.
+     * wall-clock budget is always exactly timeout_ms.
      */
     struct timespec deadline = t_start;
     deadline.tv_sec  += timeout_ms / 1000;
@@ -416,8 +358,14 @@ static int exec_command_internal(char *const argv[],
         deadline.tv_nsec -= 1000000000L;
     }
 
-    int fd    = pipefd[0];
+    int    fd   = pipefd[0];
     size_t used = 0;
+
+    /*
+     * Guard against NULL resp — if caller passed no buffer,
+     * we drain the pipe without storing output.
+     */
+    int capturing = (resp != NULL && size > 0);
 
     // ------------------------------------------------------------------------
     // Read loop: select() with remaining-deadline timeout per iteration
@@ -425,19 +373,8 @@ static int exec_command_internal(char *const argv[],
     while (1) {
         long remaining = deadline_remaining_ms(&deadline);
 
-        if (remaining == 0) {
-            /* Deadline reached before EOF — treat as timeout. */
-            if (log_enabled) {
-                LOG_EXEC(LOG_ERROR, "timeout cmd='%s' pid=%d", cmdline, pid);
-            }
-            kill_and_reap(pid, fp, log_enabled, cmdline);
-
-            clock_gettime(CLOCK_MONOTONIC, &t_end);
-            if (result) result->duration_ms = elapsed_ms(t_start, t_end);
-            exec_result_fail(result, EXEC_TIMEOUT);
-            g_metrics.err_exec++;
-            return -1;
-        }
+        if (remaining == 0)
+            return handle_timeout(pid, fp, log_enabled, cmdline, t_start, result);
 
         fd_set set;
         FD_ZERO(&set);
@@ -450,29 +387,15 @@ static int exec_command_internal(char *const argv[],
 
         int rv = select(fd + 1, &set, NULL, NULL, &tv);
 
-        if (rv == 0) {
-            /* select() itself reported timeout (remaining just hit zero). */
-            if (log_enabled) {
-                LOG_EXEC(LOG_ERROR, "timeout cmd='%s' pid=%d", cmdline, pid);
-            }
-            kill_and_reap(pid, fp, log_enabled, cmdline);
-
-            clock_gettime(CLOCK_MONOTONIC, &t_end);
-            if (result) result->duration_ms = elapsed_ms(t_start, t_end);
-            exec_result_fail(result, EXEC_TIMEOUT);
-            g_metrics.err_exec++;
-            return -1;
-        }
+        if (rv == 0)
+            return handle_timeout(pid, fp, log_enabled, cmdline, t_start, result);
 
         if (rv < 0) {
-            if (errno == EINTR)
-                continue;   /* signal interrupted select — retry with updated deadline */
+            if (errno == EINTR) continue;  /* signal interrupted — retry */
 
-            if (log_enabled) {
+            if (log_enabled)
                 LOG_EXEC(LOG_ERROR, "select failed cmd='%s' errno=%d", cmdline, errno);
-            }
             kill_and_reap(pid, fp, log_enabled, cmdline);
-
             clock_gettime(CLOCK_MONOTONIC, &t_end);
             if (result) result->duration_ms = elapsed_ms(t_start, t_end);
             exec_result_fail(result, EXEC_READ_FAILED);
@@ -480,41 +403,38 @@ static int exec_command_internal(char *const argv[],
             return -1;
         }
 
-        /* Buffer full — stop reading, drain the rest on child exit. */
-        if (used >= size - 1)
+        /* Buffer full — stop reading */
+        if (capturing && used >= size - 1)
             break;
 
-        /* Data available — read one line. */
-        if (fgets(resp + used, size - used, fp) == NULL)
-            break;  /* EOF or error — child finished writing */
-
-        size_t len = strlen(resp + used);
-        used += len;
-
-        /* Add truncation marker if buffer limit reached. */
-        if (used >= size - 1) {
-            strncat(resp, "\n...truncated...", size - strlen(resp) - 1);
-            break;
+        /* Data available — read one line */
+        if (capturing) {
+            if (fgets(resp + used, size - used, fp) == NULL)
+                break;  /* EOF or error — child finished writing */
+            size_t len = strlen(resp + used);
+            used += len;
+            if (used >= size - 1) {
+                strncat(resp, "\n...truncated...", size - strlen(resp) - 1);
+                break;
+            }
+        } else {
+            /* Drain without storing */
+            char drain[256];
+            if (fgets(drain, sizeof(drain), fp) == NULL)
+                break;
         }
     }
 
-    fclose(fp);     /* closes pipefd[0]; EOF is now visible to child if still running */
+    fclose(fp);
 
     // ------------------------------------------------------------------------
-    // Wait for child to terminate.
-    //
-    // At this point fclose() has closed our read-end of the pipe.  The child
-    // either already called _exit() (normal case: EOF caused the loop above to
-    // break) or it is about to get EPIPE on the next write and exit shortly.
-    // Either way, a single *blocking* waitpid() is correct and sufficient —
-    // no busy-wait loop, no WNOHANG, no zombie window.
+    // Wait for child to terminate (blocking — EPIPE guarantees fast return)
     // ------------------------------------------------------------------------
     int wstatus = 0;
     if (waitpid(pid, &wstatus, 0) == -1) {
-        if (log_enabled) {
+        if (log_enabled)
             LOG_EXEC(LOG_ERROR, "waitpid failed cmd='%s' pid=%d errno=%d",
                      cmdline, pid, errno);
-        }
         clock_gettime(CLOCK_MONOTONIC, &t_end);
         if (result) result->duration_ms = elapsed_ms(t_start, t_end);
         exec_result_fail(result, EXEC_READ_FAILED);
@@ -528,10 +448,9 @@ static int exec_command_internal(char *const argv[],
     clock_gettime(CLOCK_MONOTONIC, &t_end);
     long ms = elapsed_ms(t_start, t_end);
 
-    /* Process terminated by signal (e.g. OOM killer, external SIGKILL). */
     if (!WIFEXITED(wstatus)) {
         if (result) {
-            result->status     = EXEC_SIGNAL_KILLED;
+            result->status      = EXEC_SIGNAL_KILLED;
             result->term_signal = WTERMSIG(wstatus);
             result->duration_ms = ms;
         }
@@ -543,10 +462,8 @@ static int exec_command_internal(char *const argv[],
 
     int exit_code = WEXITSTATUS(wstatus);
 
-    /* exit code 127 means execv() itself failed (command not found, etc.) */
-    if (exit_code == 127 && result) {
+    if (exit_code == 127 && result)
         result->status = EXEC_EXEC_FAILED;
-    }
 
     if (result) {
         result->exit_code   = exit_code;
@@ -568,42 +485,32 @@ static int exec_command_internal(char *const argv[],
     // ------------------------------------------------------------------------
     if (log_enabled) {
         int quiet = (opts && opts->quiet);
+        const char *status_str = result ? exec_status_str(result->status) : "N/A";
 
         if (quiet) {
             LOG_EXEC_CHECK(LOG_DEBUG,
                 "cmd='%s' status=%s exit=%d time=%ldms out=%zuB",
-                cmdline,
-                result ? exec_status_str(result->status) : "N/A",
-                exit_code, ms, used);
+                cmdline, status_str, exit_code, ms, used);
         } else {
             LOG_EXEC(LOG_INFO,
                 "cmd='%s' status=%s exit=%d time=%ldms out=%zuB",
-                cmdline,
-                result ? exec_status_str(result->status) : "N/A",
-                exit_code, ms, used);
+                cmdline, status_str, exit_code, ms, used);
         }
-    }
 
-    /* Log output snippet on failure for easier debugging. */
-    if (exit_code != 0 && log_enabled) {
-        int quiet = (opts && opts->quiet);
-
-        if (quiet) {
-            LOG_EXEC_CHECK(LOG_DEBUG,
-                "cmd='%s' failed status=%s exit=%d",
-                cmdline,
-                result ? exec_status_str(result->status) : "N/A",
-                exit_code);
-            if (resp && resp[0])
-                LOG_EXEC_CHECK(LOG_DEBUG, "output: %.200s", resp);
-        } else {
-            LOG_EXEC(LOG_WARN,
-                "cmd='%s' failed status=%s exit=%d",
-                cmdline,
-                result ? exec_status_str(result->status) : "N/A",
-                exit_code);
-            if (resp && resp[0])
-                LOG_EXEC(LOG_WARN, "output: %.200s", resp);
+        if (exit_code != 0) {
+            if (quiet) {
+                LOG_EXEC_CHECK(LOG_DEBUG,
+                    "cmd='%s' failed status=%s exit=%d",
+                    cmdline, status_str, exit_code);
+                if (resp && resp[0])
+                    LOG_EXEC_CHECK(LOG_DEBUG, "output: %.200s", resp);
+            } else {
+                LOG_EXEC(LOG_WARN,
+                    "cmd='%s' failed status=%s exit=%d",
+                    cmdline, status_str, exit_code);
+                if (resp && resp[0])
+                    LOG_EXEC(LOG_WARN, "output: %.200s", resp);
+            }
         }
     }
 
