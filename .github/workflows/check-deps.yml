@@ -2,8 +2,8 @@ name: Check dependency updates
 
 on:
   schedule:
-    - cron: '0 9 * * 1'  # Every Monday at 09:00 UTC
-  workflow_dispatch:       # Allow manual trigger
+    - cron: '0 9 * * 1'     # Every Monday at 09:00 UTC
+  workflow_dispatch:        # Allow manual trigger
 
 jobs:
   check:
@@ -41,10 +41,11 @@ jobs:
             fi
 
             # Strip prefix (e.g. "v", "curl-", "openssl-")
+            # Normalize separators: curl uses underscores (curl-8_20_0)
             if [ -n "$strip_prefix" ]; then
-              latest_ver=$(echo "$latest" | sed "s/^${strip_prefix}//")
+              latest_ver=$(echo "$latest" | sed "s/^${strip_prefix}//" | tr '_' '.')
             else
-              latest_ver="$latest"
+              latest_ver=$(echo "$latest" | tr '_' '.')
             fi
 
             echo "[INFO] ${name}: current=${current} latest=${latest_ver}"
