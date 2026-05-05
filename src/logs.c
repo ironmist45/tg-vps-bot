@@ -73,6 +73,9 @@
  */
 #define LOGS_BUFFER_SOFT_CAP 3500
 
+/* Max args for journalctl command array */
+#define JOURNALCTL_ARGS_MAX  16
+
 // ============================================================================
 // INTERNAL HELPER FUNCTIONS
 // ============================================================================
@@ -147,6 +150,46 @@ static size_t append_at(char *dst, size_t size, size_t pos, const char *src)
  */
 static void sanitize_line(char *line) {
     line[strcspn(line, "\r")] = '\0';
+}
+
+/**
+ * Build journalctl args array for exec_command().
+ * If unit is NULL — global journal (no -u flag).
+ *
+ * @param argv             Output args array
+ * @param argv_size        Size of args array
+ * @param sudo_path        Path to sudo binary
+ * @param journalctl_path  Path to journalctl binary
+ * @param unit             Systemd unit name, or NULL for global journal
+ * @param lines_str        Number of lines as string (e.g. "30")
+ * @return                 Number of args, or -1 on error
+ */
+static int build_journalctl_args(char **argv, size_t argv_size,
+                                  const char *sudo_path,
+                                  const char *journalctl_path,
+                                  const char *unit,
+                                  const char *lines_str)
+{
+    int i = 0;
+
+    if (argv_size < 9) return -1;
+
+    argv[i++] = (char *)sudo_path;
+    argv[i++] = "-n";
+    argv[i++] = (char *)journalctl_path;
+
+    if (unit) {
+        if ((size_t)i + 4 > argv_size) return -1;
+        argv[i++] = "-u";
+        argv[i++] = (char *)unit;
+    }
+
+    argv[i++] = "-n";
+    argv[i++] = (char *)lines_str;
+    argv[i++] = "--no-pager";
+    argv[i]   = NULL;
+
+    return i;
 }
 
 // ============================================================================
@@ -427,27 +470,21 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     }
 
     // ------------------------------------------------------------------------
-    // Execute journalctl for specific service
+    // Execute journalctl
     // ------------------------------------------------------------------------
     char lines_str[16];
     snprintf(lines_str, sizeof(lines_str), "%d", lines);
 
-    char *const args[] = {
-        (char *)g_cfg.sudo_path,
-        "-n",
-        (char *)g_cfg.journalctl_path,
-        "-u",
-        (char *)real_service,
-        "-n",
-        lines_str,
-        "--no-pager",
-        NULL
-    };
+    char  *argv[JOURNALCTL_ARGS_MAX] = {0};
+    char   tmp[8192]                 = {0};
+    size_t used                      = 0;
 
-    char tmp[8192] = {0};
+    build_journalctl_args(argv, JOURNALCTL_ARGS_MAX,
+        g_cfg.sudo_path, g_cfg.journalctl_path,
+        real_service, lines_str);
 
     exec_result_t exec_res;
-    int rc = exec_command(args, tmp, sizeof(tmp), NULL, &exec_res);
+    int rc = exec_command(argv, tmp, sizeof(tmp), NULL, &exec_res);
     if (rc != 0) {
         LOG_EXEC(LOG_DEBUG,
             "req=%04x RAW OUTPUT (%s): first 200 chars:\n%.200s",
@@ -457,7 +494,6 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         return -1;
     }
 
-    size_t used = 0;
     logs_result_t res = process_logs_output(
         tmp, buffer, size, svc, lines, filter, 0 /* not fallback */, &used);
 
@@ -468,19 +504,12 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         LOG_CMD(LOG_WARN,
             "req=%04x no logs for %s, trying global journal", req_id, svc);
 
-        char *const fallback_args[] = {
-            (char *)g_cfg.sudo_path,
-            "-n",
-            (char *)g_cfg.journalctl_path,
-            "-n",
-            lines_str,
-            "--no-pager",
-            NULL
-        };
+        build_journalctl_args(argv, JOURNALCTL_ARGS_MAX,
+            g_cfg.sudo_path, g_cfg.journalctl_path,
+            NULL /* global journal */, lines_str);
 
         exec_result_t res_fallback;
-        if (exec_command(fallback_args, tmp, sizeof(tmp),
-                         NULL, &res_fallback) != 0) {
+        if (exec_command(argv, tmp, sizeof(tmp), NULL, &res_fallback) != 0) {
             LOG_EXEC(LOG_ERROR,
                 "req=%04x fallback journalctl exec failed", req_id);
             snprintf(buffer, size, "❌ No logs available");
