@@ -28,6 +28,7 @@ typedef struct {
     unsigned long cmd_about;
     unsigned long cmd_ping;
     unsigned long cmd_health;
+    unsigned long cmd_logstat;
     unsigned long cmd_other;
 
     // --- Ошибки ---
