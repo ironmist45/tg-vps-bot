@@ -149,7 +149,6 @@ static int build_journalctl_args(char **argv, size_t argv_size,
     argv[i++] = (char *)journalctl_path;
 
     if (unit) {
-        if ((size_t)i + 4 > argv_size) return -1;
         argv[i++] = "-u";
         argv[i++] = (char *)unit;
     }
