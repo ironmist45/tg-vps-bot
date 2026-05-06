@@ -67,9 +67,8 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------------------
     char config_path[CLI_CONFIG_PATH_MAX];
     int rc = cli_process(argc, argv, config_path);
-    if (rc != 0) {
-        return (rc == -1 && (argc == 2)) ? 0 : 1;
-    }
+    if (rc == CLI_EXIT_OK)  return 0;
+    if (rc == CLI_EXIT_ERR) return 1;
 
     // -----------------------------------------------------------------------
     // 3. Logger initialization with fallback path
