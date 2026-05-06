@@ -31,6 +31,7 @@ const service_def_t g_services[] = {
     {  "ssh",          "ssh",               "SSH"          },
     {  "shadowsocks",  "shadowsocks-libev", "Shadowsocks"  },
     {  "mtg",          "mtg",               "MTG"          },
+    {  "tg-bot",       "tg-bot",            "TG Bot"       },
 };
 
 const int g_services_count = (int)(sizeof(g_services) / sizeof(g_services[0]));
