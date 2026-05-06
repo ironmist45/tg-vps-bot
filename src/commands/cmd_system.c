@@ -1,6 +1,6 @@
 /**
  * tg-bot - Telegram bot for system administration
- * cmd_system.c - System information command handlers (/start, /status, /health, /about, /ping)
+ * cmd_system.c - System information command handlers (/start, /status, /health, /about, /ping, /logstat)
  * MIT License - Copyright (c) 2026 ironmist45
  */
 
@@ -11,6 +11,8 @@
 #include "system.h"
 #include "utils.h"
 #include "version.h"
+#include "logstat.h"
+#include "config.h"
 #include "metrics.h"
 
 #include <curl/curl.h>
@@ -321,4 +323,34 @@ int cmd_ping_v2(command_ctx_t *ctx)
 
     METRICS_CMD(ping);
     return reply_markdown(ctx, msg);
+}
+
+// ============================================================================
+// /logstat COMMAND (V2)
+// ============================================================================
+
+/**
+ * Display bot log file statistics
+ *
+ * Analyzes /var/log/tg-bot.log using SSE4.2-accelerated newline counting.
+ * Shows total lines, level breakdown, top tags, and busiest hour.
+ *
+ * @param ctx  Command context
+ * @return     0 on success, error reply on failure
+ */
+int cmd_logstat_v2(command_ctx_t *ctx)
+{
+    logstat_result_t result;
+
+    if (logstat_analyze(g_cfg.log_file, &result) != 0)
+        return reply_error(ctx, "Failed to analyze log file");
+
+    char buf[1024];
+    if (logstat_format(&result, buf, sizeof(buf)) != 0)
+        return reply_error(ctx, "Failed to format statistics");
+
+    LOG_CMD_CTX(ctx, LOG_INFO, "logstat: analyzed %zu bytes, %ld lines",
+                result.file_size, result.total_lines);
+    METRICS_CMD(logstat);
+    return reply_markdown(ctx, buf);
 }
