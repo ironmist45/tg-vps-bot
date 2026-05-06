@@ -71,4 +71,15 @@ int cmd_about_v2(command_ctx_t *ctx);
  */
 int cmd_ping_v2(command_ctx_t *ctx);
 
+/**
+ * Display bot log file statistics
+ *
+ * Analyzes log file using SSE4.2-accelerated newline counting.
+ * Shows total lines, level breakdown, top tags, and busiest hour.
+ *
+ * @param ctx  Command context
+ * @return     0 on success, error reply on failure
+ */
+int cmd_logstat_v2(command_ctx_t *ctx);
+
 #endif // CMD_SYSTEM_H
