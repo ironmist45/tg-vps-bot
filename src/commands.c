@@ -123,10 +123,11 @@ command_t commands[] = {
     {"/help",     cmd_help_v2,  "Show this help", "General", 0},
 
     /* System status */
-    {"/status",   cmd_status_v2, "System status", "System",      0},
-    {"/health",   cmd_health_v2, "Health check",  "System",      0},
-    {"/about",    cmd_about_v2,  "About bot",      "System info", 0},
-    {"/ping",     cmd_ping_v2,   NULL,             "System info", 0},
+    {"/status",   cmd_status_v2,  "System status",       "System",      0},
+    {"/health",   cmd_health_v2,  "Health check",        "System",      0},
+    {"/about",    cmd_about_v2,   "About bot",           "System info", 0},
+    {"/ping",     cmd_ping_v2,    NULL,                  "System info", 0},
+    {"/logstat",  cmd_logstat_v2, "Log file statistics", "System info", 0},
 
     /* Service management */
     {"/services", cmd_services_v2, NULL, "Services", 0},
@@ -134,8 +135,8 @@ command_t commands[] = {
     {"/logs",     cmd_logs_v2,     NULL, "Services", 0},
 
     /* Security */
-    {"/fail2ban", cmd_fail2ban_v2, "Manage Fail2Ban", "Security", 0},
-    {"/totp_setup", cmd_totp_setup_v2, "TOTP 2FA setup", "Security", 0},
+    {"/fail2ban",   cmd_fail2ban_v2,   "Manage Fail2Ban", "Security", 0},
+    {"/totp_setup", cmd_totp_setup_v2, "TOTP 2FA setup",  "Security", 0},
 
     /*
      * System control — requires two-step confirmation.
