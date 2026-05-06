@@ -325,10 +325,6 @@ int logstat_analyze(const char *path, logstat_result_t *result)
 
     free(buf);
 
-    LOG_CMD(LOG_INFO,
-        "logstat: done — %ld lines, %ld errors, %ld warnings",
-        result->total_lines, result->level_error, result->level_warn);
-
     return 0;
 }
 
