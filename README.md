@@ -379,10 +379,23 @@ Rebuild `f2b-wrapper` locally on the target machine.
 
 ## 🚧 Roadmap
 
+### In Progress
 * `/service start|stop|restart` — service management via Telegram
-* Alerts — bot notifies on service failure or high CPU
-* Prometheus metrics export
+
+### Planned
 * Log filtering by time (`--since 1h`)
+* `/df` — disk usage quick view
+* `/top` — top processes by CPU/RAM
+* `/fail2ban status <jail>` — detailed jail statistics
+* `/ssh keys` — show authorized SSH keys
+* Scheduled commands (`/reboot in 5`)
+* Alerts — bot notifies on high CPU/RAM load
+* `/backup` — trigger backup script via Telegram
+
+### Low Priority
+* Notification on bot stop
+* Unit tests (TOTP RFC 6238 vectors, security.c, logs_filter.c)
+* Prometheus metrics export (requires server with >2GB RAM)
 
 ---
 
