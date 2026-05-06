@@ -47,9 +47,10 @@ tg-bot/
 │   ├── users.h                  # 🔹 active user sessions API
 │   ├── logs.h                   # 🔹 logs retrieval API (journalctl integration)
 │   ├── logs_filter.h            # 🔹 log filtering API (semantic + multi-keyword)
+│   ├── logstat.h                # 🔹 log statistics analyzer (SSE4.2 accelerated)
 │   ├── utils.h                  # 🔹 shared helpers (strings, parsing, formatting)
 │   ├── cmd_help.h               # 🔹 /help command handler API
-│   ├── cmd_system.h             # 🔹 /start, /status, /health, /ping, /about API
+│   ├── cmd_system.h             # 🔹 /start, /status, /health, /ping, /about, /logstat API
 │   ├── cmd_services.h           # 🔹 /services, /users, /logs API
 │   ├── cmd_security.h           # 🔹 /fail2ban command handler API
 │   └── cmd_control.h            # 🔹 /reboot, /restart, /totp_setup API
@@ -79,11 +80,12 @@ tg-bot/
 │   ├── users.c                  # 🔹 active user session enumeration
 │   ├── logs.c                   # 🔹 journalctl log retrieval and formatting
 │   ├── logs_filter.c            # 🔹 semantic log filtering engine
+│   ├── logstat.c                # 🔹 SSE4.2 log file statistics analyzer
 │   ├── utils.c                  # 🔹 helper functions implementation
 │   │
 │   └── commands/                # 📂 command handlers (V2)
 │       ├── cmd_help.c           # 🧩 /help
-│       ├── cmd_system.c         # 🧩 /start, /status, /health, /ping, /about
+│       ├── cmd_system.c         # 🧩 /start, /status, /health, /ping, /about, /logstat
 │       ├── cmd_services.c       # 🧩 /services, /users, /logs
 │       ├── cmd_security.c       # 🧩 /fail2ban
 │       └── cmd_control.c        # 🧩 /reboot, /restart, /totp_setup
@@ -121,6 +123,7 @@ tg-bot/
 | **Users** | `users.h` | `users.c` | Active user session enumeration via utmp |
 | **Logs** | `logs.h` | `logs.c` | Journalctl log retrieval and formatting |
 | **Logs Filter** | `logs_filter.h` | `logs_filter.c` | Semantic and multi-keyword log filtering |
+| **Logstat** | `logstat.h` | `logstat.c` | SSE4.2 log file statistics analyzer |
 | **Utils** | `utils.h` | `utils.c` | String manipulation, parsing, time measurement |
 | **Metrics** | `metrics.h` | `metrics.c` | Bot usage statistics collection and formatting |
 
@@ -134,6 +137,7 @@ tg-bot/
 | `/health` | `cmd_health_v2` | `cmd_system.c` | — |
 | `/about` | `cmd_about_v2` | `cmd_system.c` | — |
 | `/ping` | `cmd_ping_v2` | `cmd_system.c` | — |
+| `/logstat` | `cmd_logstat_v2` | `cmd_system.c` | — |
 | `/services` | `cmd_services_v2` | `cmd_services.c` | — |
 | `/users` | `cmd_users_v2` | `cmd_services.c` | — |
 | `/logs` | `cmd_logs_v2` | `cmd_services.c` | — |
@@ -142,6 +146,8 @@ tg-bot/
 | `/restart` | `cmd_restart_v2` | `cmd_control.c` | 🔐 required |
 | `/totp_setup` | `cmd_totp_setup_v2` | `cmd_control.c` | — |
 | `/confirm` | inline in dispatcher | `commands.c` | — |
+
+---
 
 ---
 
@@ -220,12 +226,12 @@ Responsibilities in order:
 | Module | Status | Commands |
 |--------|--------|----------|
 | Services | ✅ V2 | /services, /users, /logs |
-| System | ✅ V2 | /start, /status, /health, /about, /ping |
+| System | ✅ V2 | /start, /status, /health, /about, /ping, /logstat |
 | Help | ✅ V2 | /help |
 | Security | ✅ V2 | /fail2ban |
 | Control | ✅ V2 | /reboot, /restart, /totp_setup |
 
-**All 14 commands use V2. Legacy code completely removed.**
+**All 15 commands use V2. Legacy code completely removed.**
 
 ---
 
@@ -266,6 +272,14 @@ logs are mirrored to stderr in addition to the file. When running
 as a systemd service (stderr redirected), only the file is written —
 no duplicate entries.
 
+**Log format:**
+```
+[2026-05-06 14:32:11.123] [ INFO ] [ NET ] message text
+```
+Fields are center-aligned to fixed widths:
+- Level: 6 chars (`[ INFO ]`, `[ERROR ]`, `[ WARN ]`, `[DEBUG ]`)
+- Tag: 5 chars (`[ NET ]`, `[ SYS ]`, `[STATE]`, `[ CFG ]`, etc.)
+
 **Fallback:** If the log file cannot be opened, all output goes to stderr.
 
 ---
@@ -277,6 +291,68 @@ no duplicate entries.
 - Deadline-based `select()` — total timeout is always exactly `timeout_ms`
 - Blocking `waitpid()` after pipe EOF — zero zombie window
 - SIGTERM → 100ms grace → SIGKILL escalation in `kill_and_reap()`
+
+---
+
+## Log Statistics (logstat.c)
+
+`logstat.c` analyzes the bot log file using SSE4.2-accelerated processing.
+Compiled with `-msse4.2` flag (separate Makefile rule).
+
+### SSE4.2 newline counting
+
+Processes 16 bytes per iteration using `PCMPISTRM` instruction instead
+of a byte-by-byte loop:
+
+```
+needle: xmm0 = [0A 0A 0A 0A 0A 0A 0A 0A 0A 0A 0A 0A 0A 0A 0A 0A]  (16x '\n')
+input:  xmm1 = [M  a  y  _  0  6  _  1  4  :  3  2  \n X  X  X ]
+
+PCMPISTRM $0x00, xmm1, xmm0   →  mask = 0b0001000000000000
+PMOVMSKB  xmm0, eax           →  eax  = 4096
+POPCNT    eax,  eax           →  eax  = 1  (one newline found)
+```
+
+On a 1MB log file: ~65,000 SSE4.2 iterations vs ~1,000,000 scalar comparisons.
+
+### Scalar pass
+
+After newline counting, a scalar pass extracts metadata from each line
+using fixed offsets (format is guaranteed by our logger):
+
+```
+[2026-05-06 14:32:11.123] [ INFO ] [ NET ] message
+ ^offset 0                ^26      ^35
+ timestamp                level    tag
+```
+
+- **Hour** — extracted from offset 12-13 for per-hour histogram
+- **Level** — `strncmp` at offset 26 against `[ERROR ]`, `[ WARN ]`, etc.
+- **Tag** — `strncmp` at offset 35-36 against `NET`, `SYS`, `STATE`, etc.
+
+### Output (`/logstat`)
+
+```
+📊 Log Statistics
+
+File size : 1.2 MB
+Lines     : 8,421
+
+Levels
+  ERROR   : 2
+  WARN    : 14
+  INFO    : 7,893
+  DEBUG   : 512
+
+Tags
+  NET     : 4,102 (48%)
+  SYS     : 1,205 (14%)
+  STATE   : 987   (11%)
+  CMD     : 876   (10%)
+  CFG     : 541   (6%)
+
+Busiest   : 14:00-15:00 (342 lines)
+```
 
 ---
 
@@ -350,5 +426,8 @@ telegram_http.c — sendMessage API call
 - `/service start|stop|restart` — service management via Telegram
 - Alerts — bot notifies on service failure or high resource usage
 - Log filtering by time (`--since 1h`)
+- `/df` — disk usage quick view
+- `/top` — top processes by CPU/RAM
+- `/ssh keys` — show authorized SSH keys
 - Unit tests — TOTP RFC 6238 vectors, security.c, logs_filter.c
-- Prometheus metrics export
+- Prometheus metrics export (requires >2GB RAM)
