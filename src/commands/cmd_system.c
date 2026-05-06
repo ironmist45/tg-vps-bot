@@ -349,8 +349,10 @@ int cmd_logstat_v2(command_ctx_t *ctx)
     if (logstat_format(&result, buf, sizeof(buf)) != 0)
         return reply_error(ctx, "Failed to format statistics");
 
-    LOG_CMD_CTX(ctx, LOG_INFO, "logstat: analyzed %zu bytes, %ld lines",
-                result.file_size, result.total_lines);
+    LOG_CMD_CTX(ctx, LOG_INFO,
+        "logstat: analyzed %zu bytes, %ld lines, %ld errors, %ld warnings",
+        result.file_size, result.total_lines,
+        result.level_error, result.level_warn);
     METRICS_CMD(logstat);
     return reply_markdown(ctx, buf);
 }
