@@ -36,6 +36,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <stdint.h>
+#include <limits.h>
 
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
@@ -119,6 +120,12 @@ static int hmac_sha1(const uint8_t *key,  size_t key_len,
                      const uint8_t *msg,  size_t msg_len,
                      uint8_t        digest[20])
 {
+    /* Guard against narrowing: OpenSSL HMAC takes int lengths */
+    if (key_len > (size_t)INT_MAX || msg_len > (size_t)INT_MAX) {
+        LOG_SYS(LOG_ERROR, "totp: HMAC-SHA1 input too large");
+        return -1;
+    }
+
     unsigned int digest_len = 20;
 
     if (!HMAC(EVP_sha1(),
@@ -229,7 +236,8 @@ int totp_verify(const char *secret_b32, int input_code) {
     time_t now = time(NULL);
 
     for (int delta = -TOTP_WINDOW; delta <= TOTP_WINDOW; delta++) {
-        time_t t = now + (time_t)(delta * TOTP_STEP);
+        /* Cast each operand to time_t before multiply to avoid int overflow */
+        time_t t = now + (time_t)delta * (time_t)TOTP_STEP;
         int expected = 0;
 
         if (totp_generate(secret_b32, t, &expected) != 0)
