@@ -1,40 +1,8 @@
-/**
- * tg-bot - Telegram bot for system administration
- * 
- * utils.c - General-purpose utility functions
- * 
- * Provides common helper functions used throughout the codebase:
- *   - String manipulation (trim, safe copy)
- *   - Output formatting (code blocks for Telegram Markdown)
- *   - Number parsing (int, long)
- *   - Argument splitting
- *   - Network utilities (IP validation)
- * 
- * MIT License
- * 
- * Copyright (c) 2026 ironmist45
- * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- * 
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
+/* tg-bot — utils.c — General-purpose utility functions. MIT License © 2026 ironmist45 */
 
 #include "utils.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <string.h>
 #include <stdlib.h>
@@ -48,8 +16,8 @@
 
 /**
  * Trim leading whitespace from string
- * 
- * @param s  String to trim (modified in-place conceptually)
+ *
+ * @param s  String to trim
  * @return   Pointer to first non-whitespace character
  */
 static char *ltrim(char *s) {
@@ -59,8 +27,8 @@ static char *ltrim(char *s) {
 
 /**
  * Trim trailing whitespace from string (in-place)
- * 
- * @param s  String to trim (modified in-place)
+ *
+ * @param s  String to trim
  */
 static void rtrim(char *s) {
     char *back = s + strlen(s);
@@ -71,7 +39,7 @@ static void rtrim(char *s) {
 
 /**
  * Trim both leading and trailing whitespace from string
- * 
+ *
  * @param s  String to trim (modified in-place)
  * @return   Pointer to trimmed string
  */
@@ -87,7 +55,7 @@ char *trim(char *s) {
 
 /**
  * Safely copy string with overflow protection
- * 
+ *
  * @param dst       Destination buffer
  * @param dst_size  Size of destination buffer
  * @param src       Source string
@@ -112,20 +80,18 @@ int safe_copy(char *dst, size_t dst_size, const char *src) {
 // ============================================================================
 
 /**
- * Safely wrap text in Markdown code block with triple-backtick escaping
- * 
- * Escapes any "```" sequences in the source text to prevent breaking
- * the code block formatting.
- * 
+ * Wrap text in Markdown code block, escaping internal triple-backticks
+ *
+ * Minimum meaningful buffer: 8 bytes ("```\n\n```\0").
+ * Any "```" in src is replaced with "'''" to avoid breaking the block.
+ *
  * @param src   Source text
  * @param dst   Destination buffer
  * @param size  Size of destination buffer
  */
-void safe_code_block(const char *src,
-                     char *dst,
-                     size_t size)
+void safe_code_block(const char *src, char *dst, size_t size)
 {
-    if (!src || !dst || size == 0)
+    if (!src || !dst || size < 8)
         return;
 
     size_t used = 0;
@@ -135,20 +101,17 @@ void safe_code_block(const char *src,
     if (written < 0 || (size_t)written >= size)
         return;
 
-    used += written;
+    used += (size_t)written;
 
-    // Copy content, escaping internal triple backticks
-    for (size_t i = 0; src[i] && used < size - 5; i++) {
+    // Copy content, escaping internal triple backticks.
+    // Reserve 5 bytes: '\n' + "```" + '\0'
+    for (size_t i = 0; src[i] && used + 5 < size; i++) {
 
         // Protect against "```" inside the text (would break formatting)
-        if (src[i] == '`' &&
-            src[i + 1] &&
-            src[i + 2] &&
-            src[i + 1] == '`' &&
-            src[i + 2] == '`') {
+        if (src[i] == '`' && src[i+1] == '`' && src[i+2] == '`') {
 
-            // Replace with triple single quotes
-            if (used < size - 4) {
+            // Replace with triple single quotes — needs 3 bytes
+            if (used + 3 + 5 < size) {
                 dst[used++] = '\'';
                 dst[used++] = '\'';
                 dst[used++] = '\'';
@@ -162,18 +125,19 @@ void safe_code_block(const char *src,
     }
 
     // Ensure newline before closing block
-    if (used > 0 && dst[used - 1] != '\n') {
+    if (used > 0 && dst[used - 1] != '\n' && used + 1 < size) {
         dst[used++] = '\n';
     }
 
-    // Close code block
-    if (used < size - 4) {
+    // Close code block (3 bytes + null terminator guaranteed by size >= 8 guard)
+    if (used + 4 <= size) {
         dst[used++] = '`';
         dst[used++] = '`';
         dst[used++] = '`';
     }
 
-    dst[used] = '\0';
+    if (used < size)
+        dst[used] = '\0';
 }
 
 // ============================================================================
@@ -182,39 +146,40 @@ void safe_code_block(const char *src,
 
 /**
  * Parse string to long integer
- * 
+ *
  * @param str  String to parse
  * @param out  Pointer to store result
- * @return     0 on success, -1 on error
+ * @return     0 on success, -1 on error (invalid format or overflow)
  */
 int parse_long(const char *str, long *out) {
     if (!str || !out) return -1;
 
     char *end;
+    errno = 0;
     long val = strtol(str, &end, 10);
 
-    // Entire string must be consumed
-    if (*end != '\0') return -1;
+    if (*end != '\0' || errno == ERANGE)
+        return -1;
 
     *out = val;
     return 0;
 }
 
 /**
- * Parse string to positive integer
- * 
+ * Parse string to positive integer (> 0)
+ *
  * @param str  String to parse
  * @param out  Pointer to store result
- * @return     0 on success, -1 on error (invalid, negative, or too large)
+ * @return     0 on success, -1 on error (invalid, zero, negative, overflow)
  */
 int parse_int(const char *str, int *out) {
     if (!str || !out) return -1;
 
     char *end;
+    errno = 0;
     long val = strtol(str, &end, 10);
 
-    // Must be fully consumed, positive, and fit in int
-    if (*end != '\0' || val <= 0 || val > INT_MAX)
+    if (*end != '\0' || errno == ERANGE || val <= 0 || val > INT_MAX)
         return -1;
 
     *out = (int)val;
@@ -222,21 +187,25 @@ int parse_int(const char *str, int *out) {
 }
 
 /**
- * Parse string to non-negative integer (allows zero)
+ * Parse string to non-negative integer (>= 0)
  *
  * Unlike parse_int(), accepts 0 as a valid value.
  * Used for TOTP codes and other contexts where 0 is valid input.
  *
  * @param str  String to parse
  * @param out  Pointer to store result
- * @return     0 on success, -1 on error (invalid, negative, or too large)
+ * @return     0 on success, -1 on error (invalid, negative, overflow)
  */
 int parse_int_nonneg(const char *str, int *out) {
     if (!str || !out) return -1;
+
     char *end;
+    errno = 0;
     long val = strtol(str, &end, 10);
-    if (*end != '\0' || val < 0 || val > INT_MAX)
+
+    if (*end != '\0' || errno == ERANGE || val < 0 || val > INT_MAX)
         return -1;
+
     *out = (int)val;
     return 0;
 }
@@ -247,9 +216,9 @@ int parse_int_nonneg(const char *str, int *out) {
 
 /**
  * Split space-separated string into argument array
- * 
+ *
  * Modifies input string by inserting null terminators.
- * 
+ *
  * @param input     Input string (modified in-place)
  * @param argv      Output array of char pointers
  * @param max_args  Maximum number of arguments to extract
@@ -257,8 +226,9 @@ int parse_int_nonneg(const char *str, int *out) {
  */
 int split_args(char *input, char *argv[], int max_args) {
     int argc = 0;
+    char *saveptr = NULL;
 
-    char *token = strtok(input, " ");
+    char *token = strtok_r(input, " ", &saveptr);
     while (token) {
 
         if (argc >= max_args) {
@@ -266,7 +236,7 @@ int split_args(char *input, char *argv[], int max_args) {
         }
 
         argv[argc++] = token;
-        token = strtok(NULL, " ");
+        token = strtok_r(NULL, " ", &saveptr);
     }
 
     return argc;
@@ -278,7 +248,7 @@ int split_args(char *input, char *argv[], int max_args) {
 
 /**
  * Validate IPv4 address format
- * 
+ *
  * @param ip  String to validate
  * @return    1 if valid IPv4 address, 0 otherwise
  */
@@ -295,9 +265,10 @@ int is_safe_ip(const char *ip) {
 
 /**
  * Calculate elapsed milliseconds between two timestamps
- * @param start Start time from clock_gettime(CLOCK_MONOTONIC, ...)
- * @param end   End time from clock_gettime(CLOCK_MONOTONIC, ...)
- * @return Elapsed milliseconds
+ *
+ * @param start  Start time from clock_gettime(CLOCK_MONOTONIC, ...)
+ * @param end    End time from clock_gettime(CLOCK_MONOTONIC, ...)
+ * @return       Elapsed milliseconds
  */
 long elapsed_ms(struct timespec start, struct timespec end) {
     return (end.tv_sec - start.tv_sec) * 1000 +
