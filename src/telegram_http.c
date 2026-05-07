@@ -1,8 +1,4 @@
-/**
- * tg-bot - Telegram bot for system administration
- * telegram_http.c - Low-level HTTP communication implementation
- * MIT License - Copyright (c) 2026 ironmist45
- */
+/* tg-bot — telegram_http.c — Low-level HTTP communication. MIT License © 2026 ironmist45 */
 
 #include "telegram_http.h"
 #include "logger.h"
@@ -11,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <curl/curl.h>
 
 /*
@@ -46,9 +43,9 @@ typedef struct {
 } http_chunk_t;
 
 static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
-    /* libcurl may call callback with userp=NULL on request completion */
-    if (!userp) {
-        return size * nmemb;
+    /* Guard against overflow: size * nmemb must not wrap size_t */
+    if (size != 0 && nmemb > SIZE_MAX / size) {
+        return 0;
     }
 
     size_t real_size = size * nmemb;
@@ -71,15 +68,15 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 }
 
 static void setup_curl(CURL *curl) {
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT,          (long)TG_HTTP_TIMEOUT_SEC);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT,   (long)TG_CONNECT_TIMEOUT_SEC);
-    curl_easy_setopt(curl, CURLOPT_NOSIGNAL,         1L);
-    curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE,    1L);
-    curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,     HTTP_TCP_KEEPIDLE_SEC);
-    curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL,    HTTP_TCP_KEEPINTVL_SEC);
-    curl_easy_setopt(curl, CURLOPT_DNS_CACHE_TIMEOUT, HTTP_DNS_CACHE_SEC);   // DNS-кэш на 5 минут (работает с c-ares)
-    curl_easy_setopt(curl, CURLOPT_FORBID_REUSE,     0L);                    // Разрешаем libcurl переиспользовать существующее TCP-соединение (keep-alive)
-    curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT,    0L);                    // Не принуждаем создавать новое соединение — libcurl может использовать уже открытое, если оно доступно
+    (void)curl_easy_setopt(curl, CURLOPT_TIMEOUT,           (long)TG_HTTP_TIMEOUT_SEC);
+    (void)curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT,    (long)TG_CONNECT_TIMEOUT_SEC);
+    (void)curl_easy_setopt(curl, CURLOPT_NOSIGNAL,          1L);
+    (void)curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE,     1L);
+    (void)curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,      HTTP_TCP_KEEPIDLE_SEC);
+    (void)curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL,     HTTP_TCP_KEEPINTVL_SEC);
+    (void)curl_easy_setopt(curl, CURLOPT_DNS_CACHE_TIMEOUT, HTTP_DNS_CACHE_SEC);
+    (void)curl_easy_setopt(curl, CURLOPT_FORBID_REUSE,      0L);
+    (void)curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT,     0L);
 }
 
 int telegram_http_init(const char *token) {
@@ -120,15 +117,20 @@ int telegram_http_request(const char *method, const char *post_fields,
     setup_curl(curl);
 
     char url[URL_MAX];
-    snprintf(url, sizeof(url), "%s/%s", g_base_url, method);
+    int n = snprintf(url, sizeof(url), "%s/%s", g_base_url, method);
+    if (n < 0 || (size_t)n >= sizeof(url)) {
+        LOG_NET(LOG_ERROR, "URL truncated for method: %s", method);
+        curl_easy_cleanup(curl);
+        return -1;
+    }
 
     http_chunk_t chunk = {0};
 
-    curl_easy_setopt(curl, CURLOPT_URL,           url);
-    curl_easy_setopt(curl, CURLOPT_POST,           1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS,     post_fields);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,  write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA,      &chunk);
+    (void)curl_easy_setopt(curl, CURLOPT_URL,          url);
+    (void)curl_easy_setopt(curl, CURLOPT_POST,          1L);
+    (void)curl_easy_setopt(curl, CURLOPT_POSTFIELDS,    post_fields);
+    (void)curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    (void)curl_easy_setopt(curl, CURLOPT_WRITEDATA,     &chunk);
 
     CURLcode res = curl_easy_perform(curl);
 
@@ -139,8 +141,8 @@ int telegram_http_request(const char *method, const char *post_fields,
         return -1;
     }
 
-    if (need_response) {
-        if (out_data) *out_data = chunk.data;
+    if (need_response && out_data) {
+        *out_data = chunk.data;
         if (out_size) *out_size = chunk.size;
     } else {
         free(chunk.data);
