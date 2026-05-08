@@ -3,7 +3,6 @@
  * telegram_poll.h - Long polling API
  * MIT License - Copyright (c) 2026 ironmist45
  */
-
 #ifndef TELEGRAM_POLL_H
 #define TELEGRAM_POLL_H
 
@@ -23,5 +22,13 @@ int telegram_poll(void);
  * @return 16-bit poll_id (0000-FFFF), or 0 if not polling yet
  */
 unsigned short telegram_get_poll_id(void);
+
+/*
+ * Last known combined RSS of parent + child processes in KB.
+ * Updated by telegram_poll() after fork(), while both processes are alive.
+ * Read by selfcheck() in cmd_system.c to report memory usage in /start.
+ */
+extern long g_poll_rss_kb;
+extern int  g_poll_rss_procs;
 
 #endif // TELEGRAM_POLL_H
