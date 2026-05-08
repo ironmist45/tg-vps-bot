@@ -291,27 +291,30 @@ int logstat_analyze(const char *path, logstat_result_t *result)
         char *nl = memchr(p, '\n', (size_t)(end - p));
         size_t line_len = nl ? (size_t)(nl - p) : (size_t)(end - p);
 
-        if (line_len > 0) {
-            /* Extract hour */
-            int hour = extract_hour(p, line_len);
-            if (hour >= 0)
-                result->hour_counts[hour]++;
+        /*
+         * line_len is always > 0 here: the loop condition p < end guarantees
+         * that either nl > p or end > p, so both branches produce a positive value.
+         */
 
-            /* Extract level */
-            int level = extract_level(p, line_len);
-            switch (level) {
-                case 0: result->level_error++; break;
-                case 1: result->level_warn++;  break;
-                case 2: result->level_info++;  break;
-                case 3: result->level_debug++; break;
-                default: result->level_other++; break;
-            }
+        /* Extract hour */
+        int hour = extract_hour(p, line_len);
+        if (hour >= 0)
+            result->hour_counts[hour]++;
 
-            /* Extract tag */
-            int tag = extract_tag(p, line_len);
-            if (tag >= 0)
-                result->tags[tag].count++;
+        /* Extract level */
+        int level = extract_level(p, line_len);
+        switch (level) {
+            case 0: result->level_error++; break;
+            case 1: result->level_warn++;  break;
+            case 2: result->level_info++;  break;
+            case 3: result->level_debug++; break;
+            default: result->level_other++; break;
         }
+
+        /* Extract tag */
+        int tag = extract_tag(p, line_len);
+        if (tag >= 0)
+            result->tags[tag].count++;
 
         p = nl ? nl + 1 : end;
     }
