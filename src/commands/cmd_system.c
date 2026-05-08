@@ -14,6 +14,7 @@
 #include "logstat.h"
 #include "config.h"
 #include "metrics.h"
+#include "telegram_poll.h"
 
 #include <curl/curl.h>
 #include <openssl/opensslv.h>
@@ -22,7 +23,6 @@
 #include <ares.h>
 #include <ares_version.h>
 
-#include <dirent.h>
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
@@ -37,123 +37,33 @@ extern time_t g_start_time;
 // ============================================================================
 
 /*
- * Read VmRSS from a /proc/<pid>/status file.
- * Returns RSS in KB, or 0 on error.
- */
-static long read_rss_kb(const char *status_path)
-{
-    FILE *fp = fopen(status_path, "r");
-    if (!fp) return 0;
-
-    long rss = 0;
-    char line[128];
-    while (fgets(line, sizeof(line), fp)) {
-        if (strncmp(line, "VmRSS:", 6) == 0) {
-            sscanf(line + 6, "%ld", &rss);
-            break;
-        }
-    }
-    fclose(fp);
-    return rss;
-}
-
-/*
- * Sum RSS of parent process and any direct children (PPid == my_pid).
- *
- * Strategy:
- *   - Parent: read /proc/self/status directly — always present, instant.
- *   - Children: scan /proc/N/status filtering by PPid == getpid().
- *     The poll child is short-lived (about 1s per cycle); if alive at
- *     scan time its RSS is included, proc count reflects reality.
- *
- * Returns total RSS in KB and number of processes via out_procs.
- */
-static long get_total_rss_kb(int *out_procs)
-{
-    long  total  = 0;
-    int   procs  = 0;
-    pid_t my_pid = getpid();
-
-    /* Parent — read directly, always present */
-    long parent_rss = read_rss_kb("/proc/self/status");
-    if (parent_rss > 0) {
-        total += parent_rss;
-        procs++;
-    }
-
-    /* Children — scan /proc for processes with PPid == my_pid */
-    DIR *dir = opendir("/proc");
-    if (!dir) {
-        *out_procs = procs;
-        return total;
-    }
-
-    struct dirent *ent;
-    while ((ent = readdir(dir)) != NULL) {
-        /* Only numeric entries are PIDs */
-        if (ent->d_name[0] < '0' || ent->d_name[0] > '9')
-            continue;
-
-        char path[280];  /* "/proc/" (6) + d_name (255) + "/status" (7) + '\0' */
-        snprintf(path, sizeof(path), "/proc/%s/status", ent->d_name);
-
-        FILE *fp = fopen(path, "r");
-        if (!fp) continue;
-
-        pid_t ppid = 0;
-        long  rss  = 0;
-        char  line[128];
-
-        while (fgets(line, sizeof(line), fp)) {
-            if (strncmp(line, "PPid:", 5) == 0) {
-                sscanf(line + 5, "%d", &ppid);
-            } else if (strncmp(line, "VmRSS:", 6) == 0) {
-                sscanf(line + 6, "%ld", &rss);
-            }
-        }
-        fclose(fp);
-
-        if (ppid == my_pid && rss > 0) {
-            total += rss;
-            procs++;
-        }
-    }
-
-    closedir(dir);
-    *out_procs = procs;
-    return total;
-}
-
-/*
  * Run a lightweight self-diagnostic and format result into buf.
  *
  * Checks:
  *   - Log file is writable (access W_OK)
- *   - Total RSS across parent + child processes
+ *   - Combined RSS from g_poll_rss_kb / g_poll_rss_procs, sampled by
+ *     telegram_poll() right after fork() while both processes are alive.
  *
  * Output examples:
- *   "✅ OK (RSS: 8.9 MB, 1 proc)"
  *   "✅ OK (RSS: 16.1 MB, 2 procs)"
- *   "⚠️ log unavailable (RSS: 8.9 MB, 1 proc)"
+ *   "✅ OK (RSS: 8.9 MB, 1 proc)"
+ *   "⚠️ log unavailable (RSS: 16.1 MB, 2 procs)"
  */
 static void selfcheck(char *buf, size_t size)
 {
     /* Check log file writability */
     int log_ok = (access(g_cfg.log_file, W_OK) == 0);
 
-    /* Collect RSS across parent + children */
-    int  procs  = 0;
-    long rss_kb = get_total_rss_kb(&procs);
-
     const char *status = log_ok ? "✅ OK" : "⚠️ log unavailable";
 
-    if (rss_kb > 0) {
+    if (g_poll_rss_kb > 0) {
         snprintf(buf, size, "%s (RSS: %.1f MB, %d %s)",
                  status,
-                 (double)rss_kb / 1024.0,
-                 procs,
-                 procs == 1 ? "proc" : "procs");
+                 (double)g_poll_rss_kb / 1024.0,
+                 g_poll_rss_procs,
+                 g_poll_rss_procs == 1 ? "proc" : "procs");
     } else {
+        /* No RSS data yet (first /start before first poll cycle) */
         snprintf(buf, size, "%s", status);
     }
 }
