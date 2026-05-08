@@ -42,6 +42,7 @@ typedef struct {
     size_t size;
 } http_chunk_t;
 
+// cppcheck-suppress constParameterCallback
 static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
     /* Guard against overflow: size * nmemb must not wrap size_t */
     if (size != 0 && nmemb > SIZE_MAX / size) {
