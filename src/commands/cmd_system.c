@@ -37,20 +37,55 @@ extern time_t g_start_time;
 // ============================================================================
 
 /*
- * Scan /proc for all processes named "tg-bot" and sum their VmRSS.
+ * Read VmRSS from a /proc/<pid>/status file.
+ * Returns RSS in KB, or 0 on error.
+ */
+static long read_rss_kb(const char *status_path)
+{
+    FILE *fp = fopen(status_path, "r");
+    if (!fp) return 0;
+
+    long rss = 0;
+    char line[128];
+    while (fgets(line, sizeof(line), fp)) {
+        if (strncmp(line, "VmRSS:", 6) == 0) {
+            sscanf(line + 6, "%ld", &rss);
+            break;
+        }
+    }
+    fclose(fp);
+    return rss;
+}
+
+/*
+ * Sum RSS of parent process and any direct children (PPid == my_pid).
  *
- * Returns total RSS in kilobytes and the number of matching processes
- * via out-parameter. Returns 0 if /proc is not accessible.
+ * Strategy:
+ *   - Parent: read /proc/self/status directly — always present, instant.
+ *   - Children: scan /proc/*/status filtering by PPid == getpid().
+ *     The poll child is short-lived (~1s per cycle); if alive at scan
+ *     time its RSS is included, proc count reflects reality.
+ *
+ * Returns total RSS in KB and number of processes via out_procs.
  */
 static long get_total_rss_kb(int *out_procs)
 {
-    long  total = 0;
-    int   procs = 0;
+    long  total  = 0;
+    int   procs  = 0;
+    pid_t my_pid = getpid();
 
+    /* Parent — read directly, always present */
+    long parent_rss = read_rss_kb("/proc/self/status");
+    if (parent_rss > 0) {
+        total += parent_rss;
+        procs++;
+    }
+
+    /* Children — scan /proc for processes with PPid == my_pid */
     DIR *dir = opendir("/proc");
     if (!dir) {
-        *out_procs = 0;
-        return 0;
+        *out_procs = procs;
+        return total;
     }
 
     struct dirent *ent;
@@ -65,20 +100,20 @@ static long get_total_rss_kb(int *out_procs)
         FILE *fp = fopen(path, "r");
         if (!fp) continue;
 
-        int  is_tgbot = 0;
-        long rss      = 0;
-        char line[128];
+        pid_t ppid = 0;
+        long  rss  = 0;
+        char  line[128];
 
         while (fgets(line, sizeof(line), fp)) {
-            if (strncmp(line, "Name:", 5) == 0) {
-                is_tgbot = (strstr(line, "tg-bot") != NULL);
+            if (strncmp(line, "PPid:", 5) == 0) {
+                sscanf(line + 5, "%d", &ppid);
             } else if (strncmp(line, "VmRSS:", 6) == 0) {
                 sscanf(line + 6, "%ld", &rss);
             }
         }
         fclose(fp);
 
-        if (is_tgbot && rss > 0) {
+        if (ppid == my_pid && rss > 0) {
             total += rss;
             procs++;
         }
@@ -94,7 +129,7 @@ static long get_total_rss_kb(int *out_procs)
  *
  * Checks:
  *   - Log file is writable (access W_OK)
- *   - Total RSS across all tg-bot processes
+ *   - Total RSS across parent + child processes
  *
  * Output examples:
  *   "✅ OK (RSS: 8.9 MB, 1 proc)"
@@ -106,7 +141,7 @@ static void selfcheck(char *buf, size_t size)
     /* Check log file writability */
     int log_ok = (access(g_cfg.log_file, W_OK) == 0);
 
-    /* Collect RSS across all tg-bot processes */
+    /* Collect RSS across parent + children */
     int  procs  = 0;
     long rss_kb = get_total_rss_kb(&procs);
 
@@ -265,8 +300,8 @@ int cmd_health_v2(command_ctx_t *ctx)
  */
 int cmd_about_v2(command_ctx_t *ctx)
 {
-    time_t now = time(NULL);
-    long uptime = now - g_start_time;
+    time_t now    = time(NULL);
+    long   uptime = now - g_start_time;
 
     int days  = uptime / 86400;
     int hours = (uptime % 86400) / 3600;
