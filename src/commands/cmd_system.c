@@ -22,6 +22,7 @@
 #include <ares.h>
 #include <ares_version.h>
 
+#include <dirent.h>
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
@@ -32,43 +33,132 @@
 extern time_t g_start_time;
 
 // ============================================================================
+// SELFCHECK
+// ============================================================================
+
+/*
+ * Scan /proc for all processes named "tg-bot" and sum their VmRSS.
+ *
+ * Returns total RSS in kilobytes and the number of matching processes
+ * via out-parameter. Returns 0 if /proc is not accessible.
+ */
+static long get_total_rss_kb(int *out_procs)
+{
+    long  total = 0;
+    int   procs = 0;
+
+    DIR *dir = opendir("/proc");
+    if (!dir) {
+        *out_procs = 0;
+        return 0;
+    }
+
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != NULL) {
+        /* Only numeric entries are PIDs */
+        if (ent->d_name[0] < '0' || ent->d_name[0] > '9')
+            continue;
+
+        char path[64];
+        snprintf(path, sizeof(path), "/proc/%s/status", ent->d_name);
+
+        FILE *fp = fopen(path, "r");
+        if (!fp) continue;
+
+        int  is_tgbot = 0;
+        long rss      = 0;
+        char line[128];
+
+        while (fgets(line, sizeof(line), fp)) {
+            if (strncmp(line, "Name:", 5) == 0) {
+                is_tgbot = (strstr(line, "tg-bot") != NULL);
+            } else if (strncmp(line, "VmRSS:", 6) == 0) {
+                sscanf(line + 6, "%ld", &rss);
+            }
+        }
+        fclose(fp);
+
+        if (is_tgbot && rss > 0) {
+            total += rss;
+            procs++;
+        }
+    }
+
+    closedir(dir);
+    *out_procs = procs;
+    return total;
+}
+
+/*
+ * Run a lightweight self-diagnostic and format result into buf.
+ *
+ * Checks:
+ *   - Log file is writable (access W_OK)
+ *   - Total RSS across all tg-bot processes
+ *
+ * Output examples:
+ *   "✅ OK (RSS: 8.9 MB, 1 proc)"
+ *   "✅ OK (RSS: 16.1 MB, 2 procs)"
+ *   "⚠️ log unavailable (RSS: 8.9 MB, 1 proc)"
+ */
+static void selfcheck(char *buf, size_t size)
+{
+    /* Check log file writability */
+    int log_ok = (access(g_cfg.log_file, W_OK) == 0);
+
+    /* Collect RSS across all tg-bot processes */
+    int  procs  = 0;
+    long rss_kb = get_total_rss_kb(&procs);
+
+    const char *status = log_ok ? "✅ OK" : "⚠️ log unavailable";
+
+    if (rss_kb > 0) {
+        snprintf(buf, size, "%s (RSS: %.1f MB, %d %s)",
+                 status,
+                 (double)rss_kb / 1024.0,
+                 procs,
+                 procs == 1 ? "proc" : "procs");
+    } else {
+        snprintf(buf, size, "%s", status);
+    }
+}
+
+// ============================================================================
 // /start COMMAND (V2)
 // ============================================================================
 
 /**
  * Bot introduction and welcome message
- * 
+ *
  * Displays:
  *   - Bot name, version, codename
  *   - Personalized greeting (if username known)
- *   - System status summary (mini)
+ *   - Self-diagnostic (RSS, log file check)
  *   - Bot uptime
  *   - Quick navigation hints
- * 
+ *
  * @param ctx  Command context
  * @return     0 on success
  */
 int cmd_start_v2(command_ctx_t *ctx)
 {
-    // Get compact system status
-    char status[512];
-    if (system_get_status_mini(status, sizeof(status), ctx->req_id) != 0) {
-        snprintf(status, sizeof(status), "⚠️ System info unavailable");
-    }
+    /* Run selfcheck */
+    char check[64];
+    selfcheck(check, sizeof(check));
 
-    // Get bot uptime
+    /* Get bot uptime */
     char uptime[64];
     system_get_uptime_str(uptime, sizeof(uptime));
 
     LOG_CMD_CTX(ctx, LOG_INFO, "start: user opened bot");
     METRICS_CMD(start);
 
-    // Format welcome message
+    /* Format welcome message */
     char msg[512];
     snprintf(msg, sizeof(msg),
         "🚀 *%s v%s (%s)*\n\n"
         "Welcome%s%s!\n\n"
-        "*System:* OK\n"
+        "*System:* %s\n"
         "*Uptime:* %s\n\n"
         "👉 /help — commands\n"
         "👉 /status — full status\n"
@@ -76,6 +166,7 @@ int cmd_start_v2(command_ctx_t *ctx)
         APP_NAME, APP_VERSION, APP_CODENAME,
         ctx->username ? " @" : "",
         ctx->username ? ctx->username : "",
+        check,
         uptime
     );
 
@@ -88,7 +179,7 @@ int cmd_start_v2(command_ctx_t *ctx)
 
 /**
  * Display detailed system status
- * 
+ *
  * Shows comprehensive system information including:
  *   - OS and hardware info
  *   - CPU load averages (1m, 5m, 15m)
@@ -96,9 +187,9 @@ int cmd_start_v2(command_ctx_t *ctx)
  *   - Disk usage with progress bar
  *   - System uptime
  *   - Active user count
- * 
+ *
  * Output format: Markdown code block with ASCII progress bars
- * 
+ *
  * @param ctx  Command context
  * @return     0 on success, error reply on failure
  */
@@ -122,14 +213,14 @@ int cmd_status_v2(command_ctx_t *ctx)
 
 /**
  * Quick system health check (compact format)
- * 
+ *
  * Shows essential metrics with emoji heat indicators:
  *   - CPU load (🟢 normal, 🟡 warning, 🔴 critical)
  *   - Memory usage percentage
  *   - Disk usage percentage
  *   - System uptime
  *   - Bot metrics (commands, errors, performance, API stats)
- * 
+ *
  * @param ctx  Command context
  * @return     0 on success, error reply on failure
  */
@@ -158,7 +249,7 @@ int cmd_health_v2(command_ctx_t *ctx)
 
 /**
  * Display bot version and runtime information
- * 
+ *
  * Shows:
  *   - Application name, version, codename
  *   - Process ID (PID)
@@ -168,7 +259,7 @@ int cmd_health_v2(command_ctx_t *ctx)
  *   - libcurl version
  *   - OpenSSL version
  *   - cJSON version
- * 
+ *
  * @param ctx  Command context
  * @return     0 on success
  */
@@ -177,9 +268,9 @@ int cmd_about_v2(command_ctx_t *ctx)
     time_t now = time(NULL);
     long uptime = now - g_start_time;
 
-    int days = uptime / 86400;
+    int days  = uptime / 86400;
     int hours = (uptime % 86400) / 3600;
-    int mins = (uptime % 3600) / 60;
+    int mins  = (uptime % 3600) / 60;
 
     char msg[256];
     snprintf(msg, sizeof(msg),
@@ -200,6 +291,7 @@ int cmd_about_v2(command_ctx_t *ctx)
         curl_version(), OpenSSL_version(0),
         ares_version(NULL),
         CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
+
     LOG_CMD_CTX(ctx, LOG_INFO, "about: requested");
     METRICS_CMD(about);
 
@@ -212,15 +304,15 @@ int cmd_about_v2(command_ctx_t *ctx)
 
 /**
  * Network and processing latency test
- * 
+ *
  * Measures and reports:
  *   - Processing time: command handler execution time
  *   - Inbound latency: Telegram → Bot (estimated from message timestamp)
  *   - RTT (estimated): round-trip time Telegram → Bot → Telegram
  *   - Bot uptime
- * 
+ *
  * Note: Latency measurements are estimates due to clock skew.
- * 
+ *
  * @param ctx  Command context (uses msg_date for latency calculation)
  * @return     0 on success
  */
@@ -234,17 +326,17 @@ int cmd_ping_v2(command_ctx_t *ctx)
     // ------------------------------------------------------------------------
     long inbound_ms = -1;
     if (ctx->msg_date > 0) {
-        time_t now = time(NULL);
+        time_t now  = time(NULL);
         time_t diff = now - ctx->msg_date;
-        
-        // Защита от переполнения: если разница > LONG_MAX / 1000
+
+        /* Guard against overflow: diff * 1000 must fit in long */
         if (diff > LONG_MAX / 1000) {
             inbound_ms = LONG_MAX;
         } else {
             inbound_ms = (long)(diff * 1000);
         }
     }
-    
+
     // ------------------------------------------------------------------------
     // Get bot uptime
     // ------------------------------------------------------------------------
@@ -295,18 +387,18 @@ int cmd_ping_v2(command_ctx_t *ctx)
     // ------------------------------------------------------------------------
     const char *status_text;
     const char *status_emoji;
-    
-    if (processing_ms > 5000 || (inbound_ms > 10000)) {
-        status_text = "Slow";
+
+    if (processing_ms > 5000 || inbound_ms > 10000) {
+        status_text  = "Slow";
         status_emoji = "⚠️";
-    } else if (processing_ms > 1000 || (inbound_ms > 5000)) {
-        status_text = "Laggy";
+    } else if (processing_ms > 1000 || inbound_ms > 5000) {
+        status_text  = "Laggy";
         status_emoji = "🟡";
     } else {
-        status_text = "OK";
+        status_text  = "OK";
         status_emoji = "🟢";
     }
-    
+
     // ------------------------------------------------------------------------
     // Format response
     // ------------------------------------------------------------------------
@@ -354,5 +446,6 @@ int cmd_logstat_v2(command_ctx_t *ctx)
         result.file_size, result.total_lines,
         result.level_error, result.level_warn);
     METRICS_CMD(logstat);
+
     return reply_markdown(ctx, buf);
 }
