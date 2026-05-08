@@ -59,7 +59,7 @@ static long get_total_rss_kb(int *out_procs)
         if (ent->d_name[0] < '0' || ent->d_name[0] > '9')
             continue;
 
-        char path[64];
+        char path[280];  /* "/proc/" (6) + d_name (255) + "/status" (7) + '\0' */
         snprintf(path, sizeof(path), "/proc/%s/status", ent->d_name);
 
         FILE *fp = fopen(path, "r");
