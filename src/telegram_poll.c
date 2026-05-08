@@ -74,6 +74,14 @@ static int            g_offset_counter        = 0;
 static unsigned short g_poll_cycle            = 0;
 static unsigned short g_current_poll_id       = 0;
 
+/*
+ * Combined RSS of parent + child, sampled right after fork() while both
+ * processes are alive. Updated every poll cycle. Read by selfcheck() in
+ * cmd_system.c to report memory usage in /start without scanning /proc.
+ */
+long g_poll_rss_kb    = 0;
+int  g_poll_rss_procs = 0;
+
 // ============================================================================
 // ИНИЦИАЛИЗАЦИЯ
 // ============================================================================
@@ -84,6 +92,56 @@ void telegram_poll_init(void) {
 
 unsigned short telegram_get_poll_id(void) {
     return g_current_poll_id;
+}
+
+// ============================================================================
+// RSS SAMPLING
+// ============================================================================
+
+/*
+ * Read VmRSS from a /proc/<pid>/status file.
+ * Returns RSS in KB, or 0 on error.
+ */
+static long read_proc_rss_kb(pid_t pid)
+{
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%d/status", pid);
+
+    FILE *fp = fopen(path, "r");
+    if (!fp) return 0;
+
+    long rss = 0;
+    char line[128];
+    while (fgets(line, sizeof(line), fp)) {
+        if (strncmp(line, "VmRSS:", 6) == 0) {
+            sscanf(line + 6, "%ld", &rss);
+            break;
+        }
+    }
+    fclose(fp);
+    return rss;
+}
+
+/*
+ * Sample combined RSS of parent + child immediately after fork().
+ * Both processes are guaranteed alive at this point.
+ * Updates g_poll_rss_kb and g_poll_rss_procs.
+ */
+static void sample_rss(pid_t child_pid)
+{
+    long parent_rss = read_proc_rss_kb(getpid());
+    long child_rss  = read_proc_rss_kb(child_pid);
+
+    long  total = 0;
+    int   procs = 0;
+
+    if (parent_rss > 0) { total += parent_rss; procs++; }
+    if (child_rss  > 0) { total += child_rss;  procs++; }
+
+    if (total > 0) {
+        g_poll_rss_kb    = total;
+        g_poll_rss_procs = procs;
+    }
 }
 
 // ============================================================================
@@ -453,6 +511,15 @@ int telegram_poll(void) {
 
     // ===== РОДИТЕЛЬСКИЙ ПРОЦЕСС =====
     close(pipefd[1]);   /* write-конец закрываем немедленно */
+
+    // -----------------------------------------------------------------------
+    // Сэмплируем RSS пока оба процесса точно живы.
+    // Дочерний только что создан через fork() и ещё не завершился —
+    // это единственный момент когда можно надёжно прочитать его RSS.
+    // Результат сохраняется в g_poll_rss_kb / g_poll_rss_procs и
+    // читается selfcheck() при обработке команды /start.
+    // -----------------------------------------------------------------------
+    sample_rss(pid);
 
     // -----------------------------------------------------------------------
     // Ждём завершения дочернего через poll() на pipe.
