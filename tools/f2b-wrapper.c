@@ -1,18 +1,18 @@
 /**
  * tg-bot - Telegram bot for system administration
  * f2b-wrapper.c - Secure Fail2Ban wrapper for tg-bot
- * 
+ *
  * Provides a restricted interface to fail2ban-client for use by the bot.
  * Only allows:
  *   - status          (all jails)
  *   - status sshd     (specific jail)
  *   - set sshd banip <ip>
  *   - set sshd unbanip <ip>
- * 
+ *
  * All commands require root privileges.
  * IP addresses are validated before being passed to fail2ban-client.
  * Uses full path to fail2ban-client for sudo compatibility.
- * 
+ *
  * MIT License - Copyright (c) 2026 ironmist45
  */
 
@@ -27,7 +27,8 @@
 // CONSTANTS
 // ============================================================================
 
-#define F2B_CLIENT "/usr/bin/fail2ban-client"
+#define F2B_CLIENT          "/usr/bin/fail2ban-client"
+#define F2B_WRAPPER_VERSION "1.0"
 
 // ============================================================================
 // IP ADDRESS VALIDATION
@@ -35,7 +36,7 @@
 
 /**
  * Validate IPv4 address format
- * 
+ *
  * @param ip  String to validate
  * @return    1 if valid IPv4 address, 0 otherwise
  */
@@ -52,14 +53,25 @@ static int is_safe_ip(const char *ip) {
 
 int main(int argc, char *argv[]) {
     // ------------------------------------------------------------------------
+    // --version
+    // ------------------------------------------------------------------------
+    if (argc == 2 && strcmp(argv[1], "--version") == 0) {
+        printf("f2b-wrapper %s\n", F2B_WRAPPER_VERSION);
+        return 0;
+    }
+
+    // ------------------------------------------------------------------------
     // Validate argument count
     // ------------------------------------------------------------------------
     if (argc < 2) {
+        fprintf(stderr, "f2b-wrapper %s - Secure Fail2Ban wrapper for tg-bot\n\n",
+                F2B_WRAPPER_VERSION);
         fprintf(stderr, "Usage: f2b-wrapper <command> [args...]\n");
         fprintf(stderr, "Commands:\n");
         fprintf(stderr, "  status [jail]          - Show ban status\n");
         fprintf(stderr, "  set sshd banip <ip>    - Ban IP address\n");
         fprintf(stderr, "  set sshd unbanip <ip>  - Unban IP address\n");
+        fprintf(stderr, "  --version              - Print version\n");
         return 1;
     }
 
