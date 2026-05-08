@@ -22,7 +22,7 @@ jobs:
       # =========================
       - name: Cache static dependencies
         id: cache-deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: deps
           key: static-deps-openssl${{ env.VER_OPENSSL }}-cares${{ env.VER_CARES }}-curl${{ env.VER_CURL }}-cjson${{ env.VER_CJSON }}
