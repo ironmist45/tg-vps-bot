@@ -62,9 +62,9 @@ static long read_rss_kb(const char *status_path)
  *
  * Strategy:
  *   - Parent: read /proc/self/status directly — always present, instant.
- *   - Children: scan /proc/*/status filtering by PPid == getpid().
- *     The poll child is short-lived (~1s per cycle); if alive at scan
- *     time its RSS is included, proc count reflects reality.
+ *   - Children: scan /proc/N/status filtering by PPid == getpid().
+ *     The poll child is short-lived (about 1s per cycle); if alive at
+ *     scan time its RSS is included, proc count reflects reality.
  *
  * Returns total RSS in KB and number of processes via out_procs.
  */
