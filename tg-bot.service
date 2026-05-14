@@ -1,7 +1,7 @@
 [Unit]
 Description=Telegram Bot
-After=network.target
-
+After=network.target fail2ban.service
+Wants=fail2ban.service
 # No more than 3 restarts in 60 seconds — protection against restart loop
 StartLimitInterval=60
 StartLimitBurst=3
@@ -10,33 +10,25 @@ StartLimitBurst=3
 # sd_notify: bot reports readiness to systemd via NOTIFY_SOCKET
 Type=notify
 NotifyAccess=main
-
 # Run as unprivileged user
 User=tg-bot
 Group=tg-bot
-
 # Working directory for offset and state files
 WorkingDirectory=/var/lib/tg-bot
-
 ExecStart=/usr/local/bin/tg-bot --config /usr/local/etc/tgbot.conf
-
 # Auto-restart on failure, 3 second delay
 Restart=always
 RestartSec=3
-
 # Memory limit — two processes: main ~7MB RSS + curl child ~9MB (fork)
 MemoryAccounting=yes
 MemoryMax=128M
-
 # Time for graceful shutdown before SIGKILL
 TimeoutStopSec=10
-
 # Watchdog: if bot does not send WATCHDOG=1 within 60 seconds —
 # systemd will kill and restart the process.
 # One main loop iteration = up to 25s (long poll) + overhead.
 # 60 seconds provides double the margin.
 WatchdogSec=60
-
 # Security
 # NoNewPrivileges=false — required for sudo (journalctl, systemctl)
 NoNewPrivileges=false
@@ -46,7 +38,6 @@ ProtectSystem=no
 ProtectHome=no
 # Explicit list of directories with write access
 ReadWritePaths=/var/log /var/lib
-
 # Process output is redirected to log file (logrotate handles rotation)
 StandardOutput=file:/var/log/tg-bot.log
 StandardError=file:/var/log/tg-bot.log
