@@ -151,8 +151,12 @@ static void env_check_fail2ban(void) {
      * daemon being ready at bot startup. This prevents a race condition
      * on system boot where tg-bot starts before fail2ban is fully up.
      * --version only checks that the wrapper binary exists and is executable.
+     *
+     * Note: exec_command_internal always calls execv(sudo_path, argv), so
+     * sudo must be the first argument even for this lightweight check.
      */
     char *const args[] = {
+        (char *)g_cfg.sudo_path, "-n",
         (char *)g_cfg.f2b_wrapper_path,
         "--version",
         NULL
