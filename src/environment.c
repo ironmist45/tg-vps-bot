@@ -181,6 +181,7 @@ static void env_check_fail2ban(void) {
     }
 
     /* Log version string from wrapper output (e.g. "f2b-wrapper 1.0") */
+    if (out[0]) trim(out); /* Trim trailing newline from --version output before logging */
     LOG_SYS(LOG_INFO, "fail2ban-wrapper: OK (%s)", out[0] ? out : "unknown version");
 }
 
