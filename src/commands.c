@@ -1,8 +1,6 @@
-/**
- * tg-bot - Telegram bot for system administration
- *
- * commands.c - Command dispatcher and routing logic
- *
+/* tg-bot — commands.c — Command dispatcher and routing logic. MIT License © 2026 ironmist45 */
+
+/*
  * Routes incoming Telegram messages to command handlers (V2 style).
  *
  * Command table is defined statically; actual implementations are in:
@@ -20,28 +18,6 @@
  *   On /confirm:
  *     - If g_cfg.totp_secret is set  → validate via TOTP (RFC 6238)
  *     - If g_cfg.totp_secret is empty → validate via classic stateless token
- *
- * MIT License
- *
- * Copyright (c) 2026 ironmist45
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
  */
 
 #include "commands.h"
@@ -94,7 +70,7 @@ static void pending_clear(void) {
 
 /*
  * Check whether the pending slot has expired.
- * Returns 1 if expired (or inactive), 0 if still valid.
+ * Returns 1 if expired or inactive, 0 if still valid.
  */
 static int pending_expired(void) {
     if (!g_pending.active)
@@ -149,9 +125,9 @@ command_t commands[] = {
      * but hidden from /help. After full TOTP migration they will be removed.
      */
     {"/reboot",          cmd_reboot_v2,          "Reboot system", "System control", 1},
-    {"/reboot_confirm",  cmd_reboot_confirm_v2,  NULL,            NULL,     0},          /* hidden, legacy */
+    {"/reboot_confirm",  cmd_reboot_confirm_v2,  NULL,            NULL,     0},  /* hidden, legacy */
     {"/restart",         cmd_restart_v2,         "Restart bot",   "System control", 1},
-    {"/restart_confirm", cmd_restart_confirm_v2, NULL,            NULL,     0},          /* hidden, legacy */
+    {"/restart_confirm", cmd_restart_confirm_v2, NULL,            NULL,     0},  /* hidden, legacy */
 
     /* Universal confirmation handler — hidden from /help */
     {"/confirm", NULL, NULL, NULL, 0},  /* handled inline in dispatcher */
@@ -177,8 +153,7 @@ static int request_confirmation(command_ctx_t *ctx, const char *cmd_name) {
     g_pending.active     = 1;
     g_pending.chat_id    = ctx->chat_id;
     g_pending.expires_at = time(NULL) + ttl;
-    strncpy(g_pending.command, cmd_name, sizeof(g_pending.command) - 1);
-    g_pending.command[sizeof(g_pending.command) - 1] = '\0';
+    safe_copy(g_pending.command, sizeof(g_pending.command), cmd_name);
 
     if (g_cfg.totp_secret[0] != '\0') {
         /* TOTP flow */
@@ -276,9 +251,7 @@ static int handle_confirm(command_ctx_t *ctx) {
             ctx->req_id, g_pending.command);
 
     char confirmed_cmd[32];
-    strncpy(confirmed_cmd, g_pending.command,
-            sizeof(confirmed_cmd) - 1);
-    confirmed_cmd[sizeof(confirmed_cmd) - 1] = '\0';
+    safe_copy(confirmed_cmd, sizeof(confirmed_cmd), g_pending.command);
 
     pending_clear();  /* Clear before executing to prevent replay */
 
@@ -340,8 +313,9 @@ int commands_handle(const char *text,
     char *argv[MAX_ARGS];
     int argc = split_args(buffer, argv, MAX_ARGS);
 
-    if (argc > MAX_ARGS) {
-        LOG_SEC(LOG_WARN, "Too many arguments");
+    /* split_args returns -1 when argument count exceeds max_args */
+    if (argc < 0) {
+        LOG_SEC(LOG_WARN, "Too many arguments in command");
         snprintf(response, resp_size, "Too many arguments");
         return -1;
     }
@@ -357,15 +331,23 @@ int commands_handle(const char *text,
         return -1;
     }
 
-    /* Build args string */
+    /*
+     * Build args string from argv[1..argc-1].
+     * Use a pointer-based approach to avoid O(n²) strncat in a loop.
+     */
     char args_buffer[512] = {0};
     if (argc > 1) {
+        size_t pos = 0;
         for (int j = 1; j < argc; j++) {
-            if (j > 1) strncat(args_buffer, " ",
-                               sizeof(args_buffer) - strlen(args_buffer) - 1);
-            strncat(args_buffer, argv[j],
-                    sizeof(args_buffer) - strlen(args_buffer) - 1);
+            if (j > 1 && pos < sizeof(args_buffer) - 1)
+                args_buffer[pos++] = ' ';
+            size_t rem = sizeof(args_buffer) - pos - 1;
+            size_t len = strlen(argv[j]);
+            if (len > rem) len = rem;
+            memcpy(args_buffer + pos, argv[j], len);
+            pos += len;
         }
+        args_buffer[pos] = '\0';
     }
 
     /* Build context */
