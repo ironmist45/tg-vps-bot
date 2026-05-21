@@ -216,7 +216,7 @@ void config_log(const config_t *cfg) {
     LOG_CFG(LOG_INFO, "LOG_FILE: %s",    cfg->log_file);
     LOG_CFG(LOG_INFO, "LOG_LEVEL: %s",   logger_level_to_string(cfg->log_level));
     LOG_CFG(LOG_INFO, "TOTP: %s",
-            cfg->totp_secret[0] != '\0' ? "enabled" : "disabled");
+            cfg->totp_secret[0] != '\0' ? "enabled" : "disabled (token flow)");
     LOG_CFG(LOG_INFO, "TOTP_SETUP: %s",
             cfg->totp_setup_enabled ? "enabled" : "disabled");
 
