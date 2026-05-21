@@ -1,14 +1,11 @@
-/**
- * tg-bot - Telegram bot for system administration
- * exec.c - External command execution with timeout and capture
- *
+/* tg-bot — exec.c — External command execution with timeout and capture. MIT License © 2026 ironmist45 */
+
+/*
  * Features:
  *   - Timeout protection (prevents hung processes)
  *   - Output capture (stdout/stderr)
  *   - Non-blocking I/O with select() and deadline-based timeout
  *   - Graceful termination (SIGTERM → SIGKILL escalation)
- *
- * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #define _GNU_SOURCE
@@ -75,7 +72,7 @@ int exec_check_cmd(char *const argv[],
                    exec_result_t *res)
 {
     int rc = exec_command(argv, output, size, opts, res);
-    if (rc != 0)      return 0;
+    if (rc != 0)           return 0;
     if (!exec_success(res)) return 0;
     return 1;
 }
@@ -105,13 +102,16 @@ static void exec_result_fail(exec_result_t *r, exec_status_t status)
  *
  * Escalation: SIGTERM → 100ms grace → SIGKILL → blocking waitpid.
  * Guarantees no zombie is left behind.
+ *
+ * kill() return values are intentionally ignored — ESRCH means the
+ * process already exited, which is fine.
  */
 static void kill_and_reap(pid_t pid, FILE *fp,
                            int log_enabled, const char *cmdline)
 {
-    kill(pid, SIGTERM);
+    (void)kill(pid, SIGTERM);
     usleep(100000);     /* 100ms grace for SIGTERM */
-    kill(pid, SIGKILL);
+    (void)kill(pid, SIGKILL);
 
     if (fp) fclose(fp); /* closes underlying fd before waitpid */
 
@@ -320,6 +320,12 @@ static int exec_command_internal(char *const argv[],
         }
         close(pipefd[0]);
         close(pipefd[1]);
+        /*
+         * All commands in this bot run via sudo — argv[0] is conventionally
+         * the sudo path and argv[1..] are the actual command and arguments.
+         * execv always uses g_cfg.sudo_path as the executable regardless of
+         * what argv[0] contains, so callers must build argv accordingly.
+         */
         execv(g_cfg.sudo_path, argv);
         _exit(127);
     }
@@ -331,12 +337,13 @@ static int exec_command_internal(char *const argv[],
 
     FILE *fp = fdopen(pipefd[0], "r");
     if (!fp) {
+        /* fdopen failed — fd not owned by FILE yet, close manually */
         close(pipefd[0]);
         clock_gettime(CLOCK_MONOTONIC, &t_end);
         if (result) result->duration_ms = elapsed_ms(t_start, t_end);
         exec_result_fail(result, EXEC_READ_FAILED);
         g_metrics.err_exec++;
-        kill(pid, SIGKILL);
+        (void)kill(pid, SIGKILL);
         waitpid(pid, NULL, 0);
         return -1;
     }
@@ -349,6 +356,10 @@ static int exec_command_internal(char *const argv[],
      * Compute an absolute deadline once. Every select() call below
      * receives the *remaining* time until this deadline, so the total
      * wall-clock budget is always exactly timeout_ms.
+     *
+     * tv_nsec can overflow by at most one second (t_start.tv_nsec up to
+     * 999999999 ns + up to 999000000 ns from timeout_ms % 1000), so a
+     * single if-correction is sufficient — no loop needed.
      */
     struct timespec deadline = t_start;
     deadline.tv_sec  += timeout_ms / 1000;
