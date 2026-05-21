@@ -1,8 +1,6 @@
-/**
- * tg-bot - Telegram bot for system administration
- *
- * config.c - Configuration file parsing and validation
- *
+/* tg-bot — config.c — Configuration file parsing and validation. MIT License © 2026 ironmist45 */
+
+/*
  * Loads and parses the bot configuration from a key=value file.
  * Supports case-insensitive keys and provides sensible defaults
  * for optional parameters.
@@ -14,28 +12,6 @@
  *   TOKEN_TTL    - Confirmation token TTL in seconds (default: 60)
  *   LOG_LEVEL    - Logging level: ERROR, WARN, INFO, DEBUG (default: INFO)
  *   TOTP_SECRET  - Base32 TOTP secret for 2FA (optional, default: disabled)
- *
- * MIT License
- *
- * Copyright (c) 2026 ironmist45
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
  */
 
 #include "config.h"
@@ -49,7 +25,7 @@
 #include <strings.h>  /* strcasecmp */
 
 /* Maximum length of a single configuration line */
-#define LINE_MAX_LEN 512
+#define CONFIG_LINE_MAX 512
 
 // ============================================================================
 // CONFIGURATION LOADING
@@ -82,16 +58,16 @@ int config_load(const char *path, config_t *cfg) {
     safe_copy(cfg->f2b_wrapper_path, sizeof(cfg->f2b_wrapper_path), "/usr/local/bin/f2b-wrapper");
 
     /* TOTP disabled by default */
-    cfg->totp_secret[0] = '\0';
-    cfg->totp_setup_enabled = 0;  /* TOTP Setup disabled by default */
+    cfg->totp_secret[0]     = '\0';
+    cfg->totp_setup_enabled = 0;
 
-    char line[LINE_MAX_LEN];
+    char line[CONFIG_LINE_MAX];
     int  line_num = 0;
 
     while (fgets(line, sizeof(line), f)) {
         line_num++;
 
-        line[strcspn(line, "\n")] = 0;
+        line[strcspn(line, "\n")] = '\0';
 
         char *str = trim(line);
 
@@ -109,10 +85,17 @@ int config_load(const char *path, config_t *cfg) {
         char *key   = trim(str);
         char *value = trim(eq + 1);
 
-        key[strcspn(key, "\r")]     = 0;
-        value[strcspn(value, "\r")] = 0;
+        key[strcspn(key, "\r")]     = '\0';
+        value[strcspn(value, "\r")] = '\0';
 
-        LOG_CFG(LOG_DEBUG, "line=%d key='%s' value='%s'", line_num, key, value);
+        /*
+         * Mask sensitive values in debug output — TOKEN and TOTP_SECRET
+         * must never appear in log files even at DEBUG level.
+         */
+        int is_sensitive = (strcasecmp(key, "TOKEN")       == 0 ||
+                            strcasecmp(key, "TOTP_SECRET") == 0);
+        LOG_CFG(LOG_DEBUG, "line=%d key='%s' value='%s'",
+                line_num, key, is_sensitive ? "***" : value);
 
         if (strcasecmp(key, "TOKEN") == 0) {
             if (safe_copy(cfg->token, sizeof(cfg->token), value) != 0) {
@@ -160,7 +143,6 @@ int config_load(const char *path, config_t *cfg) {
              * rather than getting a cryptic error at confirmation time.
              */
             if (value[0] == '\0') {
-                /* Explicit empty value — TOTP disabled */
                 cfg->totp_secret[0] = '\0';
                 LOG_CFG(LOG_DEBUG, "TOTP_SECRET is empty — TOTP 2FA disabled");
             } else if (totp_validate_secret(value) != 0) {
@@ -203,6 +185,7 @@ int config_load(const char *path, config_t *cfg) {
         }
     }
 
+    /* fclose before validation — file is fully parsed at this point */
     fclose(f);
 
     /* Validate required fields */
@@ -228,14 +211,20 @@ int config_load(const char *path, config_t *cfg) {
 
 void config_log(const config_t *cfg) {
     LOG_CFG(LOG_INFO, "===== CONFIG =====");
-    LOG_CFG(LOG_INFO, "CHAT_ID: %ld", cfg->chat_id);
-    LOG_CFG(LOG_INFO, "TOKEN_TTL: %d", cfg->token_ttl);
-    LOG_CFG(LOG_INFO, "LOG_FILE: %s", cfg->log_file);
-    LOG_CFG(LOG_INFO, "LOG_LEVEL: %s", logger_level_to_string(cfg->log_level));
+    LOG_CFG(LOG_INFO, "CHAT_ID: %ld",    cfg->chat_id);
+    LOG_CFG(LOG_INFO, "TOKEN_TTL: %d",   cfg->token_ttl);
+    LOG_CFG(LOG_INFO, "LOG_FILE: %s",    cfg->log_file);
+    LOG_CFG(LOG_INFO, "LOG_LEVEL: %s",   logger_level_to_string(cfg->log_level));
     LOG_CFG(LOG_INFO, "TOTP: %s",
-            cfg->totp_secret[0] != '\0' ? "enabled" : "disabled (token flow)");
+            cfg->totp_secret[0] != '\0' ? "enabled" : "disabled");
     LOG_CFG(LOG_INFO, "TOTP_SETUP: %s",
             cfg->totp_setup_enabled ? "enabled" : "disabled");
+
+    /* Utility paths — useful for diagnosing permission or path issues */
+    LOG_CFG(LOG_DEBUG, "SUDO_PATH: %s",        cfg->sudo_path);
+    LOG_CFG(LOG_DEBUG, "SYSTEMCTL_PATH: %s",   cfg->systemctl_path);
+    LOG_CFG(LOG_DEBUG, "JOURNALCTL_PATH: %s",  cfg->journalctl_path);
+    LOG_CFG(LOG_DEBUG, "F2B_WRAPPER_PATH: %s", cfg->f2b_wrapper_path);
 }
 
 // ============================================================================
@@ -260,13 +249,11 @@ int config_reload(const char *path, config_t *cfg) {
     LOG_STATE(LOG_INFO, "Reload config");
 
     config_t new_cfg;
-    if (config_load(path, &new_cfg) != 0) {
+    if (config_load(path, &new_cfg) != 0)
         return -1;
-    }
 
-    if (strcmp(cfg->log_file, new_cfg.log_file) != 0) {
+    if (strcmp(cfg->log_file, new_cfg.log_file) != 0)
         logger_reopen(new_cfg.log_file);
-    }
 
     logger_set_level(new_cfg.log_level);
     security_set_allowed_chat(new_cfg.chat_id);
