@@ -1,38 +1,14 @@
-/**
- * tg-bot - Telegram bot for system administration
- * 
- * lifecycle.c - Process lifecycle management
- * 
+/* tg-bot — lifecycle.c — Process lifecycle management. MIT License © 2026 ironmist45 */
+
+/*
  * Handles:
- *   - Signal handlers (SIGHUP, SIGTERM, SIGINT)
+ *   - Signal handlers (SIGHUP, SIGTERM, SIGINT, SIGUSR1)
  *   - Graceful shutdown sequence
  *   - System reboot and process restart logic
  *   - Uptime tracking and logging
- * 
+ *
  * This module centralizes all shutdown/restart logic, keeping main.c clean
  * and focused on orchestration.
- * 
- * MIT License
- * 
- * Copyright (c) 2026 ironmist45
- * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- * 
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
  */
 
 #include "environment.h"
@@ -48,53 +24,66 @@
 #include <string.h>
 #include <sys/reboot.h>
 #include <time.h>
-#include <stdlib.h>   // ← используется для getenv()
+#include <stdlib.h>
 
-// ===== Глобальные переменные =====
-time_t g_start_time;
-volatile sig_atomic_t g_shutdown_requested = 0;
-volatile sig_atomic_t g_reload_config = 0;
-volatile sig_atomic_t g_rotate_log   = 0;
-long g_reboot_requested_by = 0;
+// ============================================================================
+// GLOBAL STATE
+// ============================================================================
 
-// ===== Внутренние статические переменные (ранее - static - экспортируем в telegram.c)=====
-volatile sig_atomic_t g_signal_received = 0;
-// ===== Глобальные переменные (экспортируем для main.c и telegram.c) =====
+time_t                g_start_time          = 0;
+volatile sig_atomic_t g_shutdown_requested  = 0;
+volatile sig_atomic_t g_reload_config       = 0;
+volatile sig_atomic_t g_rotate_log          = 0;
+volatile sig_atomic_t g_signal_received     = 0;
+long                  g_reboot_requested_by = 0;
 
-// ===== Прототипы внутренних функций =====
+// ============================================================================
+// FORWARD DECLARATIONS
+// ============================================================================
+
 static void handle_sighup(int sig);
 static void handle_sigusr1(int sig);
 static void handle_sigterm(int sig);
 static void graceful_shutdown(void);
 
-// ===== Реализация =====
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
 
 void lifecycle_init(void) {
-    g_start_time = time(NULL);
-    g_shutdown_requested = 0;
-    g_reload_config = 0;
-    g_rotate_log    = 0;
+    g_start_time          = time(NULL);
+    g_shutdown_requested  = 0;
+    g_reload_config       = 0;
+    g_rotate_log          = 0;
+    g_signal_received     = 0;
     g_reboot_requested_by = 0;
-    g_signal_received = 0;
 }
 
 void lifecycle_register_handlers(void) {
     struct sigaction sa = {0};
     sa.sa_handler = handle_sighup;
-    sa.sa_flags = SA_RESTART;
-    sigaction(SIGHUP, &sa, NULL);
+    sa.sa_flags   = SA_RESTART;
+    if (sigaction(SIGHUP, &sa, NULL) != 0)
+        LOG_SYS(LOG_ERROR, "sigaction SIGHUP failed: errno=%d", errno);
 
     struct sigaction sa_term = {0};
     sa_term.sa_handler = handle_sigterm;
-    sa_term.sa_flags = 0;
-    sigaction(SIGTERM, &sa_term, NULL);
-    sigaction(SIGINT, &sa_term, NULL);
+    sa_term.sa_flags   = 0;
+    if (sigaction(SIGTERM, &sa_term, NULL) != 0)
+        LOG_SYS(LOG_ERROR, "sigaction SIGTERM failed: errno=%d", errno);
+    if (sigaction(SIGINT, &sa_term, NULL) != 0)
+        LOG_SYS(LOG_ERROR, "sigaction SIGINT failed: errno=%d", errno);
 
     struct sigaction sa_usr1 = {0};
     sa_usr1.sa_handler = handle_sigusr1;
-    sa_usr1.sa_flags = SA_RESTART;
-    sigaction(SIGUSR1, &sa_usr1, NULL);
+    sa_usr1.sa_flags   = SA_RESTART;
+    if (sigaction(SIGUSR1, &sa_usr1, NULL) != 0)
+        LOG_SYS(LOG_ERROR, "sigaction SIGUSR1 failed: errno=%d", errno);
 }
+
+// ============================================================================
+// LIFECYCLE QUERIES
+// ============================================================================
 
 int lifecycle_shutdown_requested(void) {
     return g_shutdown_requested != 0 || g_signal_received != 0;
@@ -120,26 +109,33 @@ void lifecycle_clear_reload(void) {
 void lifecycle_request_shutdown(int mode, long requested_by) {
     if (g_signal_received) return;
     g_signal_received = 1;
-    
-    g_shutdown_requested = mode;
+
+    g_shutdown_requested  = mode;
     g_reboot_requested_by = requested_by;
-    
-    LOG_SYS(LOG_WARN, "Shutdown requested (mode=%d) by chat_id=%ld", 
+
+    LOG_SYS(LOG_WARN, "Shutdown requested (mode=%d) by chat_id=%ld",
             mode, requested_by);
 }
 
 static void lifecycle_log_uptime(void) {
-    time_t now = time(NULL);
-    long uptime = now - g_start_time;
+    time_t now    = time(NULL);
+    long   uptime = now - g_start_time;
 
-    int days = uptime / 86400;
+    int days  = uptime / 86400;
     int hours = (uptime % 86400) / 3600;
-    int mins = (uptime % 3600) / 60;
+    int mins  = (uptime % 3600) / 60;
 
     LOG_SYS(LOG_INFO, "Uptime: %dd %dh %dm", days, hours, mins);
 }
 
-// ===== Обработчики сигналов =====
+// ============================================================================
+// SIGNAL HANDLERS
+//
+// Only async-signal-safe operations are permitted here (POSIX).
+// Logging (fprintf, snprintf) is NOT async-signal-safe — all logging
+// is deferred to the main loop which checks g_signal_received /
+// g_shutdown_requested after each poll iteration.
+// ============================================================================
 
 static void handle_sigusr1(int sig) {
     (void)sig;
@@ -153,22 +149,23 @@ static void handle_sighup(int sig) {
 
 static void handle_sigterm(int sig) {
     (void)sig;
-
     if (g_signal_received) return;
-    g_signal_received = 1;
-
-    LOG_SYS(LOG_WARN, "Received SIGTERM (PID=%d), shutting down...", getpid());
-    g_shutdown_requested = SHUTDOWN_STOP;  // ← 0 = обычный выход
+    g_signal_received    = 1;
+    g_shutdown_requested = SHUTDOWN_STOP;
+    /* Logging deferred to main loop — LOG_SYS is not async-signal-safe */
 }
 
-// ===== Graceful shutdown =====
+// ============================================================================
+// GRACEFUL SHUTDOWN
+// ============================================================================
 
 static void graceful_shutdown(void) {
+    /* Single-process, single-threaded — no concurrent access to done */
     static int done = 0;
     if (done) return;
     done = 1;
 
-    // Блокируем сигналы на время shutdown
+    /* Block signals during shutdown to avoid re-entrant handling */
     sigset_t mask, oldmask;
     sigemptyset(&mask);
     sigaddset(&mask, SIGTERM);
@@ -177,7 +174,6 @@ static void graceful_shutdown(void) {
 
     LOG_SYS(LOG_INFO, "Graceful shutdown: stopping services...");
 
-    // Сохраняем оффсет
     long offset = telegram_get_last_offset();
     LOG_STATE(LOG_INFO, "Saving offset: %ld", offset);
 
@@ -187,7 +183,7 @@ static void graceful_shutdown(void) {
 
     LOG_SYS(LOG_INFO, "Flushing logs...");
     fflush(NULL);
-    
+
     LOG_SYS(LOG_INFO, "Shutdown sequence complete");
     fflush(NULL);
     sync();
@@ -195,17 +191,20 @@ static void graceful_shutdown(void) {
     sigprocmask(SIG_SETMASK, &oldmask, NULL);
 }
 
-// ===== Основная функция shutdown =====
+// ============================================================================
+// SHUTDOWN HANDLER
+// ============================================================================
 
 void lifecycle_handle_shutdown(void) {
     const char *mode =
-        (g_shutdown_requested == SHUTDOWN_REBOOT)  ? "reboot" :
+        (g_shutdown_requested == SHUTDOWN_REBOOT)  ? "reboot"  :
         (g_shutdown_requested == SHUTDOWN_RESTART) ? "restart" :
-        "stop";  // SHUTDOWN_STOP
+        "stop";
 
     LOG_SYS(LOG_INFO, "Shutdown handler entered (%s)", mode);
     LOG_SYS(LOG_DEBUG, "shutdown mode raw=%d", g_shutdown_requested);
 
+    /* Single-process, single-threaded — no concurrent access to handled */
     static int handled = 0;
     if (handled) {
         LOG_SYS(LOG_DEBUG, "handle_shutdown already executed");
@@ -220,36 +219,38 @@ void lifecycle_handle_shutdown(void) {
     if (g_shutdown_requested == SHUTDOWN_REBOOT) {
         LOG_SYS(LOG_WARN, "Reboot requested");
 
-        if (g_reboot_requested_by != 0) {
+        if (g_reboot_requested_by != 0)
             LOG_SYS(LOG_INFO, "Requested by chat_id=%ld", g_reboot_requested_by);
-        }
 
         lifecycle_log_uptime();
         graceful_shutdown();
 
         clock_gettime(CLOCK_MONOTONIC, &end);
-        long ms = elapsed_ms(start, end);
-
-        LOG_SYS(LOG_INFO, "Reboot took %ld ms", ms);
+        LOG_SYS(LOG_INFO, "Reboot took %ld ms", elapsed_ms(start, end));
         LOG_SYS(LOG_WARN, "Rebooting via reboot(RB_AUTOBOOT)...");
-        
+
+        /* Close logger before reboot — no more logging after this point */
         logger_close();
         fflush(NULL);
         sync();
 
         if (reboot(RB_AUTOBOOT) != 0) {
-            LOG_SYS(LOG_ERROR, "reboot() failed: errno=%d (%s)", 
+            /*
+             * logger is already closed — write directly to stderr so the
+             * error is visible in the systemd journal.
+             */
+            fprintf(stderr, "reboot() failed: errno=%d (%s)\n",
                     errno, strerror(errno));
 
             if (env_is_ci()) {
-                LOG_SYS(LOG_INFO, "Skipping systemctl reboot (CI environment)");
+                fprintf(stderr, "Skipping systemctl reboot (CI environment)\n");
                 return;
             }
-            
-            LOG_SYS(LOG_WARN, "Fallback: systemctl reboot");
-            fflush(NULL);
+
+            fprintf(stderr, "Fallback: systemctl reboot\n");
+            fflush(stderr);
             execl(g_cfg.systemctl_path, "systemctl", "reboot", NULL);
-            LOG_SYS(LOG_ERROR, "fallback exec failed: errno=%d (%s)", 
+            fprintf(stderr, "fallback exec failed: errno=%d (%s)\n",
                     errno, strerror(errno));
         }
         return;
@@ -259,41 +260,37 @@ void lifecycle_handle_shutdown(void) {
     if (g_shutdown_requested == SHUTDOWN_RESTART) {
         LOG_SYS(LOG_WARN, "Restart requested");
 
-        if (g_reboot_requested_by != 0) {
+        if (g_reboot_requested_by != 0)
             LOG_SYS(LOG_INFO, "Requested by chat_id=%ld", g_reboot_requested_by);
-        }
 
         lifecycle_log_uptime();
         graceful_shutdown();
 
         clock_gettime(CLOCK_MONOTONIC, &end);
-        long ms = elapsed_ms(start, end);
+        LOG_SYS(LOG_INFO, "Restart took %ld ms", elapsed_ms(start, end));
 
-        LOG_SYS(LOG_INFO, "Restart took %ld ms", ms);
-        
+        /* Close logger before exec — no more logging after this point */
         logger_close();
         fflush(NULL);
         sync();
 
         if (env_is_ci()) {
-            LOG_SYS(LOG_INFO, "Skipping systemctl restart (CI environment)");
+            fprintf(stderr, "Skipping systemctl restart (CI environment)\n");
             return;
         }
 
         execl(g_cfg.systemctl_path, "systemctl", "restart", "tg-bot", NULL);
-        LOG_SYS(LOG_ERROR, "exec restart failed: errno=%d (%s)", 
+        fprintf(stderr, "exec restart failed: errno=%d (%s)\n",
                 errno, strerror(errno));
         return;
     }
 
-    // ===== STOP (SIGTERM от systemd) =====
+    // ===== STOP (SIGTERM from systemd or manual) =====
     lifecycle_log_uptime();
     graceful_shutdown();
-    
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    long ms = elapsed_ms(start, end);
 
-    LOG_SYS(LOG_INFO, "Shutdown took %ld ms", ms);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    LOG_SYS(LOG_INFO, "Shutdown took %ld ms", elapsed_ms(start, end));
     LOG_SYS(LOG_INFO, "Bot stopped by signal");
     fflush(NULL);
     exit(0);
