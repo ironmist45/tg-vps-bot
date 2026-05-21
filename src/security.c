@@ -1,8 +1,6 @@
-/**
- * tg-bot - Telegram bot for system administration
- *
- * security.c - Access control and token-based confirmation
- *
+/* tg-bot — security.c — Access control and token-based confirmation. MIT License © 2026 ironmist45 */
+
+/*
  * Provides:
  *   - Single-user access control (chat_id validation)
  *   - Input sanitization (control character filtering)
@@ -10,8 +8,6 @@
  *   - Stateless reboot tokens (confirmation for critical actions)
  *   - Bruteforce protection (temporary block after failed attempts)
  *   - TOTP status reporting in security_init()
- *
- * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #include "security.h"
@@ -225,15 +221,21 @@ int security_rate_limit(void) {
 /*
  * Compute the raw hash component for a (chat_id, timestamp) pair.
  *
- * Combines chat_id, timestamp, compile-time TOKEN_SALT, and the
- * getrandom-derived runtime salt. Three-step integer mix gives good
- * avalanche behaviour so adjacent timestamps produce different values.
+ * chat_id and ts are both 64-bit on x86_64. XOR them as unsigned long,
+ * then fold the upper 32 bits into the lower before mixing — this
+ * preserves all entropy instead of silently discarding the high half.
+ *
+ * Three-step integer mix gives good avalanche behaviour so adjacent
+ * timestamps produce different values.
  */
 static unsigned int make_token(long chat_id, time_t ts) {
-    unsigned int x = (unsigned int)((unsigned long)chat_id
-                                    ^ (unsigned long)ts
-                                    ^ TOKEN_SALT
-                                    ^ g_runtime_salt);
+    unsigned long combined = (unsigned long)chat_id
+                           ^ (unsigned long)ts
+                           ^ TOKEN_SALT
+                           ^ g_runtime_salt;
+
+    /* Fold upper 32 bits into lower to preserve all entropy */
+    unsigned int x = (unsigned int)(combined ^ (combined >> 32));
     x ^= (x >> 16);
     x *= 0x45d9f3bu;
     x ^= (x >> 16);
@@ -255,8 +257,8 @@ static unsigned int make_token(long chat_id, time_t ts) {
 int security_generate_reboot_token(long chat_id, unsigned short req_id) {
     time_t ts = time(NULL);
 
-    unsigned int raw  = make_token(chat_id, ts);
-    int final_token   = (int)(((unsigned int)(ts % 1000000) ^ raw) % 1000000u);
+    unsigned int raw = make_token(chat_id, ts);
+    int final_token  = (int)(((unsigned int)(ts % 1000000) ^ raw) % 1000000u);
 
     LOG_SEC(LOG_INFO,
         "req=%04x Generated token: chat_id=%ld ts=%ld token=%06d",
@@ -274,12 +276,19 @@ int security_generate_reboot_token(long chat_id, unsigned short req_id) {
 }
 
 /**
- * Validate a reboot confirmation token.
+ * Validate a reboot confirmation token (stateless, single-use).
  *
- * Checks all time windows within TTL. Enforces:
+ * Since tokens are stored in g_last_token at generation time, validation
+ * is a direct comparison — no need to iterate over the TTL window.
+ * The loop was removed: O(ttl) iteration gave no benefit because any
+ * valid token must have been issued by security_generate_reboot_token()
+ * and is already in g_last_token.
+ *
+ * Enforces:
  *   - Token format (6 digits, non-negative)
  *   - Bruteforce block status
- *   - Replay protection (single-use: invalidated on first successful use)
+ *   - TTL expiry (g_last_token_time + g_token_ttl)
+ *   - Replay protection (single-use: g_last_token cleared on first use)
  *
  * @return  0 if valid, -1 if invalid / expired / replayed / blocked
  */
@@ -294,43 +303,46 @@ int security_validate_reboot_token(long chat_id, int input_token,
 
     time_t now = time(NULL);
 
+    /* Bruteforce block check */
     if (now < g_block_until) {
         LOG_SEC(LOG_WARN, "req=%04x Token validation blocked (bruteforce)", req_id);
         return -1;
     }
 
-    for (int i = 0; i <= g_token_ttl; i++) {
-        time_t       ts       = now - i;
-        unsigned int raw      = make_token(chat_id, ts);
-        int          expected = (int)(((unsigned int)(ts % 1000000) ^ raw) % 1000000u);
-
-        if (expected == input_token) {
-            if (input_token == g_last_token &&
-                (now - g_last_token_time) <= g_token_ttl) {
-
-                g_last_token = -1;  /* invalidate — single use */
-
-                LOG_SEC(LOG_INFO,
-                    "req=%04x Token accepted: chat_id=%ld token=%06d (age=%d sec)",
-                    req_id, chat_id, input_token, i);
-
-                g_failed_attempts = 0;
-                g_block_until     = 0;
-                return 0;
-            }
-
-            LOG_SEC(LOG_WARN,
-                "req=%04x Replay or expired token: %06d", req_id, input_token);
-
-            register_failed_attempt(now, req_id);
-            return -1;
-        }
+    /* No token has been generated yet */
+    if (g_last_token < 0) {
+        LOG_SEC(LOG_WARN, "req=%04x No pending token", req_id);
+        register_failed_attempt(now, req_id);
+        return -1;
     }
 
-    LOG_SEC(LOG_WARN,
-        "req=%04x Invalid token: chat_id=%ld token=%06d",
-        req_id, chat_id, input_token);
+    /* TTL expiry check */
+    if ((now - g_last_token_time) > g_token_ttl) {
+        LOG_SEC(LOG_WARN, "req=%04x Token expired (age=%lds ttl=%d)",
+                req_id, (long)(now - g_last_token_time), g_token_ttl);
+        g_last_token = -1;
+        register_failed_attempt(now, req_id);
+        return -1;
+    }
 
-    register_failed_attempt(now, req_id);
-    return -1;
+    /* Token match */
+    if (input_token != g_last_token) {
+        LOG_SEC(LOG_WARN,
+            "req=%04x Invalid token: chat_id=%ld token=%06d",
+            req_id, chat_id, input_token);
+        register_failed_attempt(now, req_id);
+        return -1;
+    }
+
+    /* Accepted — invalidate immediately (single-use) */
+    g_last_token      = -1;
+    g_failed_attempts = 0;
+    g_block_until     = 0;
+
+    LOG_SEC(LOG_INFO,
+        "req=%04x Token accepted: chat_id=%ld token=%06d (age=%lds)",
+        req_id, chat_id, input_token,
+        (long)(now - g_last_token_time));
+
+    return 0;
 }
