@@ -1,28 +1,24 @@
-/**
- * tg-bot - Telegram bot for system administration
- * telegram_poll.c - Long polling implementation with fork isolation
+/* tg-bot — telegram_poll.c — Long polling with fork isolation. MIT License © 2026 ironmist45 */
+
+/*
+ * libcurl isolation architecture:
+ *   HTTP request to Telegram API runs in a child process.
+ *   This protects the parent from libcurl hangs and allows graceful
+ *   shutdown on SIGTERM without waiting for curl.
  *
- * Архитектура изоляции libcurl:
- *   HTTP-запрос к Telegram API выполняется в дочернем процессе.
- *   Это защищает родителя от зависания libcurl (который не всегда
- *   корректно реагирует на сигналы) и позволяет делать graceful
- *   shutdown по SIGTERM без ожидания curl.
- *
- *   Схема взаимодействия:
+ *   Interaction diagram:
  *     parent                        child
  *       |-- fork() ----------------> |
  *       |                            |-- telegram_http_request()
  *       |-- poll(pipe, POLLIN) <-----|-- write(pipe, result)
  *       |                            |-- _exit(0)
  *       |-- read(pipe) --------------|
- *       |-- waitpid(blocking) -------|  (child уже мёртв)
+ *       |-- waitpid(blocking) -------|  (child already dead)
  *
- *   Порядок: сначала читаем данные из pipe, затем waitpid().
- *   Это гарантирует нулевое окно зомби-состояния с точки зрения
- *   наблюдателя: к моменту waitpid() дочерний уже завершился
- *   (EOF на pipe = дочерний закрыл свой конец = _exit вызван).
- *
- * MIT License - Copyright (c) 2026 ironmist45
+ *   Order: read pipe data first, then waitpid().
+ *   This guarantees zero zombie window from the observer's perspective:
+ *   by the time waitpid() is called the child has already exited
+ *   (pipe EOF = child closed its write end = _exit() was called).
  */
 
 #define _GNU_SOURCE
@@ -83,7 +79,7 @@ long g_poll_rss_kb    = 0;
 int  g_poll_rss_procs = 0;
 
 // ============================================================================
-// ИНИЦИАЛИЗАЦИЯ
+// INITIALIZATION
 // ============================================================================
 
 void telegram_poll_init(void) {
@@ -132,8 +128,8 @@ static void sample_rss(pid_t child_pid)
     long parent_rss = read_proc_rss_kb(getpid());
     long child_rss  = read_proc_rss_kb(child_pid);
 
-    long  total = 0;
-    int   procs = 0;
+    long total = 0;
+    int  procs = 0;
 
     if (parent_rss > 0) { total += parent_rss; procs++; }
     if (child_rss  > 0) { total += child_rss;  procs++; }
@@ -145,34 +141,33 @@ static void sample_rss(pid_t child_pid)
 }
 
 // ============================================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// HELPER FUNCTIONS
 // ============================================================================
 
 /*
- * kill_and_reap - безопасно убить дочерний процесс и забрать его статус.
+ * kill_and_reap - safely kill child process and collect its exit status.
  *
- * Используется в path'ах завершения по таймауту или shutdown.
- * После SIGKILL дочерний не может не умереть, поэтому waitpid()
- * здесь блокирующий — он вернётся очень быстро.
+ * Used in timeout and shutdown paths.
+ * After SIGKILL the child cannot survive, so waitpid() is blocking —
+ * it will return very quickly.
  */
 static void kill_and_reap(pid_t pid, unsigned short poll_id) {
-    if (kill(pid, SIGKILL) == 0) {
+    if (kill(pid, SIGKILL) == 0)
         LOG_NET(LOG_DEBUG, "poll=%04x SIGKILL sent to child PID=%d", poll_id, pid);
-    }
-    /* Блокирующий waitpid: после SIGKILL ждать долго не придётся */
-    if (waitpid(pid, NULL, 0) == -1) {
+
+    /* Blocking waitpid: after SIGKILL the wait is negligible */
+    if (waitpid(pid, NULL, 0) == -1)
         LOG_NET(LOG_WARN, "poll=%04x waitpid after kill failed: errno=%d", poll_id, errno);
-    }
 }
 
 /*
- * read_pipe_data - читаем данные из pipe в chunk_data.
+ * read_pipe_data - read data from pipe into chunk_data.
  *
- * Протокол (пишет дочерний):
+ * Protocol (written by child):
  *   "<rc>\n<data_len>\n<data_bytes>"
  *
- * Возвращает http_rc через out-параметр.
- * chunk_data всегда null-terminated после вызова.
+ * Returns http_rc via out-parameter.
+ * chunk_data is always null-terminated after the call.
  */
 static void read_pipe_data(int fd,
                            char *chunk_data, size_t chunk_size,
@@ -205,7 +200,7 @@ static void read_pipe_data(int fd,
         return;
     }
 
-    /* Защита от выхода за границу буфера */
+    /* Guard against buffer overflow */
     if (data_len >= chunk_size) {
         LOG_NET(LOG_WARN,
                 "poll=%04x pipe data_len=%zu exceeds buffer (%zu), clamping",
@@ -224,31 +219,30 @@ static void read_pipe_data(int fd,
 }
 
 // ============================================================================
-// ОЖИДАНИЕ ДОЧЕРНЕГО ПРОЦЕССА (КЛЮЧЕВОЙ БЛОК)
+// CHILD PROCESS WAIT (KEY BLOCK)
 // ============================================================================
 
 /*
- * wait_for_child - ждём завершения дочернего процесса через poll() на pipe.
+ * wait_for_child - wait for child process completion via poll() on pipe.
  *
- * Почему poll() на pipe, а не WNOHANG-цикл:
+ * Why poll() on pipe instead of WNOHANG loop:
  *
- *   Старый подход: waitpid(WNOHANG) + poll(NULL, 0, 100ms)
- *     - busy-wait с паузой 100мс
- *     - окно зомби до 100мс (видно в ps)
- *     - лишние итерации цикла
+ *   Old approach: waitpid(WNOHANG) + poll(NULL, 0, 100ms)
+ *     - busy-wait with 100ms pause
+ *     - zombie window up to 100ms (visible in ps)
+ *     - unnecessary loop iterations
  *
- *   Новый подход: poll(pipefd[0], POLLIN, timeout)
- *     - pipe становится readable ровно в момент, когда дочерний
- *       закрывает свой конец (fclose(pipe_write) → _exit(0))
- *     - мы просыпаемся мгновенно, без polling
- *     - после возврата из poll() дочерний уже завершился или
- *       завершается прямо сейчас → waitpid(blocking) вернётся
- *       немедленно, без зомби-окна
- *     - shutdown проверяется при каждом EINTR — реакция мгновенная
+ *   New approach: poll(pipefd[0], POLLIN, timeout)
+ *     - pipe becomes readable exactly when the child closes its write end
+ *       (fclose(pipe_write) -> _exit(0))
+ *     - we wake up instantly, no polling
+ *     - after poll() returns the child has already exited or is exiting
+ *       now -> waitpid(blocking) returns immediately, no zombie window
+ *     - shutdown is checked on every EINTR — instant reaction
  *
- * Возвращает:
- *   0  — дочерний завершился нормально, данные в pipe готовы
- *  -1  — таймаут или shutdown (дочерний убит, pipe закрыт)
+ * Returns:
+ *   0  — child exited normally, pipe data is ready
+ *  -1  — timeout or shutdown (child was killed, pipe closed)
  */
 static int wait_for_child(pid_t pid, int pipe_read_fd,
                           unsigned short poll_id)
@@ -262,7 +256,7 @@ static int wait_for_child(pid_t pid, int pipe_read_fd,
 
     while (remaining_ms > 0) {
 
-        /* --- Проверка shutdown до вызова poll() --- */
+        /* Check shutdown before calling poll() */
         if (g_signal_received != 0 || g_shutdown_requested != 0) {
             LOG_NET(LOG_WARN,
                     "poll=%04x shutdown requested, killing child PID=%d "
@@ -273,14 +267,13 @@ static int wait_for_child(pid_t pid, int pipe_read_fd,
             return -1;
         }
 
-        /* Просыпаемся каждые POLL_SHUTDOWN_CHECK_MS мс для проверки shutdown */
+        /* Wake up every POLL_SHUTDOWN_CHECK_MS ms to check shutdown */
         int rc = poll(&pfd, 1, POLL_SHUTDOWN_CHECK_MS);
 
         if (rc > 0) {
             /*
-             * Pipe readable (POLLIN) или дочерний закрыл свой конец (POLLHUP).
-             * Оба варианта означают: дочерний завершился или завершается.
-             * Данные готовы к чтению.
+             * Pipe readable (POLLIN) or child closed its end (POLLHUP).
+             * Both mean: child has exited or is exiting. Data is ready.
              */
             if (pfd.revents & (POLLIN | POLLHUP)) {
                 LOG_NET(LOG_DEBUG,
@@ -288,7 +281,7 @@ static int wait_for_child(pid_t pid, int pipe_read_fd,
                         poll_id, pfd.revents, pid);
                 return 0;
             }
-            /* POLLERR / POLLNVAL — нештатная ситуация */
+            /* POLLERR / POLLNVAL — unexpected condition */
             LOG_NET(LOG_WARN,
                     "poll=%04x pipe error (revents=0x%x)",
                     poll_id, pfd.revents);
@@ -297,28 +290,25 @@ static int wait_for_child(pid_t pid, int pipe_read_fd,
         }
 
         if (rc == 0) {
-            /* Истёк квант POLL_SHUTDOWN_CHECK_MS, уменьшаем оставшееся время */
+            /* POLL_SHUTDOWN_CHECK_MS slice expired, reduce remaining time */
             remaining_ms -= POLL_SHUTDOWN_CHECK_MS;
             continue;
         }
 
         /* rc < 0 */
         if (errno == EINTR) {
-            /*
-             * Прерваны сигналом — проверим shutdown в начале
-             * следующей итерации. Время не уменьшаем: это не таймаут.
-             */
+            /* Interrupted by signal — check shutdown at next iteration */
             LOG_NET(LOG_DEBUG, "poll=%04x poll() interrupted by signal", poll_id);
             continue;
         }
 
-        /* Неожиданная ошибка poll() */
+        /* Unexpected poll() error */
         LOG_NET(LOG_ERROR, "poll=%04x poll() error: errno=%d", poll_id, errno);
         kill_and_reap(pid, poll_id);
         return -1;
     }
 
-    /* Общий таймаут исчерпан */
+    /* Overall timeout exhausted */
     LOG_NET(LOG_ERROR,
             "poll=%04x child PID=%d timed out after %d ms, killing",
             poll_id, pid, TG_CHILD_WAIT_TIMEOUT_MS);
@@ -327,7 +317,7 @@ static int wait_for_child(pid_t pid, int pipe_read_fd,
 }
 
 // ============================================================================
-// ОБРАБОТКА ОБНОВЛЕНИЙ
+// UPDATE PROCESSING
 // ============================================================================
 
 static void process_updates(const char *chunk_data, size_t data_len,
@@ -394,25 +384,23 @@ static void process_updates(const char *chunk_data, size_t data_len,
                     (resp_type == RESP_PLAIN) ? "plain" : "markdown");
 
             /*
-             * Тип ответа выставляется самим обработчиком команды через
-             * ctx->resp_type (RESP_PLAIN / RESP_MARKDOWN).  Проверять
-             * текст команды здесь не нужно — логика инкапсулирована
-             * в командных модулях (cmd_services.c, cmd_security.c и т.д.).
+             * Response type is set by the command handler via ctx->resp_type
+             * (RESP_PLAIN / RESP_MARKDOWN). No need to inspect the command
+             * text here — logic is encapsulated in command modules.
              */
-            if (resp_type == RESP_PLAIN) {
+            if (resp_type == RESP_PLAIN)
                 telegram_send_plain(u->chat_id, response);
-            } else {
+            else
                 telegram_send_message(u->chat_id, response);
-            }
 
             clock_gettime(CLOCK_MONOTONIC, &req_end);
             long req_ms = elapsed_ms(req_start, req_end);
 
-            /* Обновить метрики времени ответа */
-            if (req_ms > g_metrics.max_response_ms) {
+            /* Update response time metrics */
+            if (req_ms > g_metrics.max_response_ms)
                 g_metrics.max_response_ms = req_ms;
-            }
-            /* Скользящее среднее */
+
+            /* Rolling average */
             if (g_metrics.cmd_total > 0) {
                 g_metrics.avg_response_ms =
                     (g_metrics.avg_response_ms * (g_metrics.cmd_total - 1) + req_ms)
@@ -436,7 +424,7 @@ static void process_updates(const char *chunk_data, size_t data_len,
 }
 
 // ============================================================================
-// ГЛАВНАЯ ФУНКЦИЯ ПОЛЛИНГА
+// MAIN POLL FUNCTION
 // ============================================================================
 
 int telegram_poll(void) {
@@ -446,7 +434,7 @@ int telegram_poll(void) {
     unsigned short poll_id = g_poll_cycle;
     g_current_poll_id = poll_id;
 
-    /* Первый запуск: восстанавливаем offset с диска */
+    /* First run: restore offset from disk */
     if (last_update_id == -1) {
         last_update_id = telegram_offset_load();
         telegram_offset_save(last_update_id);
@@ -460,9 +448,9 @@ int telegram_poll(void) {
     LOG_NET(LOG_DEBUG, "poll=%04x request (offset=%ld)", poll_id, last_update_id);
 
     // -----------------------------------------------------------------------
-    // Создаём pipe ДО fork.
-    // O_CLOEXEC: fd закрываются автоматически при execv() в дочернем —
-    // защита от утечки дескрипторов в дочерние процессы.
+    // Create pipe BEFORE fork.
+    // O_CLOEXEC: fds are closed automatically on execv() in the child —
+    // prevents fd leaks into child processes.
     // -----------------------------------------------------------------------
     int pipefd[2];
     if (pipe2(pipefd, O_CLOEXEC) == -1) {
@@ -471,7 +459,7 @@ int telegram_poll(void) {
     }
 
     // -----------------------------------------------------------------------
-    // Fork: дочерний процесс изолирует libcurl
+    // Fork: child process isolates libcurl
     // -----------------------------------------------------------------------
     pid_t pid = fork();
 
@@ -482,9 +470,9 @@ int telegram_poll(void) {
         return -1;
     }
 
-    // ===== ДОЧЕРНИЙ ПРОЦЕСС =====
+    // ===== CHILD PROCESS =====
     if (pid == 0) {
-        close(pipefd[0]);   /* read-конец нам не нужен */
+        close(pipefd[0]);   /* read end not needed in child */
 
         char  *raw_data = NULL;
         size_t raw_size = 0;
@@ -500,7 +488,7 @@ int telegram_poll(void) {
                 fprintf(pw, "0\n");
             }
             fflush(pw);
-            fclose(pw);   /* EOF на pipe — родитель проснётся */
+            fclose(pw);   /* EOF on pipe — parent will wake up */
         } else {
             close(pipefd[1]);
         }
@@ -509,31 +497,31 @@ int telegram_poll(void) {
         _exit(0);
     }
 
-    // ===== РОДИТЕЛЬСКИЙ ПРОЦЕСС =====
-    close(pipefd[1]);   /* write-конец закрываем немедленно */
+    // ===== PARENT PROCESS =====
+    close(pipefd[1]);   /* close write end immediately */
 
     // -----------------------------------------------------------------------
-    // Сэмплируем RSS пока оба процесса точно живы.
-    // Дочерний только что создан через fork() и ещё не завершился —
-    // это единственный момент когда можно надёжно прочитать его RSS.
-    // Результат сохраняется в g_poll_rss_kb / g_poll_rss_procs и
-    // читается selfcheck() при обработке команды /start.
+    // Sample RSS while both processes are guaranteed alive.
+    // Child was just created via fork() and has not yet exited —
+    // this is the only reliable moment to read its RSS.
+    // Result is stored in g_poll_rss_kb / g_poll_rss_procs and
+    // read by selfcheck() when handling the /start command.
     // -----------------------------------------------------------------------
     sample_rss(pid);
 
     // -----------------------------------------------------------------------
-    // Ждём завершения дочернего через poll() на pipe.
-    // Возвращает 0 когда pipe readable (дочерний записал данные и завершился).
+    // Wait for child via poll() on pipe.
+    // Returns 0 when pipe is readable (child wrote data and exited).
     // -----------------------------------------------------------------------
     if (wait_for_child(pid, pipefd[0], poll_id) != 0) {
-        /* Таймаут или shutdown: дочерний уже убит внутри wait_for_child */
+        /* Timeout or shutdown: child was already killed inside wait_for_child */
         close(pipefd[0]);
         return -1;
     }
 
     // -----------------------------------------------------------------------
-    // Читаем данные из pipe.
-    // Дочерний завершился (pipe EOF) — данные полностью записаны.
+    // Read data from pipe.
+    // Child has exited (pipe EOF) — all data is fully written.
     // -----------------------------------------------------------------------
     char chunk_data[RESP_MAX];
     memset(chunk_data, 0, sizeof(chunk_data));
@@ -543,18 +531,23 @@ int telegram_poll(void) {
                    &http_rc, poll_id);
 
     /*
-     * pipefd[0] закрыт внутри read_pipe_data (через fclose).
-     * Вызываем waitpid — дочерний уже мёртв (pipe EOF это гарантирует),
-     * поэтому блокировки здесь нет.
+     * pipefd[0] is closed inside read_pipe_data (via fclose).
+     * Call waitpid — child is already dead (pipe EOF guarantees this),
+     * so there is no blocking here. Log a warning if child was killed
+     * by a signal (unexpected crash).
      */
-    if (waitpid(pid, NULL, 0) == -1) {
+    int wstatus = 0;
+    if (waitpid(pid, &wstatus, 0) == -1) {
         LOG_NET(LOG_WARN, "poll=%04x waitpid failed: errno=%d", poll_id, errno);
+    } else if (WIFSIGNALED(wstatus)) {
+        LOG_NET(LOG_WARN, "poll=%04x child killed by signal=%d",
+                poll_id, WTERMSIG(wstatus));
     }
 
     LOG_NET(LOG_DEBUG, "poll=%04x child PID=%d reaped", poll_id, pid);
 
     // -----------------------------------------------------------------------
-    // Проверяем результат HTTP-запроса
+    // Check HTTP request result
     // -----------------------------------------------------------------------
     if (http_rc != 0) {
         LOG_NET(LOG_WARN, "poll=%04x http request failed (rc=%d)", poll_id, http_rc);
@@ -567,7 +560,7 @@ int telegram_poll(void) {
     }
 
     // -----------------------------------------------------------------------
-    // Обрабатываем обновления
+    // Process updates
     // -----------------------------------------------------------------------
     process_updates(chunk_data, strlen(chunk_data), poll_id, &last_update_id);
 
