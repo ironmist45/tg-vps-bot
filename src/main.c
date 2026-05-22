@@ -56,14 +56,18 @@ config_t g_cfg;
 int main(int argc, char *argv[]) {
 
     // -----------------------------------------------------------------------
-    // 1. Lifecycle initialization (signals, timers)
+    // 1. Metrics reset first — before any handlers that might fire signals
     // -----------------------------------------------------------------------
-    lifecycle_init();
-    lifecycle_register_handlers();
     memset(&g_metrics, 0, sizeof(g_metrics));
 
     // -----------------------------------------------------------------------
-    // 2. Command-line argument processing
+    // 2. Lifecycle initialization (signals, timers)
+    // -----------------------------------------------------------------------
+    lifecycle_init();
+    lifecycle_register_handlers();
+
+    // -----------------------------------------------------------------------
+    // 3. Command-line argument processing
     // -----------------------------------------------------------------------
     char config_path[CLI_CONFIG_PATH_MAX];
     int rc = cli_process(argc, argv, config_path);
@@ -71,13 +75,13 @@ int main(int argc, char *argv[]) {
     if (rc == CLI_EXIT_ERR) return 1;
 
     // -----------------------------------------------------------------------
-    // 3. Logger initialization with fallback path
+    // 4. Logger initialization with fallback path
     // -----------------------------------------------------------------------
     const char *fallback_log = "/var/log/tg-bot.log";
     logger_init(fallback_log);
 
     // -----------------------------------------------------------------------
-    // 4. Startup logging
+    // 5. Startup logging
     // -----------------------------------------------------------------------
     LOG_SYS(LOG_INFO, "==== START ====");
     LOG_SYS(LOG_INFO, "%s v%s (%s)", APP_NAME, APP_VERSION, APP_CODENAME);
@@ -88,13 +92,13 @@ int main(int argc, char *argv[]) {
     LOG_SYS(LOG_INFO, "Process started (PID=%d)", getpid());
 
     // -----------------------------------------------------------------------
-    // 5. Environment context logging
+    // 6. Environment context logging
     // -----------------------------------------------------------------------
     env_log_user_info();
     env_log_workdir();
 
     // -----------------------------------------------------------------------
-    // 6. Config loading
+    // 7. Config loading
     // -----------------------------------------------------------------------
     if (config_load(config_path, &g_cfg) != 0) {
         LOG_CFG(LOG_ERROR, "Config load failed");
@@ -103,7 +107,7 @@ int main(int argc, char *argv[]) {
     }
 
     // -----------------------------------------------------------------------
-    // 7. Switch to log file from config, run environment checks
+    // 8. Switch to log file from config, run environment checks
     // -----------------------------------------------------------------------
     if (logger_reopen(g_cfg.log_file) == 0) {
         LOG_CFG(LOG_INFO, "Logger switched: %s", g_cfg.log_file);
@@ -117,14 +121,14 @@ int main(int argc, char *argv[]) {
     config_log(&g_cfg);
 
     // -----------------------------------------------------------------------
-    // 8. Security module initialization
+    // 9. Security module initialization
     // -----------------------------------------------------------------------
     security_set_allowed_chat(g_cfg.chat_id);
     security_set_token_ttl(g_cfg.token_ttl);
     security_init();
 
     // -----------------------------------------------------------------------
-    // 9. Telegram initialization
+    // 10. Telegram initialization
     // -----------------------------------------------------------------------
     if (telegram_init(g_cfg.token) != 0) {
         LOG_NET(LOG_ERROR, "Telegram init failed");
@@ -153,7 +157,7 @@ int main(int argc, char *argv[]) {
     LOG_STATE(LOG_INFO, "Entering main loop");
 
     // =======================================================================
-    // 10. MAIN LOOP
+    // 11. MAIN LOOP
     // =======================================================================
     int consecutive_errors = 0;
 
@@ -217,7 +221,14 @@ int main(int argc, char *argv[]) {
             if (consecutive_errors >= MAIN_MAX_CONSECUTIVE_ERRORS) {
                 g_metrics.err_timeout++;
                 LOG_SYS(LOG_ERROR,
-                    "Too many consecutive polling errors, exiting");
+                    "Too many consecutive polling errors (%d), shutting down",
+                    MAIN_MAX_CONSECUTIVE_ERRORS);
+                /*
+                 * Trigger graceful shutdown to save offset and flush state —
+                 * same path as SIGTERM so no data is lost on network failure.
+                 */
+                g_shutdown_requested = SHUTDOWN_STOP;
+                lifecycle_handle_shutdown();
                 break;
             }
 
@@ -228,13 +239,16 @@ int main(int argc, char *argv[]) {
             consecutive_errors = 0;
         }
 
-        /* Sleep before next iteration, then record loop timing */
-        usleep(MAIN_LOOP_SLEEP_US);
+        /*
+         * Record loop timing before sleep — diag measures useful work only,
+         * not the inter-iteration pause.
+         */
         diag_loop_end();
+        usleep(MAIN_LOOP_SLEEP_US);
     }
 
     // -----------------------------------------------------------------------
-    // 11. Shutdown
+    // 12. Shutdown
     // -----------------------------------------------------------------------
     char metrics_buf[512];
     metrics_format_log(metrics_buf, sizeof(metrics_buf));
