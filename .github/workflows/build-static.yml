@@ -276,7 +276,7 @@ jobs:
         run: |
           rm -f test.conf test.log
           echo 'TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11' >> test.conf
-          echo 'CHAT_ID=123'                                       >> test.conf
+          echo 'CHAT_ID=123456789'                                 >> test.conf
           echo 'LOG_FILE=./test.log'                               >> test.conf
           echo 'TOKEN_TTL=10'                                      >> test.conf
           echo 'SUDO_PATH=/usr/bin/sudo'                           >> test.conf
