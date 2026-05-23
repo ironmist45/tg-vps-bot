@@ -28,7 +28,6 @@
  *
  * MIT License - Copyright (c) 2026 ironmist45
  */
-
 #ifndef SD_NOTIFY_H
 #define SD_NOTIFY_H
 
@@ -66,13 +65,25 @@ static inline int sd_notify_send(const char *msg) {
 
     /*
      * NOTIFY_SOCKET may be an abstract socket (starts with '@') or a
-     * filesystem path.  Abstract sockets use a null byte as the first
+     * filesystem path. Abstract sockets use a null byte as the first
      * character in sun_path.
      */
     if (socket_path[0] == '@') {
+        /* Abstract socket: skip '@', write into sun_path[1..] */
+        if (strlen(socket_path + 1) >= sizeof(addr.sun_path) - 1) {
+            LOG_SYS(LOG_WARN, "sd_notify: NOTIFY_SOCKET path too long");
+            close(fd);
+            return -1;
+        }
         addr.sun_path[0] = '\0';
         strncpy(addr.sun_path + 1, socket_path + 1, sizeof(addr.sun_path) - 2);
     } else {
+        /* Filesystem socket */
+        if (strlen(socket_path) >= sizeof(addr.sun_path)) {
+            LOG_SYS(LOG_WARN, "sd_notify: NOTIFY_SOCKET path too long");
+            close(fd);
+            return -1;
+        }
         strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
     }
 
@@ -92,7 +103,7 @@ static inline int sd_notify_send(const char *msg) {
  * sd_notify_ready - tell systemd the service is fully initialised.
  *
  * Call once after all modules are initialised and the bot is ready
- * to accept commands.  Required when Type=notify in the unit file.
+ * to accept commands. Required when Type=notify in the unit file.
  * ------------------------------------------------------------------------- */
 static inline void sd_notify_ready(void) {
     int rc = sd_notify_send("READY=1");
@@ -109,7 +120,8 @@ static inline void sd_notify_ready(void) {
  * when NOTIFY_SOCKET is not set (immediate return after getenv()).
  * ------------------------------------------------------------------------- */
 static inline void sd_notify_watchdog(void) {
-    sd_notify_send("WATCHDOG=1");
+    if (sd_notify_send("WATCHDOG=1") < 0)
+        LOG_SYS(LOG_WARN, "sd_notify: WATCHDOG=1 failed");
 }
 
 #endif /* SD_NOTIFY_H */
