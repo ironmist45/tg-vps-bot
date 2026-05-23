@@ -13,11 +13,17 @@ SRCS := $(wildcard $(SRC_DIR)/*.c) \
 OBJS := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # ===== Flags =====
-CFLAGS := -Wall -Wextra -std=c11 -O2 -I$(INC_DIR) -D_DEFAULT_SOURCE
-LDFLAGS ?=
+#
+# EXTRA_CFLAGS is intentionally left empty here.
+# Pass additional include paths from the build environment, e.g.:
+#   make EXTRA_CFLAGS='-I/deps/curl/include -I/deps/openssl/include ...'
+# This avoids overwriting the base flags when make is called with CFLAGS=
+# from the command line (which would drop -Wall -Wextra -O2 etc.).
+#
+EXTRA_CFLAGS ?=
+CFLAGS := -Wall -Wextra -std=c11 -O2 -I$(INC_DIR) -D_DEFAULT_SOURCE $(EXTRA_CFLAGS)
 
-# 🔥 статические библиотеки (ВАЖНО: порядок!)
-# LDLIBS := -lssl -lcrypto -lz -lpthread
+LDFLAGS ?=
 
 # ===== Default =====
 all: $(TARGET)
