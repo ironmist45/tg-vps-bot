@@ -222,7 +222,7 @@ int cmd_about_v2(command_ctx_t *ctx)
         "*ℹ️ ABOUT*\n\n"
         "*%s v%s (%s)*\n"
         "*Main PID:* %d\n"
-        "*Uptime:* %dd %dh %dm\n"
+        "*Bot uptime:* %dd %dh %dm\n"
         "*Build:* #%s\n"
         "*Commit:* %s\n"
         "*Built:* %s\n"
