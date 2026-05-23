@@ -180,7 +180,9 @@ jobs:
             echo ' Building f2b-wrapper'
             echo '========================================'
             echo ''
-            gcc -O2 -Wall -Wextra tools/f2b-wrapper.c -o f2b-wrapper
+            gcc -O2 -Wall -Wextra -std=c11 tools/f2b-wrapper.c -o f2b-wrapper
+            echo '[INFO] Stripping f2b-wrapper binary'
+            strip f2b-wrapper  || true
             chmod +x f2b-wrapper
             cp f2b-wrapper /usr/local/bin/f2b-wrapper
             echo '[OK] f2b-wrapper built'
