@@ -221,7 +221,7 @@ int cmd_about_v2(command_ctx_t *ctx)
     snprintf(msg, sizeof(msg),
         "*ℹ️ ABOUT*\n\n"
         "*%s v%s (%s)*\n"
-        "*PID:* %d\n"
+        "*Main PID:* %d\n"
         "*Uptime:* %dd %dh %dm\n"
         "*Build:* #%s\n"
         "*Commit:* %s\n"
