@@ -40,7 +40,7 @@ jobs:
             echo '========================================'
             echo ''
 
-            gcc -O2 -Wall -Wextra \
+            gcc -O2 -Wall -Wextra -std=c11 \
               tools/f2b-wrapper.c \
               -o f2b-wrapper
 
