@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
             TG_BUILD_NUMBER, TG_BUILD_COMMIT, TG_BUILD_DATE);
     fflush(NULL);
 
-    LOG_SYS(LOG_INFO, "Process started (PID=%d)", getpid());
+    LOG_SYS(LOG_INFO, "Process started (Main PID=%d)", getpid());
 
     // -----------------------------------------------------------------------
     // 6. Environment context logging
