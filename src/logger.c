@@ -16,30 +16,11 @@
  *
  * Log format: [YYYY-MM-DD HH:MM:SS.mmm] [LEVEL] [TAG] message
  *
- * MIT License
- *
- * Copyright (c) 2026 ironmist45
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * MIT License - Copyright (c) 2026 ironmist45
  */
 
 #include "logger.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -127,32 +108,34 @@ const char *logger_level_to_string(log_level_t level) {
 // ============================================================================
 
 /**
- * Generate formatted timestamp with millisecond precision
+ * Generate formatted timestamp with millisecond precision.
+ *
+ * Uses a single clock_gettime(CLOCK_REALTIME) call to obtain both the
+ * seconds and nanoseconds, then derives the broken-down time via
+ * localtime_r(). This avoids the race condition that would occur if
+ * time() and clock_gettime() were called separately (the second could
+ * roll over between the two calls).
  *
  * Format: YYYY-MM-DD HH:MM:SS.mmm
- * Thread-safe: uses localtime_r() and clock_gettime()
  *
  * @param buf   Output buffer
  * @param size  Size of output buffer
  */
 static void get_timestamp(char *buf, size_t size) {
-    time_t now = time(NULL);
-    struct tm tm_info;
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
 
-    if (localtime_r(&now, &tm_info) == NULL) {
+    struct tm tm_info;
+    if (localtime_r(&ts.tv_sec, &tm_info) == NULL) {
         snprintf(buf, size, "0000-00-00 00:00:00.000");
         return;
     }
 
     strftime(buf, size, "%Y-%m-%d %H:%M:%S", &tm_info);
 
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-
     size_t len = strlen(buf);
-    if (len < size) {
+    if (len < size)
         snprintf(buf + len, size - len, ".%03ld", ts.tv_nsec / 1000000);
-    }
 }
 
 // ============================================================================
@@ -174,14 +157,12 @@ static void get_timestamp(char *buf, size_t size) {
  * @return      0 on success, -1 on failure (stderr fallback active)
  */
 int logger_init(const char *path) {
-
     if (!path) {
         LOG_FALLBACK(LOG_ERROR, "logger init failed: NULL path, using stderr");
         return -1;
     }
 
     log_file = fopen(path, "a");
-
     if (!log_file) {
         LOG_FALLBACK(LOG_ERROR,
             "logger init failed: cannot open %s, using stderr", path);
@@ -193,12 +174,12 @@ int logger_init(const char *path) {
 
     /*
      * Flush early buffer — replay messages that were logged before this
-     * file was opened.  Written without the mutex because we are still
+     * file was opened. Written without the mutex because we are still
      * single-threaded at this point in main().
      */
-    for (int i = 0; i < early_log_count; i++) {
+    for (int i = 0; i < early_log_count; i++)
         fprintf(log_file, "%s", early_log_buf[i]);
-    }
+
     fflush(log_file);
     early_log_count = 0;   /* buffer consumed — reset for safety */
 
@@ -262,7 +243,6 @@ void logger_close(void) {
  * @param ...    Variable arguments for format string
  */
 void log_msg(log_level_t level, const char *fmt, ...) {
-
     if (level > current_log_level)
         return;
 
@@ -305,14 +285,9 @@ void log_msg(log_level_t level, const char *fmt, ...) {
          * Buffer the line so it can be replayed into the file later,
          * and always echo to stderr so the operator sees it immediately.
          */
-        if (early_log_count < EARLY_LOG_MAX_MSGS) {
-            strncpy(early_log_buf[early_log_count], line,
-                    EARLY_LOG_MSG_SIZE - 1);
-            early_log_buf[early_log_count][EARLY_LOG_MSG_SIZE - 1] = '\0';
-            early_log_count++;
-        }
+        if (early_log_count < EARLY_LOG_MAX_MSGS)
+            safe_copy(early_log_buf[early_log_count++], EARLY_LOG_MSG_SIZE, line);
 
-        /* Always visible on stderr during early startup */
         fprintf(stderr, "%s", line);
         fflush(stderr);
 
@@ -320,11 +295,12 @@ void log_msg(log_level_t level, const char *fmt, ...) {
         return;
     }
 
-    /* Write to log file */
+    /* Write to log file; flush only on success (_IOLBF handles most cases) */
     if (fprintf(log_file, "%s", line) < 0) {
         fprintf(stderr, "[LOGGER ERROR] write to file failed\n");
+    } else {
+        fflush(log_file);
     }
-    fflush(log_file);
 
     /*
      * Mirror to stderr when running interactively (isatty = 1).
@@ -346,14 +322,16 @@ void log_msg(log_level_t level, const char *fmt, ...) {
 /**
  * Reopen log file — used after rotation or config path change.
  *
- * Verifies write access, flushes all buffers, closes the current
- * log file and reopens the new one via logger_init().
- * isatty detection in logger_init() will re-evaluate mirror mode.
+ * Verifies write access via a temporary fopen() (more reliable than
+ * access() which cannot detect whether a new file can be created),
+ * flushes all buffers, closes the current log file and reopens via
+ * logger_init().
  *
  * @param path  Path to new log file
- * @return      0 on success, -1 on error (file not writable)
+ * @return      0 on success, -1 on error (file not writable/creatable)
  */
 int logger_reopen(const char *path) {
+    /* Probe writability before closing the current log */
     FILE *f = fopen(path, "a");
     if (!f) return -1;
     fclose(f);
