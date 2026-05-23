@@ -54,10 +54,12 @@
 #define URL_MAX 1024
 
 /*
- * Response buffer size — must fit a full Telegram getUpdates JSON response.
- * Telegram allows up to 100 updates per poll; 8192 bytes is sufficient.
+ * Bot response buffer size — limits the text sent back to the user
+ * per command (e.g. /services, /logs output). This is intentionally
+ * capped: Telegram messages have a 4096-char limit and responses are
+ * formatted to fit. Not related to the incoming JSON buffer from Telegram.
  */
-#define RESP_MAX 8192
+#define BOT_RESP_MAX 8192
 
 /*
  * Interval between shutdown checks inside wait_for_child().
@@ -155,26 +157,32 @@ static void kill_and_reap(pid_t pid, unsigned short poll_id) {
     if (kill(pid, SIGKILL) == 0)
         LOG_NET(LOG_DEBUG, "poll=%04x SIGKILL sent to child PID=%d", poll_id, pid);
 
-    /* Blocking waitpid: after SIGKILL the wait is negligible */
     if (waitpid(pid, NULL, 0) == -1)
         LOG_NET(LOG_WARN, "poll=%04x waitpid after kill failed: errno=%d", poll_id, errno);
 }
 
 /*
- * read_pipe_data - read data from pipe into chunk_data.
+ * read_pipe_data - read data from pipe and return a heap-allocated buffer.
  *
  * Protocol (written by child):
  *   "<rc>\n<data_len>\n<data_bytes>"
  *
- * Returns http_rc via out-parameter.
- * chunk_data is always null-terminated after the call.
+ * Allocates exactly data_len+1 bytes via malloc so the buffer fits any
+ * response size without a fixed cap. Caller must free(*out_data).
+ * *out_data is set to NULL on error or when data_len == 0.
+ * *out_size is set to the number of bytes read (excluding the null terminator).
+ *
+ * Returns http_rc via out_http_rc.
  */
 static void read_pipe_data(int fd,
-                           char *chunk_data, size_t chunk_size,
+                           char **out_data,
+                           size_t *out_size,
                            int *out_http_rc,
                            unsigned short poll_id)
 {
     *out_http_rc = -1;
+    *out_data    = NULL;
+    *out_size    = 0;
 
     FILE *pipe_read = fdopen(fd, "r");
     if (!pipe_read) {
@@ -200,22 +208,25 @@ static void read_pipe_data(int fd,
         return;
     }
 
-    /* Guard against buffer overflow */
-    if (data_len >= chunk_size) {
-        LOG_NET(LOG_WARN,
-                "poll=%04x pipe data_len=%zu exceeds buffer (%zu), clamping",
-                poll_id, data_len, chunk_size);
-        data_len = chunk_size - 1;
+    /* Allocate exact size — no fixed cap, handles any response size */
+    char *buf = malloc(data_len + 1);
+    if (!buf) {
+        LOG_NET(LOG_ERROR, "poll=%04x malloc(%zu) failed (OOM)", poll_id, data_len + 1);
+        fclose(pipe_read);
+        return;
     }
 
-    size_t bytes_read = fread(chunk_data, 1, data_len, pipe_read);
-    chunk_data[bytes_read] = '\0';
+    size_t bytes_read = fread(buf, 1, data_len, pipe_read);
+    buf[bytes_read] = '\0';
 
     LOG_NET(LOG_DEBUG,
             "poll=%04x pipe: rc=%d data_len=%zu read=%zu first100=%.100s",
-            poll_id, rc, data_len, bytes_read, chunk_data);
+            poll_id, rc, data_len, bytes_read, buf);
 
     fclose(pipe_read);
+
+    *out_data = buf;
+    *out_size = bytes_read;
 }
 
 // ============================================================================
@@ -367,7 +378,7 @@ static void process_updates(const char *chunk_data, size_t data_len,
         if (security_validate_text(u->text) != 0)
             continue;
 
-        char             response[RESP_MAX];
+        char             response[BOT_RESP_MAX];
         response_type_t  resp_type = RESP_MARKDOWN;
         struct timespec  req_start, req_end;
 
@@ -471,6 +482,10 @@ int telegram_poll(void) {
     }
 
     // ===== CHILD PROCESS =====
+    // Note: if malloc fails inside telegram_http_request or fdopen,
+    // the child will crash (SIGSEGV). Parent detects this via WIFSIGNALED
+    // and logs "child killed by signal=11". This is intentional —
+    // no recovery logic belongs in the child.
     if (pid == 0) {
         close(pipefd[0]);   /* read end not needed in child */
 
@@ -520,15 +535,16 @@ int telegram_poll(void) {
     }
 
     // -----------------------------------------------------------------------
-    // Read data from pipe.
-    // Child has exited (pipe EOF) — all data is fully written.
+    // Read data from pipe into a heap-allocated buffer.
+    // read_pipe_data() allocates exactly data_len+1 bytes so there is no
+    // fixed cap — any size JSON response from Telegram is handled correctly.
+    // Caller (this function) is responsible for free(chunk_data).
     // -----------------------------------------------------------------------
-    char chunk_data[RESP_MAX];
-    memset(chunk_data, 0, sizeof(chunk_data));
-    int http_rc = -1;
+    char  *chunk_data = NULL;
+    size_t chunk_size = 0;
+    int    http_rc    = -1;
 
-    read_pipe_data(pipefd[0], chunk_data, sizeof(chunk_data),
-                   &http_rc, poll_id);
+    read_pipe_data(pipefd[0], &chunk_data, &chunk_size, &http_rc, poll_id);
 
     /*
      * pipefd[0] is closed inside read_pipe_data (via fclose).
@@ -551,18 +567,25 @@ int telegram_poll(void) {
     // -----------------------------------------------------------------------
     if (http_rc != 0) {
         LOG_NET(LOG_WARN, "poll=%04x http request failed (rc=%d)", poll_id, http_rc);
+        free(chunk_data);
         return -1;
     }
 
-    if (chunk_data[0] == '\0') {
-        LOG_NET(LOG_DEBUG, "poll=%04x empty response (timeout with no updates)", poll_id);
+    if (!chunk_data) {
+        if (http_rc == -1) {
+            /* Pipe read error — already logged inside read_pipe_data */
+            return -1;
+        }
+        /* http_rc == 0, data_len == 0 — normal Telegram long-poll timeout */
+        LOG_NET(LOG_DEBUG, "poll=%04x timeout (no updates)", poll_id);
         return 0;
     }
 
     // -----------------------------------------------------------------------
     // Process updates
     // -----------------------------------------------------------------------
-    process_updates(chunk_data, strlen(chunk_data), poll_id, &last_update_id);
+    process_updates(chunk_data, chunk_size, poll_id, &last_update_id);
 
+    free(chunk_data);
     return 0;
 }
