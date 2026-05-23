@@ -55,6 +55,13 @@
 #define LOGS_FILTER_MAX_LEN  32
 #define LOGS_FILTER_MIN_LEN  3
 
+/*
+ * Raw journalctl output buffer size.
+ * 200 lines x ~100 bytes average = ~20 KB; 32 KB provides comfortable
+ * headroom for longer lines and timestamps.
+ */
+#define LOGS_TMP_BUF_SIZE    32768
+
 // ============================================================================
 // INTERNAL HELPER FUNCTIONS
 // ============================================================================
@@ -83,17 +90,6 @@ static const char *resolve_service(const char *alias) {
             return g_services[i].unit;
     }
     return NULL;
-}
-
-/**
- * Safely append string with overflow protection.
- * Used for short menu output where position tracking is not needed.
- */
-static void safe_append(char *dst, size_t size, const char *src) {
-    size_t len  = strlen(dst);
-    size_t left = (len < size) ? (size - len - 1) : 0;
-    if (left > 0)
-        strncat(dst, src, left);
 }
 
 /**
@@ -305,6 +301,9 @@ static logs_result_t process_logs_output(char *tmp,
  *   /logs <service> <lines>          - Show last N lines (max 200)
  *   /logs <service> <lines> <filter> - Filter results
  *
+ * Note: filter strings cannot contain spaces (sscanf %s tokenises on
+ * whitespace); multi-word filters use the logs_filter engine instead.
+ *
  * @param service  Command arguments string
  * @param buffer   Output buffer for Telegram response
  * @param size     Size of output buffer
@@ -320,14 +319,14 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     // No arguments: list available services from shared table
     // ------------------------------------------------------------------------
     if (!service || service[0] == '\0') {
-        buffer[0] = '\0';
-        safe_append(buffer, size, "📜 Available services:\n\n");
+        size_t pos = 0;
+        pos = append_at(buffer, size, pos, "📜 Available services:\n\n");
         for (int i = 0; i < g_services_count; i++) {
-            safe_append(buffer, size, "- ");
-            safe_append(buffer, size, g_services[i].alias);
-            safe_append(buffer, size, "\n");
+            pos = append_at(buffer, size, pos, "- ");
+            pos = append_at(buffer, size, pos, g_services[i].alias);
+            pos = append_at(buffer, size, pos, "\n");
         }
-        safe_append(buffer, size,
+        append_at(buffer, size, pos,
             "\nUsage:\n"
             "/logs <service>\n"
             "/logs <service> <lines>\n"
@@ -413,13 +412,23 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     }
 
     // ------------------------------------------------------------------------
+    // Allocate raw output buffer on heap — 32 KB handles 200 lines comfortably
+    // ------------------------------------------------------------------------
+    char *tmp = malloc(LOGS_TMP_BUF_SIZE);
+    if (!tmp) {
+        LOG_CMD(LOG_ERROR, "req=%04x malloc(%d) failed (OOM)", req_id, LOGS_TMP_BUF_SIZE);
+        snprintf(buffer, size, "❌ Out of memory");
+        return -1;
+    }
+    tmp[0] = '\0';
+
+    // ------------------------------------------------------------------------
     // Build header, then execute journalctl
     // ------------------------------------------------------------------------
     char lines_str[16];
     snprintf(lines_str, sizeof(lines_str), "%d", lines);
 
     char  *argv[JOURNALCTL_ARGS_MAX] = {0};
-    char   tmp[8192]                 = {0};
     size_t used                      = 0;
 
     /* Write header into buffer before calling process_logs_output() */
@@ -433,13 +442,14 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
         real_service, lines_str);
 
     exec_result_t exec_res;
-    int rc = exec_command(argv, tmp, sizeof(tmp), NULL, &exec_res);
+    int rc = exec_command(argv, tmp, LOGS_TMP_BUF_SIZE, NULL, &exec_res);
     if (rc != 0) {
         LOG_EXEC(LOG_DEBUG,
             "req=%04x RAW OUTPUT (%s): first 200 chars:\n%.200s",
             req_id, svc, tmp);
         LOG_EXEC(LOG_ERROR, "req=%04x journalctl exec failed", req_id);
         snprintf(buffer, size, "❌ Failed to read logs");
+        free(tmp);
         return -1;
     }
 
@@ -463,11 +473,12 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
             g_cfg.sudo_path, g_cfg.journalctl_path,
             NULL /* global journal */, lines_str);
 
-        exec_result_t res_fallback;
-        if (exec_command(argv, tmp, sizeof(tmp), NULL, &res_fallback) != 0) {
+        tmp[0] = '\0';
+        if (exec_command(argv, tmp, LOGS_TMP_BUF_SIZE, NULL, &exec_res) != 0) {
             LOG_EXEC(LOG_ERROR,
                 "req=%04x fallback journalctl exec failed", req_id);
             snprintf(buffer, size, "❌ No logs available");
+            free(tmp);
             return -1;
         }
 
@@ -507,5 +518,6 @@ int logs_get(const char *service, char *buffer, size_t size, unsigned short req_
     LOG_CMD(LOG_DEBUG,
         "req=%04x response size: %zu bytes", req_id, strlen(buffer));
 
+    free(tmp);
     return 0;
 }
