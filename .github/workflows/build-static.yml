@@ -308,4 +308,6 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: tg-bot-static
-          path: tg-bot
+          path: |
+            tg-bot
+            f2b-wrapper
