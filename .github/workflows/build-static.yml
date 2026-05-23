@@ -285,8 +285,8 @@ jobs:
           echo 'F2B_WRAPPER_PATH=/usr/local/bin/f2b-wrapper'       >> test.conf
           echo "=== test.conf ==="
           cat test.conf
-          echo "=== running bot ==="
-          timeout 3s ./tg-bot -c test.conf 2>&1 || echo 'bot exited (expected or timeout)'
+          echo "=== running bot (stdout/stderr switched to test.log after config load) ==="
+          timeout 3s ./tg-bot -c test.conf || true
           echo "=== test.log contents ==="
           cat test.log 2>/dev/null || echo "ERROR: test.log not created"
 
