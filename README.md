@@ -19,6 +19,9 @@ Production-ready Telegram bot for server monitoring and management, written in p
 ### ⚙️ Service Management
 
 * Check system services status via `systemctl`
+* Start, stop, restart individual services via `/service <alias> <action>`
+
+Supported actions: `status`, `start`, `stop`, `restart`
 
 Supports the following services:
 
@@ -81,7 +84,7 @@ Built-in metrics collected since last bot start:
   ```
   poll=01a3 req=2212 ACCESS CHECK: chat_id=123456789 cmd=/start result=DENIED
   ```
-* 🔑 **Two-step confirmation** for dangerous commands (`/reboot`, `/restart`)
+* 🔑 **Two-step confirmation** for dangerous commands (`/reboot`, `/restart`, `/service start|stop|restart`)
   * **TOTP mode** (when `TOTP_SECRET` is configured): time-based one-time code from Google Authenticator, Aegis, Authy or any RFC 6238 app
   * **Token mode** (fallback): stateless time-based token with configurable TTL
   * Bruteforce protection (blocks after 5 failed attempts)
@@ -98,7 +101,7 @@ Built-in metrics collected since last bot start:
 * Check jail status (`/fail2ban status`, `/fail2ban status sshd`)
 * Ban / unban IP addresses
 * Secure wrapper execution via `f2b-wrapper`
-* Full audit logging
+* Full audit logging via syslog (`LOG_AUTH` facility)
 
 ---
 
@@ -115,6 +118,7 @@ Built-in metrics collected since last bot start:
 
 * Long polling (no webhooks)
 * Fork isolation for libcurl — network hangs cannot block the main process
+* Dynamic pipe buffer — handles large Telegram responses (100+ updates) without truncation
 * Offset persistence with atomic write (crash recovery, no duplicate messages)
 * Runtime duplicate detection
 * MarkdownV2 formatting with automatic escaping
@@ -129,7 +133,7 @@ Built-in metrics collected since last bot start:
 * Deadline-based curl timeouts (no busy-wait)
 * Zero zombie processes — blocking waitpid after pipe EOF
 * Early log buffer — startup messages are captured before log file opens
-* Graceful shutdown:
+* Graceful shutdown on SIGTERM and on consecutive polling errors:
   * Saves update offset to disk
   * Flushes logs
   * Syncs filesystem
@@ -142,7 +146,7 @@ Built-in metrics collected since last bot start:
 ### 📊 Logging System
 
 * Levels: `DEBUG` / `INFO` / `WARN` / `ERROR`
-* Millisecond-precision timestamps
+* Millisecond-precision timestamps (single `clock_gettime` call — no race condition)
 * Complete log from process start — early messages buffered and flushed to file on open
 * Mirror to stderr when running interactively (isatty detection)
 * No stderr duplication when running as systemd service
@@ -153,8 +157,8 @@ Built-in metrics collected since last bot start:
 
 ## 🔐 TOTP Two-Factor Authentication
 
-Dangerous commands (`/reboot`, `/restart`) support TOTP 2FA compatible with
-Google Authenticator, Aegis, Authy and any RFC 6238 application.
+Dangerous commands (`/reboot`, `/restart`, `/service start|stop|restart`) support TOTP 2FA
+compatible with Google Authenticator, Aegis, Authy and any RFC 6238 application.
 
 ### Setup
 
@@ -239,22 +243,26 @@ cp config/config.example.conf config/config.conf
 
 ```
 General
-/start   — welcome message with system summary
+/start   — welcome message with system summary + selfcheck (RSS, log file)
 /help    — list all commands
 
 System info
 /status  — detailed system status (CPU, memory, disk, uptime)
-/health  — compact health check + bot metrics
+/health  — compact health check + bot metrics (with used/total MB and GB)
 /about   — bot version, build info, library versions
 /ping    — latency test (processing time, inbound, RTT)
+/logstat — bot log file statistics (SSE4.2 accelerated)
 
 Services
-/services              — status of all monitored services
-/users                 — active login sessions
-/logs ssh              — last 30 lines from ssh journal
-/logs ssh 50           — last 50 lines
-/logs ssh error        — filtered by "error" (semantic)
-/logs ssh 100 brute    — last 100 lines filtered for brute-force patterns
+/services                      — status of all monitored services
+/service ssh status            — status of a single service
+/service ssh restart           — restart a service (requires confirmation)
+/service shadowsocks stop      — stop a service (requires confirmation)
+/users                         — active login sessions
+/logs ssh                      — last 30 lines from ssh journal
+/logs ssh 50                   — last 50 lines
+/logs ssh error                — filtered by "error" (semantic)
+/logs ssh 100 brute            — last 100 lines filtered for brute-force patterns
 
 Security
 /fail2ban status           — show all jails
@@ -277,7 +285,7 @@ Modular C design — each module has a single responsibility:
 
 * `main.c` — orchestration, main event loop, signal handling
 * `lifecycle.c` — process lifecycle (signals, shutdown, reboot, restart)
-* `telegram_poll.c` — long polling with fork() isolation for libcurl
+* `telegram_poll.c` — long polling with fork() isolation for libcurl, RSS sampling
 * `telegram_http.c` — low-level HTTP via libcurl
 * `telegram_parser.c` — JSON parsing, markdown escaping
 * `telegram_offset.c` — update offset persistence
@@ -288,7 +296,7 @@ Modular C design — each module has a single responsibility:
 * `logger.c` — thread-safe logging with early buffer
 * `diagnostics.c` — runtime diagnostics (loop timing)
 * `services_config.c` — shared service definitions (single source of truth)
-* `services.c` — systemd service status queries
+* `services.c` — systemd service status queries and control
 * `system.c` — system metrics (CPU, memory, disk, uptime)
 * `exec.c` — external command execution with deadline timeout
 * `logs.c` + `logs_filter.c` — journalctl integration and semantic filtering
@@ -304,11 +312,14 @@ Modular C design — each module has a single responsibility:
 * `pipe2(O_CLOEXEC)` — no fd leaks into child processes
 * Deadline-based `select()` — total timeout is always exactly `timeout_ms`
 * Blocking `waitpid()` after pipe EOF — no zombie window
+* Dynamic heap buffer for Telegram API responses — no fixed cap, handles 100+ updates
 * `getrandom(2)` for token salt — cryptographically unpredictable
 * All timeout constants in `telegram_timeouts.h` with `_Static_assert` chain
 * Config reload on `SIGHUP` without restart
 * Log reopen on `SIGUSR1` for logrotate integration
 * TOTP verification uses ±1 step window to compensate for clock skew
+* TOKEN and TOTP_SECRET never appear in log files — masked even at DEBUG level
+* f2b-wrapper logs all operations to syslog (`LOG_AUTH`) with PID
 
 ---
 
@@ -321,6 +332,7 @@ Modular C design — each module has a single responsibility:
 * Token salt generated via `getrandom(2)` at startup — unpredictable across restarts
 * TOTP secret never logged — not even at DEBUG level
 * `TOTP_SETUP=disabled` by default — secret not exposed via `/totp_setup` after setup
+* f2b-wrapper rejects private/loopback IP addresses for ban/unban operations
 
 ---
 
@@ -336,7 +348,7 @@ Modular C design — each module has a single responsibility:
   * 🧭 **c-ares 1.34.6** — async DNS resolver (MIT)
   * 📄 **cJSON 1.7.19** — JSON parser (MIT)
 
-> ⚡ The binary is fully self-contained (~5 MB). Only `libc` is required at runtime.
+> ⚡ The binary is fully self-contained (~5.5 MB stripped). Only `libc` is required at runtime.
 
 ### 📦 Install
 
@@ -379,8 +391,8 @@ Rebuild `f2b-wrapper` locally on the target machine.
 
 ## 🚧 Roadmap
 
-### In Progress
-* `/service start|stop|restart` — service management via Telegram
+### Recently Completed
+* `/service <alias> <action>` — start, stop, restart individual services via Telegram
 
 ### Planned
 * Log filtering by time (`--since 1h`)
@@ -410,4 +422,4 @@ Inspired by the idea that infrastructure should remain in your hands.
 
 ## 📄 License ![License](https://img.shields.io/badge/license-MIT-green)
 
-MIT © ironmist45
+MIT License © 2026 ironmist45
