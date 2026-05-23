@@ -21,6 +21,7 @@
 
 #include "system.h"
 #include "logger.h"
+#include "utils.h"
 
 #include <time.h>
 #include <stdio.h>
@@ -92,12 +93,11 @@ static void get_memory(int *used_mb, int *total_mb, int *percent) {
 
     char key[64];
     long value;
-    char unit[16] = {0};
     char line[128];
 
+    /* /proc/meminfo values are always in kB on Linux — unit field ignored */
     while (fgets(line, sizeof(line), fp)) {
-        int n = sscanf(line, "%63s %ld %15s", key, &value, unit);
-        if (n < 2) continue;
+        if (sscanf(line, "%63s %ld", key, &value) < 2) continue;
 
         if (strcmp(key, "MemTotal:") == 0)
             mem_total = value;
@@ -228,7 +228,10 @@ int system_get_uptime_str(char *buf, size_t size) {
  * @param percent  Fill percentage (0-100)
  */
 static void make_bar(char *buf, size_t size, int percent) {
-    const int width = 20;
+    const int    width       = 20;
+    const char   filled_char[] = "█";  /* 3 bytes UTF-8 */
+    const char   empty_char[]  = "░";  /* 3 bytes UTF-8 */
+    const size_t char_bytes  = 3;
 
     int filled = (percent * width) / 100;
     int empty  = width - filled;
@@ -236,13 +239,20 @@ static void make_bar(char *buf, size_t size, int percent) {
 
     pos += snprintf(buf + pos, size - pos, "[");
 
-    for (int i = 0; i < filled && pos < (int)size - 1; i++)
-        pos += snprintf(buf + pos, size - pos, "█");
+    for (int i = 0; i < filled && pos + (int)char_bytes < (int)size; i++) {
+        memcpy(buf + pos, filled_char, char_bytes);
+        pos += char_bytes;
+    }
 
-    for (int i = 0; i < empty && pos < (int)size - 1; i++)
-        pos += snprintf(buf + pos, size - pos, "░");
+    for (int i = 0; i < empty && pos + (int)char_bytes < (int)size; i++) {
+        memcpy(buf + pos, empty_char, char_bytes);
+        pos += char_bytes;
+    }
 
-    snprintf(buf + pos, size - pos, "]");
+    if (pos < (int)size - 1) {
+        buf[pos++] = ']';
+        buf[pos]   = '\0';
+    }
 }
 
 // ============================================================================
@@ -284,7 +294,7 @@ static int get_user_count(void) {
 static void get_os(char *buf, size_t size) {
     FILE *fp = fopen("/etc/os-release", "r");
     if (!fp) {
-        snprintf(buf, size, "Unknown");
+        safe_copy(buf, size, "Unknown");
         return;
     }
 
@@ -294,22 +304,22 @@ static void get_os(char *buf, size_t size) {
         if (strncmp(line, "PRETTY_NAME=", 12) == 0) {
             char *val = line + 12;
 
-            val[strcspn(val, "\n")] = 0;
+            val[strcspn(val, "\n")] = '\0';
 
             if (*val == '"' || *val == '\'') {
                 val++;
                 char *end = strrchr(val, '"');
-                if (end) *end = 0;
+                if (end) *end = '\0';
             }
 
-            snprintf(buf, size, "%s", val);
+            safe_copy(buf, size, val);
             fclose(fp);
             return;
         }
     }
 
     fclose(fp);
-    snprintf(buf, size, "Unknown");
+    safe_copy(buf, size, "Unknown");
 }
 
 // ============================================================================
@@ -332,19 +342,19 @@ static void get_host(char *buf, size_t size) {
     FILE *fp = fopen("/sys/devices/virtual/dmi/id/sys_vendor", "r");
     if (fp) {
         if (fgets(vendor, sizeof(vendor), fp))
-            vendor[strcspn(vendor, "\n")] = 0;
+            vendor[strcspn(vendor, "\n")] = '\0';
         fclose(fp);
     }
 
     fp = fopen("/sys/devices/virtual/dmi/id/product_name", "r");
     if (fp) {
         if (fgets(product, sizeof(product), fp))
-            product[strcspn(product, "\n")] = 0;
+            product[strcspn(product, "\n")] = '\0';
         fclose(fp);
     }
 
     if (vendor[0] == '\0' && product[0] == '\0') {
-        snprintf(buf, size, "Unknown");
+        safe_copy(buf, size, "Unknown");
         return;
     }
 
@@ -356,7 +366,7 @@ static void get_host(char *buf, size_t size) {
     if (start && end && end > start + 1) {
         size_t len = (size_t)(end - start - 1);
         if (len < sizeof(model)) {
-            strncpy(model, start + 1, len);
+            safe_copy(model, sizeof(model), start + 1);
             model[len] = '\0';
 
             /* Trim " + ICH9, 2009" suffix */
@@ -370,9 +380,9 @@ static void get_host(char *buf, size_t size) {
     else if (vendor[0] && product[0])
         snprintf(buf, size, "%s (%s)", vendor, product);
     else if (vendor[0])
-        snprintf(buf, size, "%s", vendor);
+        safe_copy(buf, size, vendor);
     else
-        snprintf(buf, size, "%s", product);
+        safe_copy(buf, size, product);
 }
 
 // ============================================================================
@@ -408,9 +418,9 @@ int system_get_status(char *buffer, size_t size, unsigned short req_id) {
     get_disk(&used_disk, &total_disk, &disk_pct);
 
     /* Clamp percentages to valid range */
-    if (mem_pct  < 0) mem_pct  = 0;
+    if (mem_pct  < 0)   mem_pct  = 0;
     if (mem_pct  > 100) mem_pct  = 100;
-    if (disk_pct < 0) disk_pct = 0;
+    if (disk_pct < 0)   disk_pct = 0;
     if (disk_pct > 100) disk_pct = 100;
 
     char mem_bar[64], disk_bar[64];
@@ -496,9 +506,9 @@ int system_get_status_mini(char *buffer, size_t size, unsigned short req_id) {
     int used_disk, total_disk, disk_pct;
     get_disk(&used_disk, &total_disk, &disk_pct);
 
-    if (mem_pct  < 0) mem_pct  = 0;
+    if (mem_pct  < 0)   mem_pct  = 0;
     if (mem_pct  > 100) mem_pct  = 100;
-    if (disk_pct < 0) disk_pct = 0;
+    if (disk_pct < 0)   disk_pct = 0;
     if (disk_pct > 100) disk_pct = 100;
 
     int days, hours, mins;
@@ -519,12 +529,12 @@ int system_get_status_mini(char *buffer, size_t size, unsigned short req_id) {
     int written = snprintf(buffer, size,
         "⚡ *System Health*\n\n"
         "%-5s %s %5.2f (1m)\n"
-        "%-5s %s %3d%%\n"
-        "%-5s %s %3d%%\n"
+        "%-5s %s %3d%% (%d/%d MB)\n"
+        "%-5s %s %3d%% (%d/%d GB)\n"
         "%-5s %dd %dh %dm",
         "CPU:", cpu_icon,  l1,
-        "MEM:", mem_icon,  mem_pct,
-        "DSK:", disk_icon, disk_pct,
+        "MEM:", mem_icon,  mem_pct,  used_mem,  total_mem,
+        "DSK:", disk_icon, disk_pct, used_disk, total_disk,
         "UP:",  days, hours, mins
     );
 
