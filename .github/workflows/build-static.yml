@@ -160,7 +160,9 @@ jobs:
               echo ''
 
               cd /tmp
-              git clone --depth 1 --branch v\${VER_CJSON} https://github.com/DaveGamble/cJSON.git
+              wget https://github.com/DaveGamble/cJSON/archive/refs/tags/v\${VER_CJSON}.tar.gz -O cJSON.tar.gz
+              tar -xzf cJSON.tar.gz
+              mv cJSON-\${VER_CJSON} cJSON
               cd cJSON
               mkdir build && cd build
               cmake .. \
@@ -182,7 +184,7 @@ jobs:
             echo ''
             gcc -O2 -Wall -Wextra -std=c11 tools/f2b-wrapper.c -o f2b-wrapper
             echo '[INFO] Stripping f2b-wrapper binary'
-            strip f2b-wrapper  || true
+            strip f2b-wrapper || true
             chmod +x f2b-wrapper
             cp f2b-wrapper /usr/local/bin/f2b-wrapper
             echo '[OK] f2b-wrapper built'
