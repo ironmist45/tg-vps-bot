@@ -196,7 +196,7 @@ jobs:
             echo ''
 
             make LDFLAGS='-L/deps/curl/lib -L/deps/openssl/lib64 -L/deps/cares/lib -L/deps/cjson/lib -Wl,-Bstatic -lcjson -lcurl -lssl -lcrypto -lcares -Wl,-Bdynamic -lz -lpthread -ldl' \
-                 CFLAGS='-Iinclude -I/deps/curl/include -I/deps/openssl/include -I/deps/cares/include -I/deps/cjson/include'
+                 EXTRA_CFLAGS='-I/deps/curl/include -I/deps/openssl/include -I/deps/cares/include -I/deps/cjson/include'
 
             chmod +x tg-bot || true
 
