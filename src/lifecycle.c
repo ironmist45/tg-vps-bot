@@ -203,7 +203,7 @@ void lifecycle_handle_shutdown(void) {
 
     /* Log SIGTERM receipt here — deferred from signal handler (not async-signal-safe) */
     if (g_shutdown_requested == SHUTDOWN_STOP)
-        LOG_SYS(LOG_WARN, "Received SIGTERM (PID=%d), shutting down...", getpid());
+        LOG_SYS(LOG_WARN, "Received SIGTERM (Main PID=%d), shutting down...", getpid());
 
     LOG_SYS(LOG_INFO, "Shutdown handler entered (%s)", mode);
     LOG_SYS(LOG_DEBUG, "shutdown mode raw=%d", g_shutdown_requested);
