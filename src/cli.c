@@ -102,7 +102,7 @@ static void cli_print_version(void) {
     printf("c-ares: %s\n", ares_version(NULL));
     printf("cJSON: %d.%d.%d\n",
            CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
-    printf("(c) %s %s\n", APP_YEAR, APP_AUTHOR);
+    printf("MIT License (c) %s %s\n", APP_YEAR, APP_AUTHOR);
 }
 
 // ============================================================================
