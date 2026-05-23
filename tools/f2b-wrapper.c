@@ -30,7 +30,7 @@
 
 #define F2B_CLIENT          "/usr/bin/fail2ban-client"
 #define F2B_WRAPPER_VERSION "1.3"
-#define IP_MAX_STRLEN       45   /* Max IPv6 string length (INET6_ADDRSTRLEN) */
+#define IPV4_MAX_STRLEN     15   /* Max IPv4 string length: "255.255.255.255" */
 
 // ============================================================================
 // IP ADDRESS VALIDATION
@@ -51,7 +51,7 @@ static int is_safe_ip(const char *ip) {
     if (!ip) return 0;
 
     /* Reject overly long strings before parsing */
-    if (strlen(ip) > IP_MAX_STRLEN) return 0;
+    if (strlen(ip) > IPV4_MAX_STRLEN) return 0;
 
     struct sockaddr_in sa;
     if (inet_pton(AF_INET, ip, &(sa.sin_addr)) != 1) return 0;
@@ -116,10 +116,18 @@ int main(int argc, char *argv[]) {
     }
 
     // ------------------------------------------------------------------------
+    // Initialise syslog — LOG_AUTH facility for security-related events,
+    // LOG_PID adds the process ID to every entry.
+    // Called before root check so all subsequent syslog calls are tagged.
+    // ------------------------------------------------------------------------
+    openlog("f2b-wrapper", LOG_PID | LOG_NDELAY, LOG_AUTH);
+
+    // ------------------------------------------------------------------------
     // Check root privileges (required for fail2ban-client)
     // ------------------------------------------------------------------------
     if (geteuid() != 0) {
         fprintf(stderr, "f2b-wrapper: must be run as root\n");
+        syslog(LOG_ERR, "rejected: not running as root (euid=%d)", geteuid());
         return 1;
     }
 
@@ -127,7 +135,7 @@ int main(int argc, char *argv[]) {
     // STATUS COMMAND
     // ========================================================================
     if (strcmp(argv[1], "status") == 0) {
-        // Generic status (all jails)
+        /* Generic status (all jails) */
         if (argc == 2) {
             syslog(LOG_NOTICE, "executing: status (all jails)");
             execl(F2B_CLIENT, F2B_CLIENT, "status", NULL);
@@ -136,7 +144,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
-        // Status for specific jail (only sshd is allowed)
+        /* Status for specific jail (only sshd is allowed) */
         if (argc == 3 && strcmp(argv[2], "sshd") == 0) {
             syslog(LOG_NOTICE, "executing: status sshd");
             execl(F2B_CLIENT, F2B_CLIENT, "status", "sshd", NULL);
@@ -154,34 +162,34 @@ int main(int argc, char *argv[]) {
     // SET COMMAND (ban/unban)
     // ========================================================================
     if (strcmp(argv[1], "set") == 0) {
-        // Validate argument count
+        /* Validate argument count */
         if (argc != 5) {
             fprintf(stderr, "f2b-wrapper: set requires 3 arguments (jail action ip)\n");
             return 1;
         }
 
-        // Only sshd jail is allowed
+        /* Only sshd jail is allowed */
         if (strcmp(argv[2], "sshd") != 0) {
             fprintf(stderr, "f2b-wrapper: only 'sshd' jail is supported\n");
             syslog(LOG_WARNING, "rejected unsupported jail '%s'", argv[2]);
             return 1;
         }
 
-        // Validate action (banip or unbanip)
+        /* Validate action (banip or unbanip) */
         if (strcmp(argv[3], "banip") != 0 && strcmp(argv[3], "unbanip") != 0) {
             fprintf(stderr, "f2b-wrapper: invalid action '%s' (use banip or unbanip)\n", argv[3]);
             syslog(LOG_WARNING, "rejected invalid action '%s'", argv[3]);
             return 1;
         }
 
-        // Validate IP address (public only)
+        /* Validate IP address (public only) */
         if (!is_safe_ip(argv[4])) {
             fprintf(stderr, "f2b-wrapper: invalid or private IP address '%s'\n", argv[4]);
             syslog(LOG_WARNING, "rejected invalid/private IP '%s'", argv[4]);
             return 1;
         }
 
-        // Log and execute fail2ban-client
+        /* Log and execute fail2ban-client */
         syslog(LOG_NOTICE, "executing: %s %s", argv[3], argv[4]);
         execl(F2B_CLIENT, F2B_CLIENT, "set", "sshd", argv[3], argv[4], NULL);
         syslog(LOG_ERR, "exec failed: %m");
