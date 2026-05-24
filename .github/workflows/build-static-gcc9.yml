@@ -66,7 +66,7 @@ jobs:
             update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
 
             echo '[INFO] Compiler version:'
-            gcc --version | head -1
+            GCC_VER=\$(gcc --version | head -1 | awk '{print \$NF}')
 
             # ===== Install remaining build dependencies =====
             apt-get install -y --no-install-recommends --fix-missing \
@@ -102,9 +102,9 @@ jobs:
 
               # ===== build static openssl =====
               echo ''
-              echo '========================================'
-              echo \" Building OpenSSL \${VER_OPENSSL} (static)\"
-              echo '========================================'
+              echo '==============================================================='
+              echo \" Building OpenSSL \${VER_OPENSSL} (static, GCC \${GCC_VER})\"
+              echo '==============================================================='
               echo ''
 
               cd /tmp
@@ -120,9 +120,9 @@ jobs:
 
               # ===== build static c-ares =====
               echo ''
-              echo '========================================'
-              echo \" Building c-ares \${VER_CARES} (static)\"
-              echo '========================================'
+              echo '============================================================'
+              echo \" Building c-ares \${VER_CARES} (static, GCC \${GCC_VER})\"
+              echo '============================================================'
               echo ''
 
               cd /tmp
@@ -140,9 +140,9 @@ jobs:
 
               # ===== build static curl =====
               echo ''
-              echo '========================================'
-              echo \" Building curl \${VER_CURL} (static)\"
-              echo '========================================'
+              echo '========================================================='
+              echo \" Building curl \${VER_CURL} (static, GCC \${GCC_VER})\"
+              echo '========================================================='
               echo ''
 
               cd /tmp
@@ -169,9 +169,9 @@ jobs:
 
               # ===== build cJSON =====
               echo ''
-              echo '========================================'
-              echo \" Building cJSON \${VER_CJSON} (static, GCC 9)\"
-              echo '========================================'
+              echo '==========================================================='
+              echo \" Building cJSON \${VER_CJSON} (static, GCC \${GCC_VER})\"
+              echo '==========================================================='
               echo ''
 
               cd /tmp
@@ -198,9 +198,9 @@ jobs:
             # ===== build f2b-wrapper =====
             cd /app
             echo ''
-            echo '========================================'
-            echo ' Building f2b-wrapper (GCC 9)'
-            echo '========================================'
+            echo '=========================================='
+            echo ' Building f2b-wrapper (GCC '\${GCC_VER}')'
+            echo '=========================================='
             echo ''
             gcc -O2 -Wall -Wextra -std=c11 tools/f2b-wrapper.c -o f2b-wrapper
             echo '[INFO] Stripping f2b-wrapper binary'
@@ -212,11 +212,11 @@ jobs:
             # ===== build tg-bot =====
             cd /app
             echo ''
-            echo '========================================'
-            echo ' Building tg-bot (static, GCC 9)'
+            echo '===================================================='
+            echo ' Building tg-bot (static, GCC \${GCC_VER})\'
             echo \"  OpenSSL \${VER_OPENSSL}, c-ares \${VER_CARES},\"
             echo \"  curl \${VER_CURL}, cJSON \${VER_CJSON}\"
-            echo '========================================'
+            echo '===================================================='
             echo ''
 
             make LDFLAGS='-L/deps/curl/lib -L/deps/openssl/lib64 -L/deps/cares/lib -L/deps/cjson/lib -Wl,-Bstatic -lcjson -lcurl -lssl -lcrypto -lcares -Wl,-Bdynamic -lz -lpthread -ldl' \
