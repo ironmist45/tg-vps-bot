@@ -97,6 +97,7 @@ static void cli_print_version(void) {
     printf("Build: #%s\n", TG_BUILD_NUMBER);
     printf("Commit: %s\n", TG_BUILD_COMMIT);
     printf("Built: %s\n", TG_BUILD_DATE);
+    printf("Compiler: %s\n", TG_BUILD_COMPILER);
     printf("libcurl: %.14s\n", curl_version());
     printf("OpenSSL: %s\n", OpenSSL_version(0));
     printf("c-ares: %s\n", ares_version(NULL));
