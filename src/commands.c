@@ -5,7 +5,7 @@
  *
  * Command table is defined statically; actual implementations are in:
  *   - cmd_system.c   (/status, /health, /about, /ping)
- *   - cmd_services.c (/services, /users, /logs)
+ *   - cmd_services.c (/services, /users, /logs, /service)
  *   - cmd_help.c     (/help)
  *   - cmd_security.c (/fail2ban)
  *   - cmd_control.c  (/start, /reboot, /restart, /totp_setup)
@@ -18,6 +18,10 @@
  *   On /confirm:
  *     - If g_cfg.totp_secret is set  → validate via TOTP (RFC 6238)
  *     - If g_cfg.totp_secret is empty → validate via classic stateless token
+ *
+ *   Commands with requires_confirmation = 0 that need conditional confirmation
+ *   (e.g. /service — only start/stop/restart need it, not status) handle
+ *   the confirmation gate themselves inside the handler.
  */
 
 #include "commands.h"
@@ -92,6 +96,10 @@ static int pending_expired(void) {
  *   category              — grouping for /help (NULL = hidden)
  *   requires_confirmation — 1 = needs /confirm before execution
  *                           Commands with this flag show 🔐 in /help
+ *
+ * Note: /service uses requires_confirmation = 0 because only some actions
+ * (start/stop/restart) need confirmation — the handler decides internally.
+ * The pending slot args field carries the original arguments through /confirm.
  */
 command_t commands[] = {
     /* General */
@@ -106,9 +114,10 @@ command_t commands[] = {
     {"/logstat",  cmd_logstat_v2, "Log file statistics", "System info", 0},
 
     /* Service management */
-    {"/services", cmd_services_v2, NULL, "Services", 0},
-    {"/users",    cmd_users_v2,    NULL, "Services", 0},
-    {"/logs",     cmd_logs_v2,     NULL, "Services", 0},
+    {"/services", cmd_services_v2, NULL,                       "Services", 0},
+    {"/service",  cmd_service_v2,  "Manage single service",    "Services", 0},
+    {"/users",    cmd_users_v2,    NULL,                       "Services", 0},
+    {"/logs",     cmd_logs_v2,     NULL,                       "Services", 0},
 
     /* Security */
     {"/fail2ban",   cmd_fail2ban_v2,   "Manage Fail2Ban", "Security", 0},
@@ -125,9 +134,9 @@ command_t commands[] = {
      * but hidden from /help. After full TOTP migration they will be removed.
      */
     {"/reboot",          cmd_reboot_v2,          "Reboot system", "System control", 1},
-    {"/reboot_confirm",  cmd_reboot_confirm_v2,  NULL,            NULL,     0},  /* hidden, legacy */
+    {"/reboot_confirm",  cmd_reboot_confirm_v2,  NULL,            NULL,             0},  /* hidden, legacy */
     {"/restart",         cmd_restart_v2,         "Restart bot",   "System control", 1},
-    {"/restart_confirm", cmd_restart_confirm_v2, NULL,            NULL,     0},  /* hidden, legacy */
+    {"/restart_confirm", cmd_restart_confirm_v2, NULL,            NULL,             0},  /* hidden, legacy */
 
     /* Universal confirmation handler — hidden from /help */
     {"/confirm", NULL, NULL, NULL, 0},  /* handled inline in dispatcher */
@@ -146,8 +155,12 @@ const int commands_count = sizeof(commands) / sizeof(commands[0]);
  * If not:               generate a classic token and send it.
  *
  * Stores the pending slot so /confirm knows what to execute.
+ * args is saved into g_pending.args so the handler can retrieve the
+ * original arguments after confirmation (e.g. "ssh restart" for /service).
  */
-static int request_confirmation(command_ctx_t *ctx, const char *cmd_name) {
+static int request_confirmation(command_ctx_t *ctx, const char *cmd_name,
+                                const char *args)
+{
     int ttl = security_get_token_ttl();
 
     g_pending.active     = 1;
@@ -155,10 +168,16 @@ static int request_confirmation(command_ctx_t *ctx, const char *cmd_name) {
     g_pending.expires_at = time(NULL) + ttl;
     safe_copy(g_pending.command, sizeof(g_pending.command), cmd_name);
 
+    /* Save args so they survive until /confirm is received */
+    if (args && args[0] != '\0')
+        safe_copy(g_pending.args, sizeof(g_pending.args), args);
+    else
+        g_pending.args[0] = '\0';
+
     if (g_cfg.totp_secret[0] != '\0') {
         /* TOTP flow */
-        LOG_SEC(LOG_INFO, "req=%04x confirm: TOTP requested for %s",
-                ctx->req_id, cmd_name);
+        LOG_SEC(LOG_INFO, "req=%04x confirm: TOTP requested for %s (args='%s')",
+                ctx->req_id, cmd_name, g_pending.args);
 
         snprintf(ctx->response, ctx->resp_size,
             "🔐 *Confirm:* `%s`\n\n"
@@ -171,8 +190,8 @@ static int request_confirmation(command_ctx_t *ctx, const char *cmd_name) {
         int token = security_generate_reboot_token(ctx->chat_id, ctx->req_id);
         g_pending.token = token;
 
-        LOG_SEC(LOG_INFO, "req=%04x confirm: token=%06d requested for %s",
-                ctx->req_id, token, cmd_name);
+        LOG_SEC(LOG_INFO, "req=%04x confirm: token=%06d requested for %s (args='%s')",
+                ctx->req_id, token, cmd_name, g_pending.args);
 
         snprintf(ctx->response, ctx->resp_size,
             "⚠️ *Confirm:* `%s`\n\n"
@@ -189,7 +208,7 @@ static int request_confirmation(command_ctx_t *ctx, const char *cmd_name) {
  * Handle /confirm <code>.
  *
  * Validates the code against TOTP or classic token depending on config.
- * On success: dispatches the pending command handler.
+ * On success: restores saved args into ctx and dispatches the pending handler.
  * On failure: clears pending slot and returns an error message.
  */
 static int handle_confirm(command_ctx_t *ctx) {
@@ -246,14 +265,22 @@ static int handle_confirm(command_ctx_t *ctx) {
         }
     }
 
-    /* Code accepted — find and execute the pending command handler */
-    LOG_SEC(LOG_INFO, "req=%04x confirm: accepted for %s",
-            ctx->req_id, g_pending.command);
+    /* Code accepted — restore saved args and find the pending handler */
+    LOG_SEC(LOG_INFO, "req=%04x confirm: accepted for %s (args='%s')",
+            ctx->req_id, g_pending.command, g_pending.args);
 
     char confirmed_cmd[32];
-    safe_copy(confirmed_cmd, sizeof(confirmed_cmd), g_pending.command);
+    char confirmed_args[64];
+    safe_copy(confirmed_cmd,  sizeof(confirmed_cmd),  g_pending.command);
+    safe_copy(confirmed_args, sizeof(confirmed_args), g_pending.args);
 
     pending_clear();  /* Clear before executing to prevent replay */
+
+    /*
+     * Restore saved args into ctx so the handler sees the original arguments
+     * (e.g. cmd_service_v2 needs "ssh restart" to know what to execute).
+     */
+    ctx->args = (confirmed_args[0] != '\0') ? confirmed_args : NULL;
 
     for (int i = 0; i < commands_count; i++) {
         if (strcmp(confirmed_cmd, commands[i].name) == 0) {
@@ -267,6 +294,28 @@ static int handle_confirm(command_ctx_t *ctx) {
             ctx->req_id, confirmed_cmd);
     snprintf(ctx->response, ctx->resp_size, "Internal error");
     return -1;
+}
+
+// ============================================================================
+// PUBLIC CONFIRMATION REQUEST (for handlers with conditional confirmation)
+// ============================================================================
+
+/**
+ * Request confirmation from inside a handler.
+ *
+ * Handlers registered with requires_confirmation = 0 that need conditional
+ * confirmation (e.g. /service for start/stop/restart but not status) call
+ * this instead of relying on the dispatcher gate.
+ *
+ * Delegates to the internal request_confirmation() so the flow is identical
+ * to the dispatcher-initiated path — same pending slot, same TOTP/token
+ * logic, same message format.
+ */
+int commands_request_confirm(command_ctx_t *ctx,
+                             const char *cmd_name,
+                             const char *args)
+{
+    return request_confirmation(ctx, cmd_name, args);
 }
 
 // ============================================================================
@@ -387,7 +436,7 @@ int commands_handle(const char *text,
         LOG_NET_CTX(&ctx, LOG_INFO, "cmd: %s [v2]", argv[0]);
 
         /* -------------------------------------------------------------------
-         * Two-step confirmation gate
+         * Two-step confirmation gate (requires_confirmation = 1)
          * ------------------------------------------------------------------- */
         if (commands[i].requires_confirmation) {
             /*
@@ -403,7 +452,8 @@ int commands_handle(const char *text,
                     req_id, argv[0]);
             }
 
-            int rc = request_confirmation(&ctx, argv[0]);
+            int rc = request_confirmation(&ctx, argv[0], args_buffer[0] != '\0'
+                                          ? args_buffer : NULL);
             if (resp_type) *resp_type = local_resp_type;
             return rc;
         }
