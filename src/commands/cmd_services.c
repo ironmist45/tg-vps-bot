@@ -258,7 +258,7 @@ int cmd_service_v2(command_ctx_t *ctx)
 
         LOG_CMD_CTX(ctx, LOG_INFO, "service status: alias=%s result='%s'",
                     alias, out);
-        METRICS_CMD(services);
+        METRICS_CMD(service);
 
         if (rc != 0)
             return reply_markdown(ctx, out[0] ? out : "❌ Failed to get status");
@@ -296,5 +296,6 @@ int cmd_service_v2(command_ctx_t *ctx)
     LOG_CMD_CTX(ctx, LOG_INFO, "service: requesting confirmation for %s %s",
                 action_str, alias);
 
+    METRICS_CMD(service);
     return commands_request_confirm(ctx, "/service", ctx->args);
 }
