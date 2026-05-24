@@ -66,7 +66,9 @@ jobs:
             update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
 
             echo '[INFO] Compiler version:'
+            gcc --version | head -1
             GCC_VER=\$(gcc --version | head -1 | awk '{print \$NF}')
+            echo \"[INFO] GCC_VER=\${GCC_VER}\"
 
             # ===== Install remaining build dependencies =====
             apt-get install -y --no-install-recommends --fix-missing \
@@ -91,9 +93,9 @@ jobs:
             echo \"#define TG_BUILD_COMMIT \\\"\${BUILD_COMMIT}\\\"\"  >> /app/include/build_info.h
             echo \"#define TG_BUILD_DATE \\\"\${BUILD_DATE}\\\"\"      >> /app/include/build_info.h
             echo \"#define TG_BUILD_NUMBER \\\"\${BUILD_NUMBER}\\\"\"  >> /app/include/build_info.h
-            echo \"#define TG_BUILD_COMPILER \\\"GCC 9\\\"\"           >> /app/include/build_info.h
+            echo \"#define TG_BUILD_COMPILER \\\"GCC \${GCC_VER}\\\"\" >> /app/include/build_info.h
             echo \"#endif\"                                             >> /app/include/build_info.h
-            echo \"[INFO] Build info: commit=\${BUILD_COMMIT} date=\${BUILD_DATE} build=\${BUILD_NUMBER} compiler=GCC 9\"
+            echo \"[INFO] Build info: commit=\${BUILD_COMMIT} date=\${BUILD_DATE} build=\${BUILD_NUMBER} compiler=GCC \${GCC_VER}\"
 
             if [ \"\${CACHE_HIT}\" = \"true\" ]; then
               echo '[INFO] Cache hit — skipping dependency builds'
@@ -198,9 +200,9 @@ jobs:
             # ===== build f2b-wrapper =====
             cd /app
             echo ''
-            echo '=========================================='
-            echo ' Building f2b-wrapper (GCC '\${GCC_VER}')'
-            echo '=========================================='
+            echo '=============================================='
+            echo \" Building f2b-wrapper (GCC \${GCC_VER})\"
+            echo '=============================================='
             echo ''
             gcc -O2 -Wall -Wextra -std=c11 tools/f2b-wrapper.c -o f2b-wrapper
             echo '[INFO] Stripping f2b-wrapper binary'
@@ -212,11 +214,11 @@ jobs:
             # ===== build tg-bot =====
             cd /app
             echo ''
-            echo '===================================================='
-            echo ' Building tg-bot (static, GCC \${GCC_VER})\'
+            echo '======================================================'
+            echo \" Building tg-bot (static, GCC \${GCC_VER})\"
             echo \"  OpenSSL \${VER_OPENSSL}, c-ares \${VER_CARES},\"
             echo \"  curl \${VER_CURL}, cJSON \${VER_CJSON}\"
-            echo '===================================================='
+            echo '======================================================'
             echo ''
 
             make LDFLAGS='-L/deps/curl/lib -L/deps/openssl/lib64 -L/deps/cares/lib -L/deps/cjson/lib -Wl,-Bstatic -lcjson -lcurl -lssl -lcrypto -lcares -Wl,-Bdynamic -lz -lpthread -ldl' \
@@ -227,7 +229,7 @@ jobs:
             echo '[INFO] Stripping tg-bot binary'
             strip tg-bot || true
 
-            echo '[OK] tg-bot built (GCC 9)'
+            echo \"[OK] tg-bot built (GCC \${GCC_VER})\"
 
             echo '[DEBUG] contents of /app:'
             ls -l /app
