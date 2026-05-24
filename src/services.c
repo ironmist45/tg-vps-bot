@@ -2,7 +2,8 @@
 
 /*
  * Provides the /services command for checking the status of
- * whitelisted systemd services.
+ * whitelisted systemd services, and service_action() for
+ * start/stop/restart of individual services.
  *
  * Features:
  *   - Whitelist-based access control (only predefined services)
@@ -49,6 +50,29 @@ static int is_valid_service_name(const char *s) {
     }
 
     return 1;
+}
+
+// ============================================================================
+// ALIAS LOOKUP
+// ============================================================================
+
+/**
+ * Find a service definition by user-facing alias.
+ *
+ * Searches the shared g_services table (services_config.c).
+ *
+ * @param alias  User-provided alias (e.g. "ssh", "shadowsocks")
+ * @return       Pointer to matching service_def_t, or NULL if not found
+ */
+static const service_def_t *find_service_by_alias(const char *alias) {
+    if (!alias) return NULL;
+
+    for (int i = 0; i < g_services_count; i++) {
+        if (strcmp(g_services[i].alias, alias) == 0)
+            return &g_services[i];
+    }
+
+    return NULL;
 }
 
 // ============================================================================
@@ -142,7 +166,7 @@ static const char *format_status(const char *status) {
 }
 
 // ============================================================================
-// PUBLIC API
+// PUBLIC API: ALL SERVICES STATUS
 // ============================================================================
 
 /**
@@ -242,6 +266,109 @@ int services_get_status(char *buffer, size_t size, unsigned short req_id) {
 
     LOG_CMD(LOG_DEBUG, "req=%04x services response ready: %zu bytes",
             req_id, offset);
+
+    return 0;
+}
+
+// ============================================================================
+// PUBLIC API: SINGLE SERVICE ACTION
+// ============================================================================
+
+/**
+ * Perform an action on a single whitelisted service.
+ *
+ * Resolves alias → unit via g_services table, validates the unit name,
+ * then executes the appropriate systemctl subcommand.
+ *
+ * For SERVICE_ACTION_STATUS: out receives the emoji status string.
+ * For start/stop/restart:    out receives raw systemctl output (may be
+ *                            empty on success — that is normal).
+ *
+ * @param alias    User-facing alias (e.g. "ssh", "mtg")
+ * @param action   Action to perform
+ * @param out      Output buffer for result
+ * @param out_size Size of output buffer
+ * @param req_id   Request ID for log correlation
+ * @return         0 on success, -1 on error
+ */
+int service_action(const char *alias, service_action_t action,
+                   char *out, size_t out_size, unsigned short req_id)
+{
+    if (!alias || !out || out_size == 0) return -1;
+
+    out[0] = '\0';
+
+    /* Resolve alias → service definition */
+    const service_def_t *svc = find_service_by_alias(alias);
+    if (!svc) {
+        LOG_CMD(LOG_WARN, "req=%04x service_action: unknown alias '%s'",
+                req_id, alias);
+        snprintf(out, out_size, "❌ Unknown service: %s", alias);
+        return -1;
+    }
+
+    /* Validate unit name before passing to exec */
+    if (!is_valid_service_name(svc->unit)) {
+        LOG_CMD(LOG_ERROR, "req=%04x service_action: invalid unit name '%s'",
+                req_id, svc->unit);
+        snprintf(out, out_size, "❌ Invalid service unit");
+        return -1;
+    }
+
+    /* STATUS — use existing get_service_status and format with emoji */
+    if (action == SERVICE_ACTION_STATUS) {
+        char raw[64] = {0};
+        int rc = get_service_status(svc->unit, raw, sizeof(raw));
+
+        const char *fmt = format_status(raw);
+        snprintf(out, out_size, "%s: %s", svc->display, fmt);
+
+        LOG_CMD(LOG_INFO, "req=%04x service status: alias=%s unit=%s status=%s",
+                req_id, alias, svc->unit, raw);
+        return rc;
+    }
+
+    /* START / STOP / RESTART */
+    const char *subcmd = NULL;
+    switch (action) {
+        case SERVICE_ACTION_START:   subcmd = "start";   break;
+        case SERVICE_ACTION_STOP:    subcmd = "stop";    break;
+        case SERVICE_ACTION_RESTART: subcmd = "restart"; break;
+        default:
+            snprintf(out, out_size, "❌ Unknown action");
+            return -1;
+    }
+
+    LOG_CMD(LOG_INFO, "req=%04x service_action: %s %s (unit=%s)",
+            req_id, subcmd, alias, svc->unit);
+
+    char *const args[] = {
+        (char *)g_cfg.sudo_path,
+        "-n",
+        (char *)g_cfg.systemctl_path,
+        (char *)subcmd,
+        (char *)svc->unit,
+        NULL
+    };
+
+    exec_opts_t opts = {
+        .timeout_ms = 10000,  /* allow up to 10s for start/stop/restart */
+        .quiet      = 1
+    };
+
+    exec_result_t res;
+    int rc = exec_command(args, out, out_size, &opts, &res);
+
+    if (rc != 0 || res.exit_code != 0) {
+        LOG_CMD(LOG_ERROR,
+                "req=%04x service_action: %s %s failed (status=%s exit=%d)",
+                req_id, subcmd, alias,
+                exec_status_str(res.status), res.exit_code);
+        return -1;
+    }
+
+    LOG_CMD(LOG_INFO, "req=%04x service_action: %s %s OK (%ldms)",
+            req_id, subcmd, alias, res.duration_ms);
 
     return 0;
 }
