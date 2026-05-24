@@ -38,11 +38,11 @@ tg-bot/
 │   ├── telegram_poll.h          # 🔹 long polling with fork isolation
 │   ├── telegram_offset.h        # 🔹 update offset persistence
 │   ├── telegram_timeouts.h      # 🔹 timeout constants with _Static_assert chain
-│   ├── commands.h               # 🔹 command dispatcher, requires_confirmation, pending_confirm_t
+│   ├── commands.h               # 🔹 command dispatcher, requires_confirmation, pending_confirm_t, commands_request_confirm()
 │   ├── reply.h                  # 🔹 unified response formatting API
 │   ├── security.h               # 🔹 security layer (access control, tokens, rate limiting)
 │   ├── system.h                 # 🔹 system info (metrics, uptime, host info)
-│   ├── services.h               # 🔹 systemd services status API
+│   ├── services.h               # 🔹 systemd services status and action API
 │   ├── services_config.h        # 🔹 shared service definitions (alias, unit, display)
 │   ├── users.h                  # 🔹 active user sessions API
 │   ├── logs.h                   # 🔹 logs retrieval API (journalctl integration)
@@ -51,7 +51,7 @@ tg-bot/
 │   ├── utils.h                  # 🔹 shared helpers (strings, parsing, formatting)
 │   ├── cmd_help.h               # 🔹 /help command handler API
 │   ├── cmd_system.h             # 🔹 /start, /status, /health, /ping, /about, /logstat API
-│   ├── cmd_services.h           # 🔹 /services, /users, /logs API
+│   ├── cmd_services.h           # 🔹 /services, /users, /logs, /service API
 │   ├── cmd_security.h           # 🔹 /fail2ban command handler API
 │   └── cmd_control.h            # 🔹 /reboot, /restart, /totp_setup API
 │
@@ -75,7 +75,7 @@ tg-bot/
 │   ├── reply.c                  # 🔹 response formatting helpers
 │   ├── security.c               # 🔹 access control, rate limiting, token validation
 │   ├── system.c                 # 🔹 system metrics and information
-│   ├── services.c               # 🔹 systemd service status queries
+│   ├── services.c               # 🔹 systemd service status queries and actions
 │   ├── services_config.c        # 🔹 service table (single source of truth)
 │   ├── users.c                  # 🔹 active user session enumeration
 │   ├── logs.c                   # 🔹 journalctl log retrieval and formatting
@@ -86,7 +86,7 @@ tg-bot/
 │   └── commands/                # 📂 command handlers (V2)
 │       ├── cmd_help.c           # 🧩 /help
 │       ├── cmd_system.c         # 🧩 /start, /status, /health, /ping, /about, /logstat
-│       ├── cmd_services.c       # 🧩 /services, /users, /logs
+│       ├── cmd_services.c       # 🧩 /services, /users, /logs, /service
 │       ├── cmd_security.c       # 🧩 /fail2ban
 │       └── cmd_control.c        # 🧩 /reboot, /restart, /totp_setup
 │
@@ -118,7 +118,7 @@ tg-bot/
 | **Reply** | `reply.h` | `reply.c` | Unified response formatting for handlers |
 | **Security** | `security.h` | `security.c` | Access control, input validation, tokens, rate limiting |
 | **System** | `system.h` | `system.c` | System metrics, uptime, OS/hardware info |
-| **Services** | `services.h` | `services.c` | Systemd service status queries |
+| **Services** | `services.h` | `services.c` | Systemd service status queries and start/stop/restart |
 | **Services Config** | `services_config.h` | `services_config.c` | Service definitions (single source of truth) |
 | **Users** | `users.h` | `users.c` | Active user session enumeration via utmp |
 | **Logs** | `logs.h` | `logs.c` | Journalctl log retrieval and formatting |
@@ -139,6 +139,7 @@ tg-bot/
 | `/ping` | `cmd_ping_v2` | `cmd_system.c` | — |
 | `/logstat` | `cmd_logstat_v2` | `cmd_system.c` | — |
 | `/services` | `cmd_services_v2` | `cmd_services.c` | — |
+| `/service` | `cmd_service_v2` | `cmd_services.c` | 🔐 start/stop/restart only |
 | `/users` | `cmd_users_v2` | `cmd_services.c` | — |
 | `/logs` | `cmd_logs_v2` | `cmd_services.c` | — |
 | `/fail2ban` | `cmd_fail2ban_v2` | `cmd_security.c` | — |
@@ -146,8 +147,6 @@ tg-bot/
 | `/restart` | `cmd_restart_v2` | `cmd_control.c` | 🔐 required |
 | `/totp_setup` | `cmd_totp_setup_v2` | `cmd_control.c` | — |
 | `/confirm` | inline in dispatcher | `commands.c` | — |
-
----
 
 ---
 
@@ -179,15 +178,18 @@ typedef struct {
 
 ### Two-Step Confirmation
 
-Commands with `requires_confirmation = 1` in the command table are intercepted
-by the dispatcher before the handler is called:
+Two confirmation patterns are supported:
+
+**Pattern A — `requires_confirmation = 1` (dispatcher-initiated):**
+Used by `/reboot` and `/restart`. The dispatcher intercepts the command
+before the handler is called.
 
 ```
 user sends /reboot
     ↓
 dispatcher detects requires_confirmation = 1
     ↓
-stores pending_confirm_t { command="/reboot", expires_at=now+TTL }
+stores pending_confirm_t { command="/reboot", args="", expires_at=now+TTL }
     ↓
 if TOTP_SECRET set → asks for authenticator code
 if TOTP_SECRET empty → generates classic token, sends it
@@ -196,8 +198,42 @@ user sends /confirm <code>
     ↓
 dispatcher validates code (totp_verify or security_validate_reboot_token)
     ↓
-on success → calls cmd_reboot_v2() to execute
+on success → restores ctx->args from pending, calls cmd_reboot_v2()
 on failure → clears pending slot, returns error
+```
+
+**Pattern B — `requires_confirmation = 0` + `commands_request_confirm()` (handler-initiated):**
+Used by `/service` — only `start`/`stop`/`restart` need confirmation, not `status`.
+The handler calls `commands_request_confirm()` directly for those actions.
+
+```
+user sends /service ssh restart
+    ↓
+dispatcher calls cmd_service_v2() directly (no gate)
+    ↓
+handler parses alias="ssh" action="restart"
+    ↓
+handler validates alias exists, then calls commands_request_confirm(ctx, "/service", "ssh restart")
+    ↓
+pending_confirm_t saved: { command="/service", args="ssh restart", expires_at=now+TTL }
+    ↓
+user sends /confirm <code>
+    ↓
+dispatcher validates code, restores ctx->args = "ssh restart"
+    ↓
+calls cmd_service_v2() again → re-parses args → executes service_action()
+```
+
+**pending_confirm_t:**
+```c
+typedef struct {
+    long   chat_id;     /* Who initiated the command          */
+    char   command[32]; /* Command name e.g. "/reboot"        */
+    char   args[64];    /* Original arguments e.g. "ssh restart" */
+    int    token;       /* Expected token (classic flow only) */
+    time_t expires_at;  /* When this pending entry expires    */
+    int    active;      /* 1 = waiting for confirmation       */
+} pending_confirm_t;
 ```
 
 **Confirmation modes:**
@@ -225,13 +261,13 @@ Responsibilities in order:
 
 | Module | Status | Commands |
 |--------|--------|----------|
-| Services | ✅ V2 | /services, /users, /logs |
+| Services | ✅ V2 | /services, /users, /logs, /service |
 | System | ✅ V2 | /start, /status, /health, /about, /ping, /logstat |
 | Help | ✅ V2 | /help |
 | Security | ✅ V2 | /fail2ban |
 | Control | ✅ V2 | /reboot, /restart, /totp_setup |
 
-**All 15 commands use V2. Legacy code completely removed.**
+**All 16 commands use V2. Legacy code completely removed.**
 
 ---
 
@@ -272,6 +308,10 @@ logs are mirrored to stderr in addition to the file. When running
 as a systemd service (stderr redirected), only the file is written —
 no duplicate entries.
 
+**Timestamp:** Single `clock_gettime(CLOCK_REALTIME)` call per message —
+no race between `time()` and `clock_gettime()` that could produce
+mismatched seconds and milliseconds.
+
 **Log format:**
 ```
 [2026-05-06 14:32:11.123] [ INFO ] [ NET ] message text
@@ -291,6 +331,31 @@ Fields are center-aligned to fixed widths:
 - Deadline-based `select()` — total timeout is always exactly `timeout_ms`
 - Blocking `waitpid()` after pipe EOF — zero zombie window
 - SIGTERM → 100ms grace → SIGKILL escalation in `kill_and_reap()`
+
+---
+
+## Telegram Poll Architecture
+
+`telegram_poll.c` runs each HTTP request in a child process to isolate
+libcurl from the main event loop:
+
+```
+parent                        child
+  |-- fork() ----------------> |
+  |                            |-- telegram_http_request()
+  |-- poll(pipe, POLLIN) <-----|-- write(pipe, result)
+  |                            |-- _exit(0)
+  |-- read(pipe) --------------|
+  |-- waitpid(blocking) -------|  (child already dead)
+```
+
+- **Dynamic pipe buffer:** `read_pipe_data()` allocates `malloc(data_len+1)`
+  so there is no fixed cap — handles 100+ accumulated updates without truncation.
+- **RSS sampling:** Combined RSS of parent + child is sampled immediately
+  after `fork()` while both processes are alive. Result is read by `/start`
+  selfcheck via `g_poll_rss_kb` / `g_poll_rss_procs`.
+- **Child signal detection:** `waitpid()` checks `WIFSIGNALED` — unexpected
+  child crashes (OOM, SIGSEGV) are logged at WARN level.
 
 ---
 
@@ -381,6 +446,7 @@ cause a build error with a descriptive message.
 - **No shell injection:** IP validation via `inet_pton`, service names via whitelist
 - **No direct root:** all privileged operations via sudo whitelist
 - **Unpredictable salt:** `getrandom(2)` at startup, never logged
+- **Secret masking:** TOKEN and TOTP_SECRET never appear in log files
 
 ---
 
@@ -395,7 +461,7 @@ telegram_parser.c — JSON parsing, extract message
     ↓
 commands.c — validate input, rate limit, access control
     ↓
-/confirm? → handle_confirm() → TOTP or token validation
+/confirm? → handle_confirm() → TOTP or token validation → restore args
     ↓
 requires_confirmation? → request_confirmation() → store pending slot
     ↓
@@ -412,7 +478,7 @@ telegram_http.c — sendMessage API call
 
 ## Design Principles
 
-- **Minimalism** — no heavy frameworks, pure C, ~5MB static binary
+- **Minimalism** — no heavy frameworks, pure C, ~5.5MB static binary
 - **Security-first** — validate everything, least privilege, audit log
 - **Predictability** — deadline timeouts, no busy-wait, no zombie window
 - **Modularity** — single responsibility per module, clean public APIs
@@ -423,7 +489,6 @@ telegram_http.c — sendMessage API call
 
 ## Future Improvements
 
-- `/service start|stop|restart` — service management via Telegram
 - Alerts — bot notifies on service failure or high resource usage
 - Log filtering by time (`--since 1h`)
 - `/df` — disk usage quick view
