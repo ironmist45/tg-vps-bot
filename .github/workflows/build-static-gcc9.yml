@@ -62,9 +62,8 @@ jobs:
             apt-get update -qq
             apt-get install -y --no-install-recommends gcc-9 g++-9
 
-            # Register GCC 9 as default (priority 90), GCC 7 as fallback (priority 70)
+            # Register GCC 9 as default — no fallback needed
             update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
-            update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 70 --slave /usr/bin/g++ g++ /usr/bin/g++-7
 
             echo '[INFO] Compiler version:'
             gcc --version | head -1
