@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>  /* strcasecmp */
+#include <sys/mman.h> /* mlock()    */
 
 /* Maximum length of a single configuration line */
 #define CONFIG_LINE_MAX 512
@@ -155,6 +156,13 @@ int config_load(const char *path, config_t *cfg) {
                     LOG_CFG(LOG_WARN, "TOTP_SECRET too long — TOTP 2FA disabled");
                     cfg->totp_secret[0] = '\0';
                 } else {
+                    /*
+                     * Lock the page containing the TOTP secret to prevent it
+                     * from being swapped to disk — swap file is readable by root
+                     * and the secret must not appear there in plaintext.
+                     */
+                    if (mlock(cfg->totp_secret, sizeof(cfg->totp_secret)) != 0)
+                        LOG_CFG(LOG_WARN, "mlock(totp_secret) failed — secret may be swapped");
                     LOG_CFG(LOG_INFO, "TOTP_SECRET loaded (TOTP 2FA enabled)");
                 }
             }
