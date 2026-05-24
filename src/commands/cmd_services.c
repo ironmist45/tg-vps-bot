@@ -118,6 +118,7 @@ int cmd_logs_v2(command_ctx_t *ctx)
             pos += (size_t)n;
         menu[pos] = '\0';
 
+        LOG_CMD_CTX(ctx, LOG_INFO, "service: showed usage menu");
         return reply_markdown(ctx, menu);
     }
 
