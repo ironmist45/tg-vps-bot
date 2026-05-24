@@ -1,5 +1,4 @@
 # INSTALL.md
-
 # Installation Guide
 
 Tested on Ubuntu 18.04 LTS. Requires root or sudo access.
@@ -32,6 +31,8 @@ chown root:root /usr/local/bin/tg-bot
 chmod 755 /usr/local/bin/tg-bot
 ```
 
+No special capabilities are required — all privileged operations go through sudo.
+
 ---
 
 ## 4. Create config file
@@ -45,7 +46,7 @@ chmod 640 /etc/tg-bot.conf
 Edit `/etc/tg-bot.conf` and set at minimum:
 
 ```ini
-BOT_TOKEN=your_telegram_bot_token
+TOKEN=your_telegram_bot_token
 CHAT_ID=your_telegram_chat_id
 LOG_FILE=/var/log/tg-bot.log
 ```
@@ -74,36 +75,59 @@ chmod 644 /etc/logrotate.d/tg-bot
 
 ## 7. Configure sudoers
 
-The bot runs as `tg-bot` and requires sudo access for `journalctl` and `systemctl`.
-
+The bot runs as `tg-bot` and requires sudo access for system operations.
 Create `/etc/sudoers.d/tg-bot`:
 
 ```bash
 visudo -f /etc/sudoers.d/tg-bot
 ```
 
-Minimum required:
+Add the following (adjust service names to match your setup):
 
 ```
-tg-bot ALL=(root) NOPASSWD: /usr/bin/journalctl
-tg-bot ALL=(root) NOPASSWD: /bin/systemctl status *
+# tg-bot
+tg-bot ALL=(ALL) NOPASSWD: \
+/sbin/reboot, \
+/bin/journalctl, \
+/bin/systemctl restart tg-bot, \
+/bin/systemctl is-active *, \
+/bin/systemctl start ssh, \
+/bin/systemctl stop ssh, \
+/bin/systemctl restart ssh, \
+/bin/systemctl start shadowsocks-libev, \
+/bin/systemctl stop shadowsocks-libev, \
+/bin/systemctl restart shadowsocks-libev, \
+/bin/systemctl start mtg, \
+/bin/systemctl stop mtg, \
+/bin/systemctl restart mtg, \
+/usr/local/bin/f2b-wrapper *
 ```
+
+Verify syntax:
+
+```bash
+visudo -c -f /etc/sudoers.d/tg-bot
+```
+
+> **Note:** Adjust the service list to match the services defined in `services_config.c`.
+> Add or remove `start`/`stop`/`restart` entries for each service you want to manage via `/service`.
 
 ---
 
 ## 8. Install Fail2Ban wrapper (optional)
 
+Required only for `/fail2ban` commands. Build on the target machine to avoid
+GLIBC version mismatches:
+
 ```bash
-cp tools/f2b-wrapper /usr/local/bin/f2b-wrapper
+gcc -O2 -Wall -Wextra -std=c11 tools/f2b-wrapper.c -o f2b-wrapper
+strip f2b-wrapper
+cp f2b-wrapper /usr/local/bin/f2b-wrapper
 chown root:root /usr/local/bin/f2b-wrapper
 chmod 755 /usr/local/bin/f2b-wrapper
 ```
 
-Add to sudoers:
-
-```
-tg-bot ALL=(root) NOPASSWD: /usr/local/bin/f2b-wrapper
-```
+The `/usr/local/bin/f2b-wrapper *` sudoers entry (added in step 7) covers this.
 
 ---
 
@@ -128,12 +152,12 @@ journalctl -u tg-bot -n 50
 Expected in log:
 
 ```
-[INFO ] [SYS] ==== START ====
-[INFO ] [SYS] tg-bot v1.x.x
-[INFO ] [SYS] Process started (PID=...)
-[INFO ] [STATE] Bot started
-[INFO ] [SYS] sd_notify: READY=1 sent
-[INFO ] [STATE] Entering main loop
+[ INFO ] [ SYS ] ==== START ====
+[ INFO ] [ SYS ] tg-bot v1.x.x (Codename)
+[ INFO ] [ SYS ] Process started (Main PID=...)
+[ INFO ] [STATE] Bot started
+[ INFO ] [ SYS ] sd_notify: READY=1 sent
+[ INFO ] [STATE] Entering main loop
 ```
 
 ---
@@ -178,13 +202,14 @@ kill -HUP $(pidof tg-bot)
 ## Directory layout after installation
 
 ```
-/usr/local/bin/tg-bot          # binary
-/etc/tg-bot.conf               # config file
-/var/lib/tg-bot/               # working directory (offset, state)
-/var/log/tg-bot.log            # log file
-/etc/systemd/system/tg-bot.service
-/etc/logrotate.d/tg-bot
-/etc/sudoers.d/tg-bot
+/usr/local/bin/tg-bot                  # main binary
+/usr/local/bin/f2b-wrapper             # Fail2Ban wrapper (optional)
+/etc/tg-bot.conf                       # config file
+/var/lib/tg-bot/                       # working directory (offset, state)
+/var/log/tg-bot.log                    # log file
+/etc/systemd/system/tg-bot.service     # systemd unit
+/etc/logrotate.d/tg-bot                # logrotate config
+/etc/sudoers.d/tg-bot                  # sudo permissions
 ```
 
 ---
@@ -197,6 +222,7 @@ systemctl disable tg-bot
 rm /etc/systemd/system/tg-bot.service
 systemctl daemon-reload
 rm /usr/local/bin/tg-bot
+rm -f /usr/local/bin/f2b-wrapper
 rm /etc/tg-bot.conf
 rm /etc/logrotate.d/tg-bot
 rm /etc/sudoers.d/tg-bot
