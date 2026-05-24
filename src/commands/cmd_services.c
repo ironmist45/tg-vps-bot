@@ -118,7 +118,6 @@ int cmd_logs_v2(command_ctx_t *ctx)
             pos += (size_t)n;
         menu[pos] = '\0';
 
-        LOG_CMD_CTX(ctx, LOG_INFO, "service: showed usage menu");
         return reply_markdown(ctx, menu);
     }
 
@@ -215,6 +214,7 @@ int cmd_service_v2(command_ctx_t *ctx)
         }
         menu[pos] = '\0';
 
+        LOG_CMD_CTX(ctx, LOG_INFO, "service: showed usage menu");
         return reply_markdown(ctx, menu);
     }
 
@@ -256,7 +256,7 @@ int cmd_service_v2(command_ctx_t *ctx)
         char out[128] = {0};
         int rc = service_action(alias, action, out, sizeof(out), ctx->req_id);
 
-        LOG_CMD_CTX(ctx, LOG_INFO, "service status: alias=%s result='%s'",
+        LOG_CMD_CTX(ctx, LOG_DEBUG, "service status: alias=%s result='%s'",
                     alias, out);
         METRICS_CMD(service);
 
