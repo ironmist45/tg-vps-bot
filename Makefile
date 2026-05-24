@@ -23,7 +23,7 @@ OBJS := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 EXTRA_CFLAGS ?=
 CFLAGS := -Wall -Wextra -std=c11 -O2 -I$(INC_DIR) -D_DEFAULT_SOURCE $(EXTRA_CFLAGS)
 
-LDFLAGS ?=
+LDFLAGS ?= -Wl,-z,relro,-z,now
 
 # ===== Default =====
 all: $(TARGET)
