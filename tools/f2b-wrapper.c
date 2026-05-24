@@ -59,10 +59,12 @@ static int is_safe_ip(const char *ip) {
     /* Reject private and loopback addresses */
     uint32_t addr = ntohl(sa.sin_addr.s_addr);
 
-    if ((addr & 0xFF000000) == 0x0A000000) return 0;  /* 10.0.0.0/8     */
-    if ((addr & 0xFFF00000) == 0xAC100000) return 0;  /* 172.16.0.0/12  */
-    if ((addr & 0xFFFF0000) == 0xC0A80000) return 0;  /* 192.168.0.0/16 */
-    if ((addr & 0xFF000000) == 0x7F000000) return 0;  /* 127.0.0.0/8    */
+    if ((addr & 0xFF000000) == 0x0A000000) return 0;  /* 10.0.0.0/8      */
+    if ((addr & 0xFFF00000) == 0xAC100000) return 0;  /* 172.16.0.0/12   */
+    if ((addr & 0xFFFF0000) == 0xC0A80000) return 0;  /* 192.168.0.0/16  */
+    if ((addr & 0xFF000000) == 0x7F000000) return 0;  /* 127.0.0.0/8     */
+    if (addr == 0x00000000)                return 0;  /* 0.0.0.0         */
+    if (addr == 0xFFFFFFFF)                return 0;  /* 255.255.255.255 */
 
     return 1;
 }
