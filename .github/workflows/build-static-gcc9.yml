@@ -170,7 +170,7 @@ jobs:
               # ===== build cJSON =====
               echo ''
               echo '========================================'
-              echo \" Building cJSON \${VER_CJSON} (static)\"
+              echo \" Building cJSON \${VER_CJSON} (static, GCC 9)\"
               echo '========================================'
               echo ''
 
@@ -180,7 +180,12 @@ jobs:
               mv cJSON-\${VER_CJSON} cJSON
               cd cJSON
               mkdir build && cd build
+              # Explicitly set GCC 9 — cmake picks up the system default
+              # (gcc 7.5) otherwise, even after update-alternatives.
+              export CC=/usr/bin/gcc-9
+              export CXX=/usr/bin/g++-9
               cmake .. \
+                -DCMAKE_C_COMPILER=/usr/bin/gcc-9 \
                 -DBUILD_SHARED_LIBS=OFF \
                 -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
                 -DCMAKE_INSTALL_PREFIX=/deps/cjson
