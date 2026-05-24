@@ -114,10 +114,10 @@ command_t commands[] = {
     {"/logstat",  cmd_logstat_v2, "Log file statistics", "System info", 0},
 
     /* Service management */
-    {"/services", cmd_services_v2, NULL,                       "Services", 0},
+    {"/services", cmd_services_v2, "All services status",      "Services", 0},
     {"/service",  cmd_service_v2,  "Manage single service",    "Services", 0},
-    {"/users",    cmd_users_v2,    NULL,                       "Services", 0},
-    {"/logs",     cmd_logs_v2,     NULL,                       "Services", 0},
+    {"/users",    cmd_users_v2,    "Active user sessions",     "Services", 0},
+    {"/logs",     cmd_logs_v2,     "View service logs",        "Services", 0},
 
     /* Security */
     {"/fail2ban",   cmd_fail2ban_v2,   "Manage Fail2Ban", "Security", 0},
