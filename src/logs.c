@@ -138,7 +138,7 @@ static int build_journalctl_args(char **argv, size_t argv_size,
                                   const char *lines_str)
 {
     int i = 0;
-    if (argv_size < 9) return -1;
+    if (argv_size < 10) return -1;
 
     argv[i++] = (char *)sudo_path;
     argv[i++] = "-n";
@@ -152,6 +152,7 @@ static int build_journalctl_args(char **argv, size_t argv_size,
     argv[i++] = "-n";
     argv[i++] = (char *)lines_str;
     argv[i++] = "--no-pager";
+    argv[i++] = "--";    /* prevents unit/filter from being interpreted as flags */
     argv[i]   = NULL;
 
     return i;
