@@ -15,6 +15,7 @@ User=tg-bot
 Group=tg-bot
 # Working directory for offset and state files
 WorkingDirectory=/var/lib/tg-bot
+ExecStartPre=/bin/sleep 3
 ExecStart=/usr/local/bin/tg-bot --config /usr/local/etc/tgbot.conf
 # Auto-restart on failure, 3 second delay
 Restart=always
