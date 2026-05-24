@@ -323,7 +323,7 @@ int service_action(const char *alias, service_action_t action,
         const char *fmt = format_status(raw);
         snprintf(out, out_size, "%s: %s", svc->display, fmt);
 
-        LOG_CMD(LOG_INFO, "req=%04x service status: alias=%s unit=%s status=%s",
+        LOG_CMD(LOG_DEBUG, "req=%04x service status: alias=%s unit=%s status=%s",
                 req_id, alias, svc->unit, raw);
         return rc;
     }
