@@ -3,4 +3,6 @@
 #define TG_BUILD_COMMIT "unknown"
 #define TG_BUILD_DATE   "unknown"
 #define TG_BUILD_NUMBER "local"
+#ifndef TG_BUILD_COMPILER
+#define TG_BUILD_COMPILER "unknown"
 #endif
