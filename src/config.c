@@ -6,13 +6,14 @@
  * for optional parameters.
  *
  * Supported configuration keys:
- *   TOKEN        - Telegram Bot API token (required)
- *   CHAT_ID      - Allowed Telegram chat ID (required)
- *   LOG_FILE     - Path to log file (default: /var/log/tg-bot.log)
- *   TOKEN_TTL    - Confirmation token TTL in seconds (default: 60)
- *   LOG_LEVEL    - Logging level: ERROR, WARN, INFO, DEBUG (default: INFO)
- *   TOTP_SECRET  - Base32 TOTP secret for 2FA (optional, default: disabled)
- *   UPLOAD_DIR   - Directory for uploaded files (default: /var/www/html/uploads)
+ *   TOKEN          - Telegram Bot API token (required)
+ *   CHAT_ID        - Allowed Telegram chat ID (required)
+ *   LOG_FILE       - Path to log file (default: /var/log/tg-bot.log)
+ *   TOKEN_TTL      - Confirmation token TTL in seconds (default: 60)
+ *   LOG_LEVEL      - Logging level: ERROR, WARN, INFO, DEBUG (default: INFO)
+ *   TOTP_SECRET    - Base32 TOTP secret for 2FA (optional, default: disabled)
+ *   UPLOAD_ENABLED - Enable file upload: yes/true/1/enabled (default: disabled)
+ *   UPLOAD_DIR     - Directory for uploaded files (default: /var/www/html/uploads)
  */
 
 #include "config.h"
@@ -59,8 +60,9 @@ int config_load(const char *path, config_t *cfg) {
     safe_copy(cfg->journalctl_path,  sizeof(cfg->journalctl_path),  "/bin/journalctl");
     safe_copy(cfg->f2b_wrapper_path, sizeof(cfg->f2b_wrapper_path), "/usr/local/bin/f2b-wrapper");
 
-    /* Default upload directory — lighttpd document root */
-    safe_copy(cfg->upload_dir,       sizeof(cfg->upload_dir),       "/var/www/html/uploads");
+    /* Upload disabled by default — must be explicitly enabled in config */
+    cfg->upload_enabled = 0;
+    safe_copy(cfg->upload_dir, sizeof(cfg->upload_dir), "/var/www/html/uploads");
 
     /* TOTP disabled by default */
     cfg->totp_secret[0]     = '\0';
@@ -180,17 +182,15 @@ int config_load(const char *path, config_t *cfg) {
                 LOG_CFG(LOG_DEBUG, "TOTP_SETUP: disabled");
             }
         }
-        else if (strcasecmp(key, "SUDO_PATH") == 0) {
-            safe_copy(cfg->sudo_path, sizeof(cfg->sudo_path), value);
-        }
-        else if (strcasecmp(key, "SYSTEMCTL_PATH") == 0) {
-            safe_copy(cfg->systemctl_path, sizeof(cfg->systemctl_path), value);
-        }
-        else if (strcasecmp(key, "JOURNALCTL_PATH") == 0) {
-            safe_copy(cfg->journalctl_path, sizeof(cfg->journalctl_path), value);
-        }
-        else if (strcasecmp(key, "F2B_WRAPPER_PATH") == 0) {
-            safe_copy(cfg->f2b_wrapper_path, sizeof(cfg->f2b_wrapper_path), value);
+        else if (strcasecmp(key, "UPLOAD_ENABLED") == 0) {
+            /*
+             * Accept yes/true/1/enabled as truthy — anything else is false.
+             * Consistent with TOTP_SETUP=enabled/disabled pattern.
+             */
+            cfg->upload_enabled = (strcasecmp(value, "yes")     == 0 ||
+                                   strcasecmp(value, "true")    == 0 ||
+                                   strcasecmp(value, "1")       == 0 ||
+                                   strcasecmp(value, "enabled") == 0) ? 1 : 0;
         }
         else if (strcasecmp(key, "UPLOAD_DIR") == 0) {
             /*
@@ -202,6 +202,18 @@ int config_load(const char *path, config_t *cfg) {
                 LOG_CFG(LOG_WARN, "UPLOAD_DIR too long, using default");
                 safe_copy(cfg->upload_dir, sizeof(cfg->upload_dir), "/var/www/html/uploads");
             }
+        }
+        else if (strcasecmp(key, "SUDO_PATH") == 0) {
+            safe_copy(cfg->sudo_path, sizeof(cfg->sudo_path), value);
+        }
+        else if (strcasecmp(key, "SYSTEMCTL_PATH") == 0) {
+            safe_copy(cfg->systemctl_path, sizeof(cfg->systemctl_path), value);
+        }
+        else if (strcasecmp(key, "JOURNALCTL_PATH") == 0) {
+            safe_copy(cfg->journalctl_path, sizeof(cfg->journalctl_path), value);
+        }
+        else if (strcasecmp(key, "F2B_WRAPPER_PATH") == 0) {
+            safe_copy(cfg->f2b_wrapper_path, sizeof(cfg->f2b_wrapper_path), value);
         }
         else {
             LOG_CFG(LOG_DEBUG, "Unknown config key: %s", key);
@@ -220,6 +232,17 @@ int config_load(const char *path, config_t *cfg) {
     if (cfg->chat_id == 0) {
         LOG_CFG(LOG_ERROR, "CHAT_ID is missing or invalid");
         return -1;
+    }
+
+    /*
+     * If upload is enabled but upload_dir is empty — disable upload with
+     * a warning rather than crashing. Bot continues to work normally,
+     * just without file upload support.
+     */
+    if (cfg->upload_enabled && cfg->upload_dir[0] == '\0') {
+        LOG_CFG(LOG_WARN,
+            "UPLOAD_ENABLED=yes but UPLOAD_DIR is empty — upload disabled");
+        cfg->upload_enabled = 0;
     }
 
     LOG_CFG(LOG_INFO, "Config loaded (log_level=%d)", cfg->log_level);
@@ -242,6 +265,10 @@ void config_log(const config_t *cfg) {
             cfg->totp_secret[0] != '\0' ? "enabled" : "disabled (token flow)");
     LOG_CFG(LOG_INFO, "TOTP_SETUP: %s",
             cfg->totp_setup_enabled ? "enabled" : "disabled");
+    LOG_CFG(LOG_INFO, "UPLOAD: %s%s",
+            cfg->upload_enabled ? "enabled" : "disabled",
+            cfg->upload_enabled ? cfg->upload_dir[0] != '\0'
+                ? "" : " (no dir!)" : "");
 
     /* Utility paths — useful for diagnosing permission or path issues */
     LOG_CFG(LOG_DEBUG, "SUDO_PATH: %s",        cfg->sudo_path);
@@ -264,7 +291,7 @@ void config_log(const config_t *cfg) {
  *   - Allowed chat ID
  *   - Token TTL
  *   - TOTP secret
- *   - Upload directory
+ *   - Upload enabled flag and directory
  *
  * @param path  Path to configuration file
  * @param cfg   Pointer to current config (updated in-place on success)
