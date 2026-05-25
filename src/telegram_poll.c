@@ -398,7 +398,7 @@ static void process_updates(const char *chunk_data, size_t data_len,
              */
             LOG_NET(LOG_INFO,
                     "poll=%04x req=%04x upd=%ld incoming: "
-                    "chat_id=%ld file_id=%.32s... name=%s size=%d",
+                    "chat_id=%ld file_id=%.8s name=%s size=%d",
                     g_current_poll_id, u->req_id, u->update_id,
                     u->chat_id,
                     u->file_id,
