@@ -11,6 +11,7 @@
  *   - Active user count (from utmp)
  *   - OS information (from /etc/os-release)
  *   - Hardware information (from DMI)
+ *   - Hostname (from gethostname)
  *
  * Exports two main formats:
  *   - system_get_status()      : Full detailed status with ASCII bars
@@ -228,10 +229,10 @@ int system_get_uptime_str(char *buf, size_t size) {
  * @param percent  Fill percentage (0-100)
  */
 static void make_bar(char *buf, size_t size, int percent) {
-    const int    width       = 20;
+    const int    width         = 20;
     const char   filled_char[] = "█";  /* 3 bytes UTF-8 */
     const char   empty_char[]  = "░";  /* 3 bytes UTF-8 */
-    const size_t char_bytes  = 3;
+    const size_t char_bytes    = 3;
 
     int filled = (percent * width) / 100;
     int empty  = width - filled;
@@ -323,6 +324,21 @@ static void get_os(char *buf, size_t size) {
 }
 
 // ============================================================================
+// HOSTNAME
+// ============================================================================
+
+/**
+ * Get system hostname via gethostname()
+ *
+ * @param buf   Output buffer
+ * @param size  Buffer size
+ */
+static void get_hostname(char *buf, size_t size) {
+    if (gethostname(buf, size) != 0)
+        safe_copy(buf, size, "unknown");
+}
+
+// ============================================================================
 // HARDWARE INFORMATION
 // ============================================================================
 
@@ -332,12 +348,16 @@ static void get_os(char *buf, size_t size) {
  * Reads /sys/devices/virtual/dmi/id/sys_vendor and product_name.
  * Extracts model name from QEMU-style product strings.
  *
+ * Buffer sizes for vendor/product are limited to 60 bytes so that
+ * snprintf("%s (%s)", vendor, model) always fits in buf[128]:
+ *   60 + " (" + 60 + ")" = 124 bytes < 128 — no truncation warning.
+ *
  * @param buf   Output buffer
  * @param size  Buffer size
  */
 static void get_host(char *buf, size_t size) {
-    char vendor[128]  = {0};
-    char product[128] = {0};
+    char vendor[60]  = {0};
+    char product[60] = {0};
 
     FILE *fp = fopen("/sys/devices/virtual/dmi/id/sys_vendor", "r");
     if (fp) {
@@ -359,31 +379,27 @@ static void get_host(char *buf, size_t size) {
     }
 
     /* Extract model from QEMU-style string e.g. "Standard PC (Q35 + ICH9, 2009)" */
-    char       model[64] = {0};
+    char       model[60] = {0};
     char       *start    = strchr(product, '(');
     const char *end      = strchr(product, ')');
 
     if (start && end && end > start + 1) {
         size_t len = (size_t)(end - start - 1);
-        if (len < sizeof(model)) {
-            safe_copy(model, sizeof(model), start + 1);
-            model[len] = '\0';
+        if (len >= sizeof(model))
+            len = sizeof(model) - 1;
+        safe_copy(model, sizeof(model), start + 1);
+        model[len] = '\0';
 
-            /* Trim " + ICH9, 2009" suffix */
-            char *plus = strstr(model, " +");
-            if (plus) *plus = '\0';
-        }
+        /* Trim " + ICH9, 2009" suffix */
+        char *plus = strstr(model, " +");
+        if (plus) *plus = '\0';
     }
 
-    if (vendor[0] && model[0]) {
-        vendor[63]  = '\0';
-        model[63]   = '\0';
+    if (vendor[0] && model[0])
         snprintf(buf, size, "%s (%s)", vendor, model);
-    } else if (vendor[0] && product[0]) {
-        vendor[63]  = '\0';
-        product[63] = '\0';
+    else if (vendor[0] && product[0])
         snprintf(buf, size, "%s (%s)", vendor, product);
-    } else if (vendor[0])
+    else if (vendor[0])
         safe_copy(buf, size, vendor);
     else
         safe_copy(buf, size, product);
@@ -408,9 +424,10 @@ int system_get_status(char *buffer, size_t size, unsigned short req_id) {
 
     buffer[0] = '\0';
 
-    char os[128], host[128];
+    char os[128], host[128], hostname[64];
     get_os(os, sizeof(os));
     get_host(host, sizeof(host));
+    get_hostname(hostname, sizeof(hostname));
 
     double l1, l5, l15;
     get_load(&l1, &l5, &l15);
@@ -439,30 +456,32 @@ int system_get_status(char *buffer, size_t size, unsigned short req_id) {
     int written = snprintf(buffer, size,
         "🖥 *System info*\n\n"
         "```\n"
-        "%-7s : %s\n"
-        "%-7s : %s\n\n"
-        "%-7s : %dd %dh %dm\n"
-        "%-7s : %d online\n\n"
+        "%-8s : %s\n"
+        "%-8s : %s\n"
+        "%-8s : %s\n\n"
+        "%-8s : %dd %dh %dm\n"
+        "%-8s : %d online\n\n"
         "CPU Load\n"
-        "%-7s : %.2f\n"
-        "%-7s : %.2f\n"
-        "%-7s : %.2f\n\n"
+        "%-8s : %.2f\n"
+        "%-8s : %.2f\n"
+        "%-8s : %.2f\n\n"
         "Memory\n"
-        "%-7s : %d / %d MB (%d%%)\n"
-        "Bar     : %s %d%%\n\n"
+        "%-8s : %d / %d MB (%d%%)\n"
+        "Bar      : %s %d%%\n\n"
         "Disk\n"
-        "%-7s : %d / %d GB (%d%%)\n"
-        "Bar     : %s %d%%\n"
+        "%-8s : %d / %d GB (%d%%)\n"
+        "Bar      : %s %d%%\n"
         "```",
-        "OS",     os,
-        "Host",   host,
-        "Uptime", days, hours, mins,
-        "Users",  users,
-        "1m",     l1,
-        "5m",     l5,
-        "15m",    l15,
-        "Used",   used_mem,  total_mem,  mem_pct,  mem_bar,  mem_pct,
-        "Used",   used_disk, total_disk, disk_pct, disk_bar, disk_pct
+        "OS",       os,
+        "Host",     host,
+        "Hostname", hostname,
+        "Uptime",   days, hours, mins,
+        "Users",    users,
+        "1m",       l1,
+        "5m",       l5,
+        "15m",      l15,
+        "Used",     used_mem,  total_mem,  mem_pct,  mem_bar,  mem_pct,
+        "Used",     used_disk, total_disk, disk_pct, disk_bar, disk_pct
     );
 
     if (written < 0) {
