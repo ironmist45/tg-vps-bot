@@ -68,6 +68,19 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     return real_size;
 }
 
+/*
+ * write_file_callback - libcurl write callback that writes directly to a FILE*.
+ * Used by telegram_http_download_file() to stream response body to disk
+ * without buffering the entire file in memory.
+ */
+// cppcheck-suppress constParameterCallback
+static size_t write_file_callback(void *contents, size_t size, size_t nmemb, void *userp) {
+    if (size != 0 && nmemb > SIZE_MAX / size)
+        return 0;
+
+    return fwrite(contents, size, nmemb, (FILE *)userp);
+}
+
 static void setup_curl(CURL *curl) {
     (void)curl_easy_setopt(curl, CURLOPT_TIMEOUT,           (long)TG_HTTP_TIMEOUT_SEC);
     (void)curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT,    (long)TG_CONNECT_TIMEOUT_SEC);
@@ -152,5 +165,47 @@ int telegram_http_request(const char *method, const char *post_fields,
     }
 
     curl_easy_cleanup(curl);
+    return 0;
+}
+
+/**
+ * Download a file from an arbitrary HTTPS URL and write it to a FILE*.
+ *
+ * Uses a file write callback instead of the memory buffer used by
+ * telegram_http_request() — no need to hold the entire file in memory.
+ * Same curl configuration (timeouts, keep-alive) as other requests.
+ *
+ * @param url  Full HTTPS URL to fetch
+ * @param fp   Open writable FILE* (caller opens/closes)
+ * @return     0 on success, -1 on error
+ */
+int telegram_http_download_file(const char *url, void *fp) {
+    if (!url || !fp) return -1;
+
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        LOG_NET(LOG_ERROR, "curl_easy_init failed for download: %s", url);
+        return -1;
+    }
+
+    setup_curl(curl);
+
+    (void)curl_easy_setopt(curl, CURLOPT_URL,           url);
+    (void)curl_easy_setopt(curl, CURLOPT_HTTPGET,       1L);
+    (void)curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_file_callback);
+    (void)curl_easy_setopt(curl, CURLOPT_WRITEDATA,     fp);
+    /* Follow redirects — Telegram file downloads may redirect */
+    (void)curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    (void)curl_easy_setopt(curl, CURLOPT_MAXREDIRS,      3L);
+
+    CURLcode res = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+
+    if (res != CURLE_OK) {
+        LOG_NET(LOG_ERROR, "download failed: %s — %s",
+                url, curl_easy_strerror(res));
+        return -1;
+    }
+
     return 0;
 }
