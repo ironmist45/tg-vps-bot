@@ -46,6 +46,11 @@ int cmd_handle_upload(command_ctx_t *ctx)
         return reply_plain(ctx, "❌ Internal error: missing file_id");
     }
 
+    if (!g_cfg.upload_enabled) {
+        LOG_CMD_CTX(ctx, LOG_WARN, "upload: disabled (UPLOAD_ENABLED=no)");
+        return reply_plain(ctx, "⚠️ File upload is disabled");
+    }
+
     /* Copy to avoid modifying ctx->args */
     char args_copy[UPLOAD_FILE_ID_MAX + UPLOAD_FILENAME_MAX + 2];
     snprintf(args_copy, sizeof(args_copy), "%s", ctx->args);
@@ -132,6 +137,10 @@ int cmd_handle_upload(command_ctx_t *ctx)
  */
 int cmd_files_v2(command_ctx_t *ctx)
 {
+
+    if (!g_cfg.upload_enabled)
+        return reply_plain(ctx, "⚠️ File upload is disabled");
+    
     char buf[2048];
 
     if (upload_list_files(buf, sizeof(buf), ctx->req_id) != 0) {
