@@ -155,6 +155,7 @@ Expected in log:
 [ INFO ] [ SYS ] ==== START ====
 [ INFO ] [ SYS ] tg-bot v1.x.x (Codename)
 [ INFO ] [ SYS ] Process started (Main PID=...)
+[ INFO ] [ CFG ] UPLOAD: disabled
 [ INFO ] [STATE] Bot started
 [ INFO ] [ SYS ] sd_notify: READY=1 sent
 [ INFO ] [STATE] Entering main loop
@@ -199,6 +200,40 @@ kill -HUP $(pidof tg-bot)
 
 ---
 
+## 12. Enable file upload (optional)
+
+File upload is disabled by default. To enable it:
+
+**Create the upload directory:**
+
+```bash
+mkdir -p /var/www/html/uploads
+chown tg-bot:tg-bot /var/www/html/uploads
+chmod 750 /var/www/html/uploads
+```
+
+**Add to `/etc/tg-bot.conf`:**
+
+```ini
+UPLOAD_ENABLED=yes
+UPLOAD_DIR=/var/www/html/uploads
+```
+
+Reload config:
+
+```bash
+kill -HUP $(pidof tg-bot)
+```
+
+After this, files sent to the bot via Telegram (up to 20 MB) will be saved
+to the upload directory. Use `/files` to list uploaded files.
+
+> **Note:** The upload directory is designed to work as a lighttpd document
+> root so files become accessible via HTTP once lighttpd is configured.
+> Without lighttpd files are saved to disk but not served over HTTP.
+
+---
+
 ## Directory layout after installation
 
 ```
@@ -210,6 +245,7 @@ kill -HUP $(pidof tg-bot)
 /etc/systemd/system/tg-bot.service     # systemd unit
 /etc/logrotate.d/tg-bot                # logrotate config
 /etc/sudoers.d/tg-bot                  # sudo permissions
+/var/www/html/uploads/                 # upload directory (optional)
 ```
 
 ---
@@ -228,5 +264,6 @@ rm /etc/logrotate.d/tg-bot
 rm /etc/sudoers.d/tg-bot
 userdel tg-bot
 rm -rf /var/lib/tg-bot
+rm -rf /var/www/html/uploads
 rm /var/log/tg-bot.log
 ```
