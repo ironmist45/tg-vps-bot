@@ -62,15 +62,9 @@ jobs:
             apt-get update -qq
             apt-get install -y --no-install-recommends gcc-9 g++-9
 
-            # Register GCC 9 as default — no fallback needed
-            update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
-
-            echo '[INFO] Compiler version:'
-            gcc --version | head -1
-            GCC_VER=\$(gcc --version | head -1 | awk '{print \$NF}')
-            echo \"[INFO] GCC_VER=\${GCC_VER}\"
-
             # ===== Install remaining build dependencies =====
+            # Install build-essential BEFORE update-alternatives — it pulls in
+            # gcc-7 and resets the gcc symlink. We fix it right after.
             apt-get install -y --no-install-recommends --fix-missing \
               build-essential \
               ca-certificates \
@@ -82,6 +76,22 @@ jobs:
               perl
 
             update-ca-certificates
+
+            # ===== Register GCC 9 as default AFTER build-essential =====
+            # build-essential depends on gcc which pulls gcc-7 and may reset
+            # the symlink. Re-register GCC 9 here to guarantee it wins.
+            update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
+            update-alternatives --set gcc /usr/bin/gcc-9
+
+            # Export CC/CXX so all ./configure-based builds (OpenSSL, c-ares,
+            # curl) and direct gcc calls use GCC 9 explicitly.
+            export CC=/usr/bin/gcc-9
+            export CXX=/usr/bin/g++-9
+
+            echo '[INFO] Compiler version:'
+            gcc --version | head -1
+            GCC_VER=\$(gcc --version | head -1 | awk '{print \$NF}')
+            echo \"[INFO] GCC_VER=\${GCC_VER}\"
 
             # ===== generate build info =====
             git config --global --add safe.directory /app
@@ -182,10 +192,6 @@ jobs:
               mv cJSON-\${VER_CJSON} cJSON
               cd cJSON
               mkdir build && cd build
-              # Explicitly set GCC 9 — cmake picks up the system default
-              # (gcc 7.5) otherwise, even after update-alternatives.
-              export CC=/usr/bin/gcc-9
-              export CXX=/usr/bin/g++-9
               cmake .. \
                 -DCMAKE_C_COMPILER=/usr/bin/gcc-9 \
                 -DBUILD_SHARED_LIBS=OFF \
