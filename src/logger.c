@@ -40,11 +40,19 @@
  * before logger_init() succeeds). All buffered messages are flushed to
  * the log file on first successful open.
  *
- * 32 messages of 512 bytes each = 16 KB maximum — negligible.
+ * EARLY_LOG_MSG_SIZE: sized to fit the maximum possible log line without
+ * truncation:
+ *   timestamp  : 26 bytes  ([2026-05-25 07:48:00.000])
+ *   level+tag  :  8 bytes  ([ INFO ] )
+ *   message    : 1024 bytes (log_msg internal buffer)
+ *   brackets+NL: 14 bytes  ([ ] [ ] \n)
+ *   total      : 1072 bytes → rounded up to 1088 for alignment
+ *
+ * 32 messages of 1088 bytes each = ~34 KB maximum — negligible.
  * Startup typically generates < 15 messages before the file opens.
  */
 #define EARLY_LOG_MAX_MSGS  32
-#define EARLY_LOG_MSG_SIZE  512
+#define EARLY_LOG_MSG_SIZE  1088
 
 // ============================================================================
 // INTERNAL STATE
