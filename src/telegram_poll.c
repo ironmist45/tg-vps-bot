@@ -404,6 +404,9 @@ static void process_updates(const char *chunk_data, size_t data_len,
                     u->file_id,
                     u->file_name ? u->file_name : "(none)",
                     u->file_size);
+            LOG_SEC(LOG_INFO,
+                    "poll=%04x req=%04x ACCESS CHECK: chat_id=%ld result=ALLOW (file)",
+                    g_current_poll_id, u->req_id, u->chat_id);
 
             char args_buf[UPLOAD_ARGS_BUF_MAX];
             snprintf(args_buf, sizeof(args_buf), "%s\n%s",
