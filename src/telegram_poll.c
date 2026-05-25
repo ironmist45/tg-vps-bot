@@ -425,13 +425,7 @@ static void process_updates(const char *chunk_data, size_t data_len,
 
             int rc = cmd_handle_upload(&ctx);
 
-            /* ВРЕМЕННЫЙ DEBUG ЛОГ */
-            LOG_NET(LOG_INFO, "req=%04x upload response[0]=%d resp='%.64s'",
-                    u->req_id, (int)response[0], response);
-
             if (response[0] != '\0') {
-                LOG_NET(LOG_INFO, "req=%04x sending upload response type=%d",  /* ВРЕМЕННЫЙ DEBUG ЛОГ */
-                        u->req_id, resp_type);
                 if (resp_type == RESP_PLAIN)
                     telegram_send_plain(u->chat_id, response);
                 else
