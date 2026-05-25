@@ -35,6 +35,7 @@
 #include "metrics.h"
 #include "utils.h"
 #include "telegram_timeouts.h"
+#include "cmd_upload.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,6 +67,14 @@
  * poll() wakes up every N ms to check g_shutdown_requested.
  */
 #define POLL_SHUTDOWN_CHECK_MS 200
+
+/*
+ * Buffer size for packing file_id and file_name into ctx.args.
+ * Format: "<file_id>\n<file_name>" — both fields separated by '\n'.
+ * UPLOAD_FILE_ID_MAX (256) + '\n' + UPLOAD_FILENAME_MAX (128) + '\0' = 386.
+ * 512 provides comfortable headroom.
+ */
+#define UPLOAD_ARGS_BUF_MAX 512
 
 static long           g_last_processed_update = 0;
 static int            g_offset_counter        = 0;
@@ -359,24 +368,14 @@ static void process_updates(const char *chunk_data, size_t data_len,
             g_offset_counter = 0;
         }
 
-        LOG_NET(LOG_INFO,
-                "poll=%04x req=%04x upd=%ld incoming: "
-                "chat_id=%ld len=%zu text=%.64s",
-                g_current_poll_id, u->req_id, u->update_id,
-                u->chat_id, strlen(u->text), u->text);
-
         if (!security_is_allowed_chat(u->chat_id)) {
             g_metrics.err_unauthorized++;
             LOG_NET(LOG_WARN,
                     "poll=%04x req=%04x ACCESS CHECK: "
-                    "chat_id=%ld cmd=%s result=DENIED",
-                    g_current_poll_id, u->req_id,
-                    u->chat_id, u->text);
+                    "chat_id=%ld result=DENIED",
+                    g_current_poll_id, u->req_id, u->chat_id);
             continue;
         }
-
-        if (security_validate_text(u->text) != 0)
-            continue;
 
         char             response[BOT_RESP_MAX];
         response_type_t  resp_type = RESP_MARKDOWN;
@@ -385,51 +384,119 @@ static void process_updates(const char *chunk_data, size_t data_len,
         memset(response, 0, sizeof(response));
         clock_gettime(CLOCK_MONOTONIC, &req_start);
 
-        if (commands_handle(u->text, u->chat_id, u->msg_date,
-                            u->user_id, u->username, u->req_id,
-                            response, sizeof(response),
-                            &resp_type) == 0) {
-
-            LOG_NET(LOG_DEBUG, "req=%04x sending response (type=%s)...",
-                    u->req_id,
-                    (resp_type == RESP_PLAIN) ? "plain" : "markdown");
-
+        /* ---------------------------------------------------------------
+         * Dispatch: file upload or text command
+         * --------------------------------------------------------------- */
+        if (u->file_id) {
             /*
-             * Response type is set by the command handler via ctx->resp_type
-             * (RESP_PLAIN / RESP_MARKDOWN). No need to inspect the command
-             * text here — logic is encapsulated in command modules.
+             * Incoming document — route to upload handler.
+             *
+             * Pack file_id and file_name into args_buf as
+             * "<file_id>\n<file_name>" so cmd_handle_upload() can
+             * extract both fields from ctx->args without extra fields
+             * in command_ctx_t.
              */
-            if (resp_type == RESP_PLAIN)
-                telegram_send_plain(u->chat_id, response);
-            else
-                telegram_send_message(u->chat_id, response);
+            LOG_NET(LOG_INFO,
+                    "poll=%04x req=%04x upd=%ld incoming: "
+                    "chat_id=%ld file_id=%.32s... name=%s size=%d",
+                    g_current_poll_id, u->req_id, u->update_id,
+                    u->chat_id,
+                    u->file_id,
+                    u->file_name ? u->file_name : "(none)",
+                    u->file_size);
+
+            char args_buf[UPLOAD_ARGS_BUF_MAX];
+            snprintf(args_buf, sizeof(args_buf), "%s\n%s",
+                     u->file_id,
+                     u->file_name ? u->file_name : "");
+
+            command_ctx_t ctx = {
+                .chat_id   = u->chat_id,
+                .user_id   = u->user_id,
+                .username  = u->username,
+                .args      = args_buf,
+                .raw_text  = "",
+                .msg_date  = u->msg_date,
+                .response  = response,
+                .resp_size = sizeof(response),
+                .resp_type = &resp_type,
+                .req_id    = u->req_id
+            };
+
+            int rc = cmd_handle_upload(&ctx);
+
+            if (response[0] != '\0') {
+                if (resp_type == RESP_PLAIN)
+                    telegram_send_plain(u->chat_id, response);
+                else
+                    telegram_send_message(u->chat_id, response);
+            }
 
             clock_gettime(CLOCK_MONOTONIC, &req_end);
             long req_ms = elapsed_ms(req_start, req_end);
 
-            /* Update response time metrics */
-            if (req_ms > g_metrics.max_response_ms)
-                g_metrics.max_response_ms = req_ms;
-
-            /* Rolling average */
-            if (g_metrics.cmd_total > 0) {
-                g_metrics.avg_response_ms =
-                    (g_metrics.avg_response_ms * (g_metrics.cmd_total - 1) + req_ms)
-                    / g_metrics.cmd_total;
-            } else {
-                g_metrics.avg_response_ms = req_ms;
-            }
-
             LOG_NET(LOG_INFO,
-                    "poll=%04x req=%04x done: %ld ms (resp=%zu)",
-                    g_current_poll_id, u->req_id,
-                    req_ms, strlen(response));
+                    "poll=%04x req=%04x upload done: rc=%d %ld ms",
+                    g_current_poll_id, u->req_id, rc, req_ms);
+
+        } else if (u->text) {
+            /*
+             * Text command — existing dispatch path.
+             */
+            LOG_NET(LOG_INFO,
+                    "poll=%04x req=%04x upd=%ld incoming: "
+                    "chat_id=%ld len=%zu text=%.64s",
+                    g_current_poll_id, u->req_id, u->update_id,
+                    u->chat_id, strlen(u->text), u->text);
+
+            if (security_validate_text(u->text) != 0)
+                continue;
+
+            if (commands_handle(u->text, u->chat_id, u->msg_date,
+                                u->user_id, u->username, u->req_id,
+                                response, sizeof(response),
+                                &resp_type) == 0) {
+
+                LOG_NET(LOG_DEBUG, "req=%04x sending response (type=%s)...",
+                        u->req_id,
+                        (resp_type == RESP_PLAIN) ? "plain" : "markdown");
+
+                if (resp_type == RESP_PLAIN)
+                    telegram_send_plain(u->chat_id, response);
+                else
+                    telegram_send_message(u->chat_id, response);
+
+                clock_gettime(CLOCK_MONOTONIC, &req_end);
+                long req_ms = elapsed_ms(req_start, req_end);
+
+                /* Update response time metrics */
+                if (req_ms > g_metrics.max_response_ms)
+                    g_metrics.max_response_ms = req_ms;
+
+                /* Rolling average */
+                if (g_metrics.cmd_total > 0) {
+                    g_metrics.avg_response_ms =
+                        (g_metrics.avg_response_ms * (g_metrics.cmd_total - 1) + req_ms)
+                        / g_metrics.cmd_total;
+                } else {
+                    g_metrics.avg_response_ms = req_ms;
+                }
+
+                LOG_NET(LOG_INFO,
+                        "poll=%04x req=%04x done: %ld ms (resp=%zu)",
+                        g_current_poll_id, u->req_id,
+                        req_ms, strlen(response));
+            }
         }
+        /* else: update has neither text nor file_id — already filtered by parser */
     }
 
+    /* Free all heap-allocated fields in each update */
     for (int i = 0; i < count; i++) {
-        if (updates[i].text)     free((void *)updates[i].text);
-        if (updates[i].username) free((void *)updates[i].username);
+        free((void *)updates[i].text);
+        free((void *)updates[i].username);
+        free((void *)updates[i].file_id);
+        free((void *)updates[i].file_name);
     }
     free(updates);
 }
