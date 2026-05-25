@@ -14,7 +14,7 @@ void metrics_format_log(char *buf, size_t size) {
     snprintf(buf, size,
         "Commands: %lu (start=%lu help=%lu logs=%lu f2b=%lu reboot=%lu "
         "restart=%lu status=%lu about=%lu ping=%lu "
-        "services=%lu service=%lu users=%lu health=%lu logstat=%lu other=%lu) | "
+        "services=%lu service=%lu files=%lu users=%lu health=%lu logstat=%lu other=%lu) | "
         "Errors: unauthorized=%lu timeout=%lu exec=%lu | "
         "API: %lu calls, %lu failed | "
         "Response: avg=%ldms max=%ldms",
@@ -22,7 +22,7 @@ void metrics_format_log(char *buf, size_t size) {
         g_metrics.cmd_start, g_metrics.cmd_help, g_metrics.cmd_logs,
         g_metrics.cmd_fail2ban, g_metrics.cmd_reboot, g_metrics.cmd_restart,
         g_metrics.cmd_status, g_metrics.cmd_about, g_metrics.cmd_ping,
-        g_metrics.cmd_services, g_metrics.cmd_service, g_metrics.cmd_users, g_metrics.cmd_health,
+        g_metrics.cmd_services, g_metrics.cmd_service, g_metrics.cmd_files, g_metrics.cmd_users, g_metrics.cmd_health,
         g_metrics.cmd_logstat, g_metrics.cmd_other,
         g_metrics.err_unauthorized, g_metrics.err_timeout, g_metrics.err_exec,
         g_metrics.api_calls_total, g_metrics.api_calls_failed,
@@ -33,6 +33,7 @@ void metrics_format_health(char *buf, size_t size) {
     int pos = snprintf(buf, size,
         "\n📊 *BOT METRICS*\n\n"
         "`COMMANDS (total: %lu)\n"
+        "%-10s %4lu\n"
         "%-10s %4lu\n"
         "%-10s %4lu\n"
         "%-10s %4lu\n"
@@ -71,6 +72,7 @@ void metrics_format_health(char *buf, size_t size) {
         "/ping", g_metrics.cmd_ping,
         "/services", g_metrics.cmd_services,
         "/service",  g_metrics.cmd_service,
+        "/files", g_metrics.cmd_files,
         "/users", g_metrics.cmd_users,
         "/health", g_metrics.cmd_health,
         "/logstat", g_metrics.cmd_logstat,
