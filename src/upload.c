@@ -210,7 +210,7 @@ int upload_receive_file(const char *file_id,
         return -1;
     }
 
-    LOG_CMD(LOG_INFO, "req=%04x upload: receiving file_id=%.32s... name=%s",
+    LOG_CMD(LOG_INFO, "req=%04x upload: receiving file_id=%.8s name=%s",
             req_id, file_id, file_name ? file_name : "(none)");
 
     /* Step 1 — resolve file_id → file_path via getFile API */
