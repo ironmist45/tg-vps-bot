@@ -36,6 +36,7 @@
 #include "utils.h"
 #include "telegram_timeouts.h"
 #include "cmd_upload.h"
+#include "config.h"    /* g_cfg.upload_enabled */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -407,6 +408,13 @@ static void process_updates(const char *chunk_data, size_t data_len,
             LOG_SEC(LOG_INFO,
                     "poll=%04x req=%04x ACCESS CHECK: chat_id=%ld result=ALLOW (file)",
                     g_current_poll_id, u->req_id, u->chat_id);
+
+            if (!g_cfg.upload_enabled) {
+                LOG_NET(LOG_DEBUG,
+                        "poll=%04x req=%04x file upload ignored (UPLOAD_ENABLED=no)",
+                        g_current_poll_id, u->req_id);
+                continue;
+            }
 
             char args_buf[UPLOAD_ARGS_BUF_MAX];
             snprintf(args_buf, sizeof(args_buf), "%s\n%s",
