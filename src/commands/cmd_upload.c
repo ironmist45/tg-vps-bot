@@ -62,7 +62,7 @@ int cmd_handle_upload(command_ctx_t *ctx)
     }
 
     LOG_CMD_CTX(ctx, LOG_INFO,
-        "upload: incoming file file_id=%.32s... name=%s",
+        "upload: incoming file file_id=%.8s name=%s",
         file_id, file_name ? file_name : "(none)");
 
     /* Step 1 — send immediate acknowledgement */
