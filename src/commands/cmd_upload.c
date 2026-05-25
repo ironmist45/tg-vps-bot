@@ -66,7 +66,7 @@ int cmd_handle_upload(command_ctx_t *ctx)
         file_id, file_name ? file_name : "(none)");
 
     /* Step 1 — send immediate acknowledgement */
-    telegram_send(ctx->chat_id, "📥 Uploading\\.\\.\\.", RESP_MARKDOWN);
+    telegram_send_message(ctx->chat_id, "📥 Uploading\\.\\.\\.");
 
     /* Step 2 — download and save the file */
     char saved_path[UPLOAD_PATH_MAX] = {0};
