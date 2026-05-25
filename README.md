@@ -12,6 +12,7 @@ Production-ready Telegram bot for server monitoring and management, written in p
 * Memory usage (MB + %)
 * Disk usage (GB + %)
 * Uptime
+* Hostname
 * Active users
 
 ---
@@ -40,6 +41,17 @@ Supports the following services:
 
 ---
 
+### 📁 File Upload
+
+* Send any file to the bot via Telegram — it is saved to the configured upload directory
+* Telegram file size limit: **20 MB per file**
+* Upload directory is configurable via `UPLOAD_DIR` in config (default: `/var/www/html/uploads`)
+* `/files` — list all uploaded files with sizes
+* Files are saved with sanitized filenames (alphanumeric, dot, hyphen, underscore only)
+* Designed to work with lighttpd for HTTP access to uploaded files
+
+---
+
 ### 📜 Logs & Users
 
 * View service logs via `journalctl` (`/logs`)
@@ -56,7 +68,7 @@ Built-in metrics collected since last bot start:
 
 **Commands:**
 - Total commands processed
-- Per-command counters (`/start`, `/help`, `/logs`, `/fail2ban`, `/reboot`, `/restart`, `/services`, `/users`, `/health`)
+- Per-command counters (`/start`, `/help`, `/logs`, `/fail2ban`, `/reboot`, `/restart`, `/services`, `/service`, `/files`, `/users`, `/health`, `/logstat`)
 
 **Errors:**
 - Unauthorized access attempts
@@ -93,6 +105,9 @@ Built-in metrics collected since last bot start:
   * Message length limit
   * IP address validation (Fail2Ban)
   * Character whitelist for command arguments
+* 🔒 **Binary hardening:** Full RELRO, Stack Canary, NX, PIE, FORTIFY
+* 🔒 **No capabilities** — `CAP_SYS_BOOT` removed, reboot via `sudo /sbin/reboot`
+* 🔒 **TOTP secret locked in RAM** via `mlock()` — never swapped to disk
 
 ---
 
@@ -123,6 +138,7 @@ Built-in metrics collected since last bot start:
 * Runtime duplicate detection
 * MarkdownV2 formatting with automatic escaping
 * Automatic message truncation (4096 char limit)
+* Incoming file (document) handling — streamed directly to disk, no memory buffering
 
 ---
 
@@ -247,7 +263,7 @@ General
 /help    — list all commands
 
 System info
-/status  — detailed system status (CPU, memory, disk, uptime)
+/status  — detailed system status (CPU, memory, disk, uptime, hostname)
 /health  — compact health check + bot metrics (with used/total MB and GB)
 /about   — bot version, build info, library versions
 /ping    — latency test (processing time, inbound, RTT)
@@ -263,6 +279,10 @@ Services
 /logs ssh 50                   — last 50 lines
 /logs ssh error                — filtered by "error" (semantic)
 /logs ssh 100 brute            — last 100 lines filtered for brute-force patterns
+
+Files
+/files                         — list uploaded files with sizes
+(send any file to the bot)     — saves to UPLOAD_DIR, confirms with filename and size
 
 Security
 /fail2ban status           — show all jails
@@ -285,9 +305,9 @@ Modular C design — each module has a single responsibility:
 
 * `main.c` — orchestration, main event loop, signal handling
 * `lifecycle.c` — process lifecycle (signals, shutdown, reboot, restart)
-* `telegram_poll.c` — long polling with fork() isolation for libcurl, RSS sampling
-* `telegram_http.c` — low-level HTTP via libcurl
-* `telegram_parser.c` — JSON parsing, markdown escaping
+* `telegram_poll.c` — long polling with fork() isolation for libcurl, RSS sampling, file routing
+* `telegram_http.c` — low-level HTTP via libcurl, file download streaming
+* `telegram_parser.c` — JSON parsing, markdown escaping, document update parsing
 * `telegram_offset.c` — update offset persistence
 * `commands.c` — command dispatcher, two-step confirmation logic
 * `security.c` — access control, rate limiting, token validation
@@ -297,10 +317,11 @@ Modular C design — each module has a single responsibility:
 * `diagnostics.c` — runtime diagnostics (loop timing)
 * `services_config.c` — shared service definitions (single source of truth)
 * `services.c` — systemd service status queries and control
-* `system.c` — system metrics (CPU, memory, disk, uptime)
+* `system.c` — system metrics (CPU, memory, disk, uptime, hostname)
 * `exec.c` — external command execution with deadline timeout
 * `logs.c` + `logs_filter.c` — journalctl integration and semantic filtering
 * `users.c` — active session enumeration via utmp
+* `upload.c` — Telegram file receiving, getFile API, disk streaming
 * `metrics.c` — bot usage statistics
 * `utils.c` — shared helpers
 
@@ -320,6 +341,8 @@ Modular C design — each module has a single responsibility:
 * TOTP verification uses ±1 step window to compensate for clock skew
 * TOKEN and TOTP_SECRET never appear in log files — masked even at DEBUG level
 * f2b-wrapper logs all operations to syslog (`LOG_AUTH`) with PID
+* File downloads streamed directly to disk via `write_file_callback` — no memory buffering
+* Uploaded filenames sanitized — path traversal and injection impossible
 
 ---
 
@@ -332,7 +355,10 @@ Modular C design — each module has a single responsibility:
 * Token salt generated via `getrandom(2)` at startup — unpredictable across restarts
 * TOTP secret never logged — not even at DEBUG level
 * `TOTP_SETUP=disabled` by default — secret not exposed via `/totp_setup` after setup
-* f2b-wrapper rejects private/loopback IP addresses for ban/unban operations
+* f2b-wrapper rejects private/loopback IP addresses and 0.0.0.0/255.255.255.255 for ban/unban
+* **Full RELRO** (`-Wl,-z,relro,-z,now`) — GOT is read-only after dynamic linking
+* **No CAP_SYS_BOOT** on binary — reboot via `sudo /sbin/reboot` only
+* **TOTP secret locked in RAM** via `mlock()` — not swapped to disk even when swap is active
 
 ---
 
@@ -341,14 +367,14 @@ Modular C design — each module has a single responsibility:
 > Primarily tested on:
 
 * **OS:** Ubuntu 18.04.6 LTS x86_64
-* **Compiler:** GCC 7.5.0
+* **Compiler:** GCC 9.4.0
 * **Libraries (all statically linked):**
   * 🌐 **libcurl 8.20.0** — HTTP client (curl license)
   * 🔒 **OpenSSL 3.0.20** — TLS/SSL (Apache 2.0)
   * 🧭 **c-ares 1.34.6** — async DNS resolver (MIT)
   * 📄 **cJSON 1.7.19** — JSON parser (MIT)
 
-> ⚡ The binary is fully self-contained (~5.5 MB stripped). Only `libc` is required at runtime.
+> ⚡ The binary is fully self-contained (~5.6 MB stripped). Only `libc` is required at runtime.
 
 ### 📦 Install
 
@@ -364,9 +390,13 @@ sudo cp tg-bot /usr/local/bin/
 ## Build Notes
 
 Built in Ubuntu 18.04 environment using Docker for reproducibility.
+Two CI/CD workflows are available:
+
+* `build-static.yml` — GCC 7.5.0 (legacy, fallback)
+* `build-static-gcc9.yml` — GCC 9.4.0 (primary)
 
 **Linking model:**
-- Fully static: libcurl, OpenSSL, c-ares, cJSON compiled from source
+- Fully static: libcurl, OpenSSL, c-ares, cJSON compiled from source with GCC 9.4.0
 - Only `libc` (glibc) remains dynamically linked
 
 ⚠️ Do **NOT modify** linker flags unless you know what you are doing.
@@ -393,8 +423,14 @@ Rebuild `f2b-wrapper` locally on the target machine.
 
 ### Recently Completed
 * `/service <alias> <action>` — start, stop, restart individual services via Telegram
+* File upload — send files to bot, saved to configurable upload directory
+* `/files` — list uploaded files with sizes
+* Hostname in `/status`
+* Binary hardening — Full RELRO, no CAP_SYS_BOOT, mlock for TOTP secret
+* GCC 9.4.0 build — all dependencies compiled with GCC 9.4.0
 
 ### Planned
+* lighttpd setup for HTTP access to uploaded files
 * Log filtering by time (`--since 1h`)
 * `/df` — disk usage quick view
 * `/top` — top processes by CPU/RAM
