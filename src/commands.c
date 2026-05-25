@@ -39,6 +39,7 @@
 #include "cmd_help.h"
 #include "cmd_security.h"
 #include "cmd_control.h"
+#include "cmd_upload.h"
 #include "metrics.h"
 
 #include <stdio.h>
@@ -118,6 +119,7 @@ command_t commands[] = {
     {"/service",  cmd_service_v2,  "Manage single service",    "Services", 0},
     {"/users",    cmd_users_v2,    "Active user sessions",     "Services", 0},
     {"/logs",     cmd_logs_v2,     "View service logs",        "Services", 0},
+    {"/files",    cmd_files_v2,    "List uploaded files",      "Services", 0},
 
     /* Security */
     {"/fail2ban",   cmd_fail2ban_v2,   "Manage Fail2Ban", "Security", 0},
