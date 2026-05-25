@@ -315,6 +315,7 @@ jobs:
           echo 'SYSTEMCTL_PATH=/bin/systemctl'                     >> test.conf
           echo 'JOURNALCTL_PATH=/bin/journalctl'                   >> test.conf
           echo 'F2B_WRAPPER_PATH=/usr/local/bin/f2b-wrapper'       >> test.conf
+          echo 'UPLOAD_DIR=/tmp/tg-bot-uploads'                    >> test.conf
           echo "=== test.conf ==="
           cat test.conf
           echo "=== running bot (stdout/stderr switched to test.log after config load) ==="
