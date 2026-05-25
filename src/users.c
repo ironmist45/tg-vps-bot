@@ -57,6 +57,11 @@ static void format_time(time_t t, char *buf, size_t size) {
 /**
  * Copy utmp field into a fixed buffer with NULL/empty fallback.
  *
+ * utmp fields (ut_user, ut_host, ut_line) are fixed-size char arrays
+ * marked as nonstring — they are not guaranteed to be null-terminated.
+ * Use memcpy instead of strncpy to avoid -Wstringop-overread from GCC 14
+ * which warns when strncpy reads a nonstring-attributed source.
+ *
  * Different from the global safe_copy() (utils.c) in two ways:
  *   - argument order is (dst, src, size) — matches strncpy convention
  *     and is intentional for utmp field handling
@@ -72,11 +77,12 @@ static void format_time(time_t t, char *buf, size_t size) {
  */
 static void copy_utmp_field(char *dst, const char *src, size_t size) {
     if (!src) {
-        strncpy(dst, "unknown", size - 1);
+        memcpy(dst, "unknown", size < 8 ? size - 1 : 7);
+        dst[size < 8 ? size - 1 : 7] = '\0';
     } else {
-        strncpy(dst, src, size - 1);
+        memcpy(dst, src, size - 1);
+        dst[size - 1] = '\0';
     }
-    dst[size - 1] = '\0';
 }
 
 /**
@@ -155,8 +161,12 @@ static int users_get_logged(char *buffer, size_t size, unsigned short req_id) {
         copy_utmp_field(user, entry->ut_user, sizeof(user));
         copy_utmp_field(tty,  entry->ut_line, sizeof(tty));
 
-        /* Host may be empty for local logins */
-        if (entry->ut_host && strlen(entry->ut_host) > 0)
+        /*
+         * ut_host is a fixed-size char array (nonstring) — check first
+         * byte instead of comparing pointer to NULL (which GCC 14
+         * correctly warns will always be true for an array address).
+         */
+        if (entry->ut_host[0] != '\0')
             copy_utmp_field(host, entry->ut_host, sizeof(host));
         else
             copy_utmp_field(host, "local", sizeof(host));
