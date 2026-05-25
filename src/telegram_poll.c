@@ -410,9 +410,10 @@ static void process_updates(const char *chunk_data, size_t data_len,
                     g_current_poll_id, u->req_id, u->chat_id);
 
             if (!g_cfg.upload_enabled) {
-                LOG_NET(LOG_DEBUG,
+                LOG_NET(LOG_INFO,
                         "poll=%04x req=%04x file upload ignored (UPLOAD_ENABLED=no)",
                         g_current_poll_id, u->req_id);
+                telegram_send_plain(u->chat_id, "⚠️ File upload is disabled");
                 continue;
             }
 
