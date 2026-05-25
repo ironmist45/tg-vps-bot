@@ -375,11 +375,15 @@ static void get_host(char *buf, size_t size) {
         }
     }
 
-    if (vendor[0] && model[0])
+    if (vendor[0] && model[0]) {
+        vendor[63]  = '\0';
+        model[63]   = '\0';
         snprintf(buf, size, "%s (%s)", vendor, model);
-    else if (vendor[0] && product[0])
+    } else if (vendor[0] && product[0]) {
+        vendor[63]  = '\0';
+        product[63] = '\0';
         snprintf(buf, size, "%s (%s)", vendor, product);
-    else if (vendor[0])
+    } else if (vendor[0])
         safe_copy(buf, size, vendor);
     else
         safe_copy(buf, size, product);
