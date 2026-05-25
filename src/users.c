@@ -55,34 +55,41 @@ static void format_time(time_t t, char *buf, size_t size) {
 }
 
 /**
- * Copy utmp field into a fixed buffer with NULL/empty fallback.
+ * Copy utmp field into a fixed buffer with correct size handling.
  *
  * utmp fields (ut_user, ut_host, ut_line) are fixed-size char arrays
- * marked as nonstring — they are not guaranteed to be null-terminated.
- * Use memcpy instead of strncpy to avoid -Wstringop-overread from GCC 14
- * which warns when strncpy reads a nonstring-attributed source.
+ * marked as nonstring — they are not guaranteed to be null-terminated
+ * and have their own sizes (UT_NAMESIZE=32, UT_LINESIZE=32,
+ * UT_HOSTSIZE=256) which differ from our dst buffer (MAX_FIELD=64).
  *
- * Different from the global safe_copy() (utils.c) in two ways:
- *   - argument order is (dst, src, size) — matches strncpy convention
- *     and is intentional for utmp field handling
- *   - substitutes "unknown" when src is NULL, which is appropriate
- *     for utmp fields that may be absent
+ * GCC 14 -Warray-bounds warns when memcpy reads more bytes than the
+ * source subobject contains. Fix: pass src_size explicitly and copy
+ * only min(src_size, dst_size-1) bytes.
  *
- * Named copy_utmp_field to avoid any confusion with the global
- * safe_copy(dst, size, src) from utils.c whose argument order differs.
+ * Named copy_utmp_field to avoid confusion with safe_copy() from
+ * utils.c which has a different argument order (dst, size, src).
  *
- * @param dst   Destination buffer (always null-terminated on return)
- * @param src   Source string (may be NULL)
- * @param size  Size of destination buffer
+ * @param dst       Destination buffer (always null-terminated on return)
+ * @param src       Source utmp field (nonstring, fixed-size array)
+ * @param dst_size  Size of destination buffer
+ * @param src_size  Size of source utmp field (sizeof(entry->ut_user) etc.)
  */
-static void copy_utmp_field(char *dst, const char *src, size_t size) {
-    if (!src) {
-        memcpy(dst, "unknown", size < 8 ? size - 1 : 7);
-        dst[size < 8 ? size - 1 : 7] = '\0';
-    } else {
-        memcpy(dst, src, size - 1);
-        dst[size - 1] = '\0';
+static void copy_utmp_field(char *dst, const char *src,
+                            size_t dst_size, size_t src_size) {
+    if (!src || src_size == 0) {
+        safe_copy(dst, dst_size, "unknown");
+        return;
     }
+
+    /*
+     * Copy exactly min(src_size, dst_size-1) bytes — no more than the
+     * source field contains, no more than the destination can hold.
+     * This satisfies both -Warray-bounds (no over-read) and ensures
+     * null termination.
+     */
+    size_t copy_len = src_size < dst_size - 1 ? src_size : dst_size - 1;
+    memcpy(dst, src, copy_len);
+    dst[copy_len] = '\0';
 }
 
 /**
@@ -158,8 +165,10 @@ static int users_get_logged(char *buffer, size_t size, unsigned short req_id) {
         char tty[MAX_FIELD];
         char host[MAX_FIELD];
 
-        copy_utmp_field(user, entry->ut_user, sizeof(user));
-        copy_utmp_field(tty,  entry->ut_line, sizeof(tty));
+        copy_utmp_field(user, entry->ut_user,
+                        sizeof(user), sizeof(entry->ut_user));
+        copy_utmp_field(tty,  entry->ut_line,
+                        sizeof(tty),  sizeof(entry->ut_line));
 
         /*
          * ut_host is a fixed-size char array (nonstring) — check first
@@ -167,9 +176,10 @@ static int users_get_logged(char *buffer, size_t size, unsigned short req_id) {
          * correctly warns will always be true for an array address).
          */
         if (entry->ut_host[0] != '\0')
-            copy_utmp_field(host, entry->ut_host, sizeof(host));
+            copy_utmp_field(host, entry->ut_host,
+                            sizeof(host), sizeof(entry->ut_host));
         else
-            copy_utmp_field(host, "local", sizeof(host));
+            safe_copy(host, sizeof(host), "local");
 
         /* Format session entry (Markdown) */
         int written = snprintf(line, sizeof(line),
