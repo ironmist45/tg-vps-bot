@@ -105,8 +105,8 @@ int cmd_handle_upload(command_ctx_t *ctx)
 
     /* Step 4 — send success reply */
     snprintf(ctx->response, ctx->resp_size,
-             "✅ Saved: `%s` \\(%s\\)", disp_name, size_str);
-    *ctx->resp_type = RESP_MARKDOWN;
+             "Saved: %s (%s)", disp_name, size_str);
+    *ctx->resp_type = RESP_PLAIN;
 
     METRICS_CMD(other);
     return 0;
