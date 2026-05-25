@@ -12,6 +12,7 @@
  *   TOKEN_TTL    - Confirmation token TTL in seconds (default: 60)
  *   LOG_LEVEL    - Logging level: ERROR, WARN, INFO, DEBUG (default: INFO)
  *   TOTP_SECRET  - Base32 TOTP secret for 2FA (optional, default: disabled)
+ *   UPLOAD_DIR   - Directory for uploaded files (default: /var/www/html/uploads)
  */
 
 #include "config.h"
@@ -57,6 +58,9 @@ int config_load(const char *path, config_t *cfg) {
     safe_copy(cfg->systemctl_path,   sizeof(cfg->systemctl_path),   "/bin/systemctl");
     safe_copy(cfg->journalctl_path,  sizeof(cfg->journalctl_path),  "/bin/journalctl");
     safe_copy(cfg->f2b_wrapper_path, sizeof(cfg->f2b_wrapper_path), "/usr/local/bin/f2b-wrapper");
+
+    /* Default upload directory — lighttpd document root */
+    safe_copy(cfg->upload_dir,       sizeof(cfg->upload_dir),       "/var/www/html/uploads");
 
     /* TOTP disabled by default */
     cfg->totp_secret[0]     = '\0';
@@ -188,6 +192,17 @@ int config_load(const char *path, config_t *cfg) {
         else if (strcasecmp(key, "F2B_WRAPPER_PATH") == 0) {
             safe_copy(cfg->f2b_wrapper_path, sizeof(cfg->f2b_wrapper_path), value);
         }
+        else if (strcasecmp(key, "UPLOAD_DIR") == 0) {
+            /*
+             * Directory where uploaded files are saved.
+             * Must exist and be writable by the tg-bot user before use.
+             * Falls back to default if value is too long.
+             */
+            if (safe_copy(cfg->upload_dir, sizeof(cfg->upload_dir), value) != 0) {
+                LOG_CFG(LOG_WARN, "UPLOAD_DIR too long, using default");
+                safe_copy(cfg->upload_dir, sizeof(cfg->upload_dir), "/var/www/html/uploads");
+            }
+        }
         else {
             LOG_CFG(LOG_DEBUG, "Unknown config key: %s", key);
         }
@@ -233,6 +248,7 @@ void config_log(const config_t *cfg) {
     LOG_CFG(LOG_DEBUG, "SYSTEMCTL_PATH: %s",   cfg->systemctl_path);
     LOG_CFG(LOG_DEBUG, "JOURNALCTL_PATH: %s",  cfg->journalctl_path);
     LOG_CFG(LOG_DEBUG, "F2B_WRAPPER_PATH: %s", cfg->f2b_wrapper_path);
+    LOG_CFG(LOG_DEBUG, "UPLOAD_DIR: %s",       cfg->upload_dir);
 }
 
 // ============================================================================
@@ -248,6 +264,7 @@ void config_log(const config_t *cfg) {
  *   - Allowed chat ID
  *   - Token TTL
  *   - TOTP secret
+ *   - Upload directory
  *
  * @param path  Path to configuration file
  * @param cfg   Pointer to current config (updated in-place on success)
