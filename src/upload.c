@@ -287,9 +287,6 @@ int upload_receive_file(const char *file_id,
     char size_str[SIZE_BUF_MAX];
     format_size(saved_bytes, size_str, sizeof(size_str));
 
-    LOG_CMD(LOG_INFO, "req=%04x upload: saved '%s' (%s)",
-            req_id, out_path, size_str);
-
     return 0;
 }
 
