@@ -52,12 +52,16 @@ static void free_updates_partial(telegram_update_t *arr, int count,
     for (int i = 0; i < count; i++) {
         free((void *)arr[i].text);
         free((void *)arr[i].username);
+        free((void *)arr[i].file_id);
+        free((void *)arr[i].file_name);
     }
 
     /* Free the in-progress slot if one was started */
     if (current_slot >= 0) {
         free((void *)arr[current_slot].text);
         free((void *)arr[current_slot].username);
+        free((void *)arr[current_slot].file_id);
+        free((void *)arr[current_slot].file_name);
     }
 
     free(arr);
@@ -125,39 +129,26 @@ int telegram_parse_updates(const char *raw_data, size_t data_size,
          * protects free_updates_partial from double-free if the slot
          * were ever reused (defensive coding).
          */
-        parsed[parsed_count].update_id = uid;
-        parsed[parsed_count].req_id    = make_req_id(uid);
-        parsed[parsed_count].text      = NULL;
-        parsed[parsed_count].username  = NULL;
+        parsed[parsed_count].update_id  = uid;
+        parsed[parsed_count].req_id     = make_req_id(uid);
+        parsed[parsed_count].text       = NULL;
+        parsed[parsed_count].username   = NULL;
+        parsed[parsed_count].file_id    = NULL;
+        parsed[parsed_count].file_name  = NULL;
+        parsed[parsed_count].file_size  = 0;
 
         cJSON *message = cJSON_GetObjectItem(update, "message");
         if (!message) continue;
 
         cJSON *chat = cJSON_GetObjectItem(message, "chat");
-        cJSON *text = cJSON_GetObjectItem(message, "text");
-        if (!chat || !text || !cJSON_IsString(text)) continue;
+        if (!chat) continue;
 
         const cJSON *chat_id = cJSON_GetObjectItem(chat, "id");
         if (!chat_id) continue;
 
         parsed[parsed_count].chat_id = (long)chat_id->valuedouble;
 
-        /* strdup text — required field; without it the entry is useless */
-        parsed[parsed_count].text = strdup(text->valuestring);
-        if (!parsed[parsed_count].text) {
-            LOG_NET(LOG_ERROR,
-                    "poll=%04x strdup(text) failed at update %d (OOM)",
-                    poll_id, i);
-            /*
-             * Current slot is in progress (chat_id set, text = NULL).
-             * Pass parsed_count as current_slot — free(NULL) is safe.
-             */
-            free_updates_partial(parsed, parsed_count, parsed_count);
-            cJSON_Delete(json);
-            return -1;
-        }
-
-        /* strdup username — optional field, NULL is acceptable */
+        /* Parse from/username — common for both text and document updates */
         cJSON *from = cJSON_GetObjectItem(message, "from");
         if (from) {
             const cJSON *user_id = cJSON_GetObjectItem(from, "id");
@@ -185,6 +176,74 @@ int telegram_parse_updates(const char *raw_data, size_t data_size,
         cJSON *date = cJSON_GetObjectItem(message, "date");
         if (date && cJSON_IsNumber(date))
             parsed[parsed_count].msg_date = (time_t)date->valuedouble;
+
+        /* ---------------------------------------------------------------
+         * Try text message first, then document.
+         * Exactly one of text/file_id will be set per update.
+         * --------------------------------------------------------------- */
+        cJSON *text = cJSON_GetObjectItem(message, "text");
+
+        if (text && cJSON_IsString(text)) {
+            /* Text message */
+            parsed[parsed_count].text = strdup(text->valuestring);
+            if (!parsed[parsed_count].text) {
+                LOG_NET(LOG_ERROR,
+                        "poll=%04x strdup(text) failed at update %d (OOM)",
+                        poll_id, i);
+                /*
+                 * Current slot is in progress (chat_id set, text = NULL).
+                 * Pass parsed_count as current_slot — free(NULL) is safe.
+                 */
+                free_updates_partial(parsed, parsed_count, parsed_count);
+                cJSON_Delete(json);
+                return -1;
+            }
+
+        } else {
+            /* Try document */
+            cJSON *document = cJSON_GetObjectItem(message, "document");
+            if (document) {
+                cJSON *file_id   = cJSON_GetObjectItem(document, "file_id");
+                cJSON *file_name = cJSON_GetObjectItem(document, "file_name");
+                cJSON *file_size = cJSON_GetObjectItem(document, "file_size");
+
+                if (file_id && cJSON_IsString(file_id)) {
+                    parsed[parsed_count].file_id = strdup(file_id->valuestring);
+                    if (!parsed[parsed_count].file_id) {
+                        LOG_NET(LOG_ERROR,
+                                "poll=%04x strdup(file_id) failed at update %d (OOM)",
+                                poll_id, i);
+                        free_updates_partial(parsed, parsed_count, parsed_count);
+                        cJSON_Delete(json);
+                        return -1;
+                    }
+                }
+
+                /* file_name is optional — some documents may not have one */
+                if (file_name && cJSON_IsString(file_name)) {
+                    parsed[parsed_count].file_name = strdup(file_name->valuestring);
+                    if (!parsed[parsed_count].file_name) {
+                        LOG_NET(LOG_WARN,
+                                "poll=%04x strdup(file_name) failed at update %d "
+                                "(OOM) — continuing without file_name",
+                                poll_id, i);
+                    }
+                }
+
+                if (file_size && cJSON_IsNumber(file_size))
+                    parsed[parsed_count].file_size = (int)file_size->valuedouble;
+
+                LOG_NET(LOG_DEBUG,
+                        "poll=%04x update %d: document file_name=%s size=%d",
+                        poll_id, i,
+                        parsed[parsed_count].file_name
+                            ? parsed[parsed_count].file_name : "(none)",
+                        parsed[parsed_count].file_size);
+            } else {
+                /* Neither text nor document — skip this update */
+                continue;
+            }
+        }
 
         parsed_count++;
     }
