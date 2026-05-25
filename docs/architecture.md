@@ -14,16 +14,18 @@ tg-bot/
 │
 ├── .github/
 │   └── workflows/
-│       └── build-static.yml     # 🔧 CI/CD pipeline (fully static build)
+│       ├── build-static.yml          # 🔧 CI/CD pipeline GCC 7.5 (legacy, fallback)
+│       ├── build-static-gcc9.yml     # 🔧 CI/CD pipeline GCC 9.4.0 (primary)
+│       └── build-static-gcc14.yml    # 🔧 CI/CD pipeline GCC 14 (experimental)
 │
 ├── config/
 │   └── config.example.conf      # 🔧 example configuration (env template)
 │
 ├── include/                     # 📂 public headers (module APIs)
 │   ├── version.h                # 🔹 version and build information
-│   ├── build_info.h             # 🔹 generated build info (commit, date, build number)
+│   ├── build_info.h             # 🔹 generated build info (commit, date, build number, compiler)
 │   ├── cli.h                    # 🔹 command-line interface parsing
-│   ├── config.h                 # 🔹 config loader API (parsing, reload, TOTP secret)
+│   ├── config.h                 # 🔹 config loader API (parsing, reload, TOTP secret, upload)
 │   ├── logger.h                 # 🔹 logging system API (levels, macros, early buffer)
 │   ├── lifecycle.h              # 🔹 process lifecycle (signals, shutdown, reboot)
 │   ├── environment.h            # 🔹 runtime environment diagnostics
@@ -33,17 +35,18 @@ tg-bot/
 │   ├── diagnostics.h            # 🔹 runtime diagnostics (main loop timing)
 │   ├── totp.h                   # 🔹 TOTP 2FA (RFC 6238, HMAC-SHA1 via OpenSSL)
 │   ├── telegram.h               # 🔹 Telegram API client interface (public)
-│   ├── telegram_http.h          # 🔹 low-level HTTP communication
-│   ├── telegram_parser.h        # 🔹 JSON parsing and message formatting
+│   ├── telegram_http.h          # 🔹 low-level HTTP communication, file download streaming
+│   ├── telegram_parser.h        # 🔹 JSON parsing, message formatting, document updates
 │   ├── telegram_poll.h          # 🔹 long polling with fork isolation
 │   ├── telegram_offset.h        # 🔹 update offset persistence
 │   ├── telegram_timeouts.h      # 🔹 timeout constants with _Static_assert chain
 │   ├── commands.h               # 🔹 command dispatcher, requires_confirmation, pending_confirm_t, commands_request_confirm()
 │   ├── reply.h                  # 🔹 unified response formatting API
 │   ├── security.h               # 🔹 security layer (access control, tokens, rate limiting)
-│   ├── system.h                 # 🔹 system info (metrics, uptime, host info)
+│   ├── system.h                 # 🔹 system info (metrics, uptime, hostname, host info)
 │   ├── services.h               # 🔹 systemd services status and action API
 │   ├── services_config.h        # 🔹 shared service definitions (alias, unit, display)
+│   ├── upload.h                 # 🔹 file upload API (getFile, download, save, list)
 │   ├── users.h                  # 🔹 active user sessions API
 │   ├── logs.h                   # 🔹 logs retrieval API (journalctl integration)
 │   ├── logs_filter.h            # 🔹 log filtering API (semantic + multi-keyword)
@@ -53,12 +56,13 @@ tg-bot/
 │   ├── cmd_system.h             # 🔹 /start, /status, /health, /ping, /about, /logstat API
 │   ├── cmd_services.h           # 🔹 /services, /users, /logs, /service API
 │   ├── cmd_security.h           # 🔹 /fail2ban command handler API
-│   └── cmd_control.h            # 🔹 /reboot, /restart, /totp_setup API
+│   ├── cmd_control.h            # 🔹 /reboot, /restart, /totp_setup API
+│   └── cmd_upload.h             # 🔹 file upload handlers API (/files, incoming files)
 │
 ├── src/                         # 📂 implementation (core modules)
 │   ├── main.c                   # 🚀 entry point (init, orchestration, main loop)
 │   ├── cli.c                    # 🔹 command-line argument parsing
-│   ├── config.c                 # 🔹 config parser, reload, TOTP_SECRET validation
+│   ├── config.c                 # 🔹 config parser, reload, TOTP_SECRET, UPLOAD_ENABLED
 │   ├── logger.c                 # 🔹 thread-safe logging, early buffer, isatty mirror
 │   ├── lifecycle.c              # 🔹 signal handlers, graceful shutdown, reboot/restart
 │   ├── environment.c            # 🔹 startup diagnostics and access checks
@@ -67,17 +71,18 @@ tg-bot/
 │   ├── diagnostics.c            # 🔹 main loop iteration timing and diagnostics
 │   ├── totp.c                   # 🔹 TOTP implementation (base32, HMAC-SHA1, RFC 6238)
 │   ├── telegram.c               # 🔹 public API (init, send, polling)
-│   ├── telegram_http.c          # 🔹 curl-based HTTP requests
-│   ├── telegram_parser.c        # 🔹 JSON parsing + markdown escaping
-│   ├── telegram_poll.c          # 🔹 long polling with fork() isolation
+│   ├── telegram_http.c          # 🔹 curl-based HTTP requests, file download streaming
+│   ├── telegram_parser.c        # 🔹 JSON parsing + markdown escaping + document parsing
+│   ├── telegram_poll.c          # 🔹 long polling with fork() isolation, file routing
 │   ├── telegram_offset.c        # 🔹 offset persistence (crash recovery)
 │   ├── commands.c               # 🔹 command routing, two-step confirmation, /confirm
 │   ├── reply.c                  # 🔹 response formatting helpers
 │   ├── security.c               # 🔹 access control, rate limiting, token validation
-│   ├── system.c                 # 🔹 system metrics and information
+│   ├── system.c                 # 🔹 system metrics, hostname, OS/hardware info
 │   ├── services.c               # 🔹 systemd service status queries and actions
 │   ├── services_config.c        # 🔹 service table (single source of truth)
-│   ├── users.c                  # 🔹 active user session enumeration
+│   ├── upload.c                 # 🔹 Telegram file receiving (getFile API, disk streaming)
+│   ├── users.c                  # 🔹 active user session enumeration via utmp
 │   ├── logs.c                   # 🔹 journalctl log retrieval and formatting
 │   ├── logs_filter.c            # 🔹 semantic log filtering engine
 │   ├── logstat.c                # 🔹 SSE4.2 log file statistics analyzer
@@ -88,7 +93,8 @@ tg-bot/
 │       ├── cmd_system.c         # 🧩 /start, /status, /health, /ping, /about, /logstat
 │       ├── cmd_services.c       # 🧩 /services, /users, /logs, /service
 │       ├── cmd_security.c       # 🧩 /fail2ban
-│       └── cmd_control.c        # 🧩 /reboot, /restart, /totp_setup
+│       ├── cmd_control.c        # 🧩 /reboot, /restart, /totp_setup
+│       └── cmd_upload.c         # 🧩 incoming files, /files
 │
 ├── tools/                       # 🔧 internal utilities
 │   └── f2b-wrapper.c            # 🔹 Fail2Ban wrapper (ban/unban/status)
@@ -102,7 +108,7 @@ tg-bot/
 | Module | Header | Source | Responsibility |
 |--------|--------|--------|----------------|
 | **CLI** | `cli.h` | `cli.c` | Command-line argument parsing, help/version output |
-| **Config** | `config.h` | `config.c` | Configuration file loading, validation, reload, TOTP secret |
+| **Config** | `config.h` | `config.c` | Configuration file loading, validation, reload, TOTP secret, upload flag |
 | **Logger** | `logger.h` | `logger.c` | Thread-safe logging, early buffer, isatty mirror to stderr |
 | **Lifecycle** | `lifecycle.h` | `lifecycle.c` | Signal handlers, graceful shutdown, reboot/restart |
 | **Environment** | `environment.h` | `environment.c` | Startup diagnostics, access checks, CI detection |
@@ -110,16 +116,17 @@ tg-bot/
 | **Diagnostics** | `diagnostics.h` | `diagnostics.c` | Main loop iteration timing, slow iteration warnings |
 | **TOTP** | `totp.h` | `totp.c` | RFC 6238 TOTP (base32, HMAC-SHA1, verify, URI generation) |
 | **Telegram** | `telegram.h` | `telegram.c` | Public API (init, shutdown, send) |
-| **Telegram HTTP** | `telegram_http.h` | `telegram_http.c` | Low-level HTTP requests via libcurl |
-| **Telegram Parser** | `telegram_parser.h` | `telegram_parser.c` | JSON parsing, markdown escaping, message truncation |
-| **Telegram Poll** | `telegram_poll.h` | `telegram_poll.c` | Long polling with fork() isolation and shutdown check |
+| **Telegram HTTP** | `telegram_http.h` | `telegram_http.c` | Low-level HTTP requests via libcurl, file download streaming |
+| **Telegram Parser** | `telegram_parser.h` | `telegram_parser.c` | JSON parsing, markdown escaping, document update parsing |
+| **Telegram Poll** | `telegram_poll.h` | `telegram_poll.c` | Long polling with fork() isolation, file/text routing |
 | **Telegram Offset** | `telegram_offset.h` | `telegram_offset.c` | Update offset persistence (crash recovery) |
 | **Commands** | `commands.h` | `commands.c` | Command routing, two-step confirmation, /confirm dispatcher |
 | **Reply** | `reply.h` | `reply.c` | Unified response formatting for handlers |
 | **Security** | `security.h` | `security.c` | Access control, input validation, tokens, rate limiting |
-| **System** | `system.h` | `system.c` | System metrics, uptime, OS/hardware info |
+| **System** | `system.h` | `system.c` | System metrics, uptime, hostname, OS/hardware info |
 | **Services** | `services.h` | `services.c` | Systemd service status queries and start/stop/restart |
 | **Services Config** | `services_config.h` | `services_config.c` | Service definitions (single source of truth) |
+| **Upload** | `upload.h` | `upload.c` | Telegram file receiving, getFile API, disk streaming, file listing |
 | **Users** | `users.h` | `users.c` | Active user session enumeration via utmp |
 | **Logs** | `logs.h` | `logs.c` | Journalctl log retrieval and formatting |
 | **Logs Filter** | `logs_filter.h` | `logs_filter.c` | Semantic and multi-keyword log filtering |
@@ -142,11 +149,13 @@ tg-bot/
 | `/service` | `cmd_service_v2` | `cmd_services.c` | 🔐 start/stop/restart only |
 | `/users` | `cmd_users_v2` | `cmd_services.c` | — |
 | `/logs` | `cmd_logs_v2` | `cmd_services.c` | — |
+| `/files` | `cmd_files_v2` | `cmd_upload.c` | — |
 | `/fail2ban` | `cmd_fail2ban_v2` | `cmd_security.c` | — |
 | `/reboot` | `cmd_reboot_v2` | `cmd_control.c` | 🔐 required |
 | `/restart` | `cmd_restart_v2` | `cmd_control.c` | 🔐 required |
 | `/totp_setup` | `cmd_totp_setup_v2` | `cmd_control.c` | — |
 | `/confirm` | inline in dispatcher | `commands.c` | — |
+| *(incoming file)* | `cmd_handle_upload` | `cmd_upload.c` | — |
 
 ---
 
@@ -266,8 +275,49 @@ Responsibilities in order:
 | Help | ✅ V2 | /help |
 | Security | ✅ V2 | /fail2ban |
 | Control | ✅ V2 | /reboot, /restart, /totp_setup |
+| Upload | ✅ V2 | /files, incoming files |
 
-**All 16 commands use V2. Legacy code completely removed.**
+**All 17 commands use V2. Legacy code completely removed.**
+
+---
+
+## File Upload Architecture
+
+File upload is disabled by default (`UPLOAD_ENABLED=no`). When enabled,
+incoming Telegram document updates are routed through the upload pipeline:
+
+```
+User sends file via Telegram
+    ↓
+telegram_parser.c — parses document object, extracts file_id/file_name/file_size
+    ↓
+telegram_poll.c — detects u->file_id != NULL
+    ↓
+security_is_allowed_chat() — access check (same as text commands)
+    ↓
+UPLOAD_ENABLED check — if disabled: log INFO + send "⚠️ File upload is disabled"
+    ↓
+cmd_handle_upload() — packs file_id+file_name into ctx->args ("id\nname")
+    ↓
+telegram_send_message("📥 Uploading...") — immediate acknowledgement
+    ↓
+upload_receive_file() — calls getFile API → gets file_path on Telegram servers
+    ↓
+telegram_http_download_file() — streams file directly to disk via write_file_callback
+    ↓
+Saves to g_cfg.upload_dir/<sanitized_filename>
+    ↓
+Reply: "Saved: config.conf (1.2 KB)"
+```
+
+**Filename sanitization:** only `[a-zA-Z0-9._-]` characters kept, leading
+dots replaced with `_`, path traversal impossible.
+
+**Telegram limit:** 20 MB per file.
+
+**Config keys:**
+- `UPLOAD_ENABLED=yes` — enable upload (default: disabled)
+- `UPLOAD_DIR=/var/www/html/uploads` — destination directory
 
 ---
 
@@ -300,7 +350,7 @@ code     = truncated % 1000000
 ## Logger Architecture
 
 **Early buffer:** Messages logged before the log file opens are stored
-in memory (32 × 512 B) and flushed to the file on first successful
+in memory (32 × 1088 B) and flushed to the file on first successful
 `logger_init()`. Nothing is lost at startup.
 
 **isatty mirror:** When stderr is a terminal (interactive run),
@@ -356,6 +406,8 @@ parent                        child
   selfcheck via `g_poll_rss_kb` / `g_poll_rss_procs`.
 - **Child signal detection:** `waitpid()` checks `WIFSIGNALED` — unexpected
   child crashes (OOM, SIGSEGV) are logged at WARN level.
+- **Update routing:** each update is dispatched to file upload handler
+  (`u->file_id != NULL`) or text command dispatcher (`u->text != NULL`).
 
 ---
 
@@ -447,6 +499,10 @@ cause a build error with a descriptive message.
 - **No direct root:** all privileged operations via sudo whitelist
 - **Unpredictable salt:** `getrandom(2)` at startup, never logged
 - **Secret masking:** TOKEN and TOTP_SECRET never appear in log files
+- **Full RELRO:** `-Wl,-z,relro,-z,now` — GOT read-only after dynamic linking
+- **No CAP_SYS_BOOT:** reboot via `sudo /sbin/reboot` only
+- **mlock:** TOTP secret locked in RAM, never swapped to disk
+- **Upload disabled by default:** `UPLOAD_ENABLED=no` reduces attack surface
 
 ---
 
@@ -457,9 +513,15 @@ Telegram update received
     ↓
 telegram_poll.c — fork() child, HTTP request via libcurl
     ↓
-telegram_parser.c — JSON parsing, extract message
+telegram_parser.c — JSON parsing, extract message or document
     ↓
-commands.c — validate input, rate limit, access control
+security_is_allowed_chat() — access control for all update types
+    ↓
+file update? → UPLOAD_ENABLED check → cmd_handle_upload()
+    ↓                                       ↓
+text update? → commands.c              upload.c → disk
+    ↓
+validate input, rate limit, access control
     ↓
 /confirm? → handle_confirm() → TOTP or token validation → restore args
     ↓
@@ -476,19 +538,45 @@ telegram_http.c — sendMessage API call
 
 ---
 
+## CI/CD Pipelines
+
+Three parallel build workflows — all produce fully static binaries:
+
+| Workflow | Compiler | GLIBC | Status | Artifact |
+|----------|----------|-------|--------|----------|
+| `build-static.yml` | GCC 7.5.0 | 2.27 | legacy fallback | `tg-bot-static-gcc7` |
+| `build-static-gcc9.yml` | GCC 9.4.0 | 2.27 | primary | `tg-bot-static-gcc9` |
+| `build-static-gcc14.yml` | GCC 14 | 2.27 | experimental | `tg-bot-static-gcc14` |
+
+All run in Ubuntu 18.04 Docker container to preserve glibc 2.27 compatibility.
+GCC 9 and GCC 14 workflows add hardening flags: `-Wformat=2`, `-Wnull-dereference`,
+`-Warray-bounds=2`, `-fstack-protector-strong`, `-D_FORTIFY_SOURCE=2`.
+
+**Binary sizes (stripped):**
+
+| Compiler | Size |
+|----------|------|
+| GCC 7.5.0 | 5,735,448 B |
+| GCC 9.4.0 | 5,633,048 B |
+| GCC 14 | 5,620,800 B |
+
+---
+
 ## Design Principles
 
-- **Minimalism** — no heavy frameworks, pure C, ~5.5MB static binary
+- **Minimalism** — no heavy frameworks, pure C, ~5.6 MB static binary
 - **Security-first** — validate everything, least privilege, audit log
 - **Predictability** — deadline timeouts, no busy-wait, no zombie window
 - **Modularity** — single responsibility per module, clean public APIs
 - **Operational maturity** — systemd integration, logrotate, CI/CD, build numbers
 - **Backward compatibility** — TOTP is optional, classic token flow is fallback
+- **Upload opt-in** — file upload disabled by default, explicit config required
 
 ---
 
 ## Future Improvements
 
+- lighttpd setup for HTTP access to uploaded files
 - Alerts — bot notifies on service failure or high resource usage
 - Log filtering by time (`--since 1h`)
 - `/df` — disk usage quick view
