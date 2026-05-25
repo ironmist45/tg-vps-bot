@@ -73,20 +73,30 @@ typedef struct {
     char f2b_wrapper_path[128];
 
     /*
-     * Directory for uploaded files (optional).
+     * File upload feature (optional).
      *
-     * Files sent to the bot via Telegram are saved here.
-     * Default points to the lighttpd document root so files are
-     * immediately accessible via HTTP once lighttpd is configured.
+     * upload_enabled: controls whether the bot accepts incoming files.
+     *   When 0 (default): incoming files are silently ignored, /files
+     *     returns "File upload is disabled".
+     *   When 1: files sent to the bot are downloaded from Telegram and
+     *     saved to upload_dir.
      *
-     * The directory must exist and be writable by the tg-bot user.
-     * Create it before starting the bot:
-     *   mkdir -p /var/www/html/uploads
-     *   chown tg-bot:tg-bot /var/www/html/uploads
+     * Config key: UPLOAD_ENABLED=yes/true/1/enabled
+     * Default: disabled (0)
+     *
+     * upload_dir: directory where received files are saved.
+     *   Must exist and be writable by the tg-bot user before use.
+     *   If upload_enabled=1 but upload_dir is empty, upload is
+     *   automatically disabled with a warning at startup.
+     *
+     *   Create before starting the bot:
+     *     mkdir -p /var/www/html/uploads
+     *     chown tg-bot:tg-bot /var/www/html/uploads
      *
      * Config key: UPLOAD_DIR=/var/www/html/uploads
      * Default: /var/www/html/uploads
      */
+    int  upload_enabled;        /* 1 = accept incoming files, 0 = ignore     */
     char upload_dir[256];       /* Destination directory for uploaded files  */
 
 } config_t;
@@ -103,19 +113,21 @@ typedef struct {
  * Empty lines are ignored.
  *
  * Supported keys:
- *   TOKEN        - Telegram Bot API token (required)
- *   CHAT_ID      - Allowed Telegram chat ID (required)
- *   LOG_FILE     - Path to log file (default: /var/log/tg-bot.log)
- *   TOKEN_TTL    - Confirmation token TTL in seconds (default: 60)
- *   LOG_LEVEL    - Logging level: ERROR, WARN, INFO, DEBUG (default: INFO)
- *   TOTP_SECRET  - Base32 TOTP secret for 2FA (optional, default: disabled)
- *   UPLOAD_DIR   - Directory for uploaded files (default: /var/www/html/uploads)
+ *   TOKEN          - Telegram Bot API token (required)
+ *   CHAT_ID        - Allowed Telegram chat ID (required)
+ *   LOG_FILE       - Path to log file (default: /var/log/tg-bot.log)
+ *   TOKEN_TTL      - Confirmation token TTL in seconds (default: 60)
+ *   LOG_LEVEL      - Logging level: ERROR, WARN, INFO, DEBUG (default: INFO)
+ *   TOTP_SECRET    - Base32 TOTP secret for 2FA (optional, default: disabled)
+ *   UPLOAD_ENABLED - Enable file upload: yes/true/1/enabled (default: disabled)
+ *   UPLOAD_DIR     - Directory for uploaded files (default: /var/www/html/uploads)
  *
  * Example:
  *   TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
  *   CHAT_ID=123456789
  *   LOG_LEVEL=DEBUG
  *   TOTP_SECRET=JBSWY3DPEHPK3PXP
+ *   UPLOAD_ENABLED=yes
  *   UPLOAD_DIR=/var/www/html/uploads
  *
  * @param path  Path to configuration file
