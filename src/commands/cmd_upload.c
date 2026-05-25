@@ -139,7 +139,7 @@ int cmd_files_v2(command_ctx_t *ctx)
     }
 
     LOG_CMD_CTX(ctx, LOG_INFO, "files: requested");
-    METRICS_CMD(other);
+    METRICS_CMD(files);
 
     return reply_markdown(ctx, buf);
 }
