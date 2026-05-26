@@ -255,7 +255,7 @@ int telegram_parse_updates(const char *raw_data, size_t data_size,
 }
 
 void telegram_escape_markdown(const char *src, char *dst, size_t size) {
-    const char *special = "_[]()~>#+-=|{}.!";
+    const char *special = "_[]()~>#+=|{}.!";
     size_t j = 0;
     for (size_t i = 0; src[i] && j + 2 < size; i++) {
         if (strchr(special, src[i])) dst[j++] = '\\';
