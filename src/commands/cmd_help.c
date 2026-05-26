@@ -5,6 +5,7 @@
  */
 
 #include "cmd_help.h"
+#include "telegram_parser.h"
 #include "logger.h"
 #include "reply.h"
 #include "metrics.h"
@@ -73,16 +74,20 @@ int cmd_help_v2(command_ctx_t *ctx)
         const char *name = commands[i].name;
         const char *desc = commands[i].description;
         
+        char safe_name[64] = {0};
+        char safe_desc[128] = {0};
+        telegram_escape_markdown(name, safe_name, sizeof(safe_name));
         if (desc && *desc) {
+            telegram_escape_markdown(desc, safe_desc, sizeof(safe_desc));
             written = snprintf(buffer + used, size - used,
-                "%s%s — %s\n",
+                "%s%s \\— %s\n",
                 commands[i].requires_confirmation ? "🔐 " : "",
-                name, desc);
+                safe_name, safe_desc);
         } else {
             written = snprintf(buffer + used, size - used,
                 "%s%s\n",
                 commands[i].requires_confirmation ? "🔐 " : "",
-                name);
+                safe_name);
         }
         
         if (written < 0 || (size_t)written >= size - used) break;
