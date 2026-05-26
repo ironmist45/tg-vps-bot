@@ -47,7 +47,8 @@ Supports the following services:
 * Telegram file size limit: **20 MB per file**
 * Upload directory is configurable via `UPLOAD_DIR` in config (default: `/var/www/html/uploads`)
 * `/files` — list all uploaded files with sizes
-* Files are saved with sanitized filenames (alphanumeric, dot, hyphen, underscore only)
+* Files are saved with sanitized filenames (alphanumeric, dot, hyphen, underscore only; spaces → underscore; leading dot rejected)
+* "📥 Uploading..." acknowledgement shown only for files > 1 MB
 * Designed to work with lighttpd for HTTP access to uploaded files
 
 ---
@@ -123,7 +124,7 @@ Built-in metrics collected since last bot start:
 ### 🔄 Process Control
 
 * `/restart` — restart the bot process (systemctl restart tg-bot)
-* `/reboot` — reboot the server
+* `/reboot` — reboot the server via `sudo /sbin/reboot`
 * Both require two-step confirmation (TOTP or token)
 * Tracks who requested the operation
 
@@ -134,9 +135,9 @@ Built-in metrics collected since last bot start:
 * Long polling (no webhooks)
 * Fork isolation for libcurl — network hangs cannot block the main process
 * Dynamic pipe buffer — handles large Telegram responses (100+ updates) without truncation
-* Offset persistence with atomic write (crash recovery, no duplicate messages)
+* Offset persistence with atomic write + fsync (crash recovery, no duplicate messages)
 * Runtime duplicate detection
-* MarkdownV2 formatting with automatic escaping
+* MarkdownV2 formatting — handlers own escaping of user data, Telegram API errors logged at WARN
 * Automatic message truncation (4096 char limit)
 * Incoming file (document) handling — streamed directly to disk, no memory buffering
 
@@ -304,11 +305,11 @@ System control (two-step confirmation required)
 Modular C design — each module has a single responsibility:
 
 * `main.c` — orchestration, main event loop, signal handling
-* `lifecycle.c` — process lifecycle (signals, shutdown, reboot, restart)
+* `lifecycle.c` — process lifecycle (signals, shutdown, reboot via sudo, restart)
 * `telegram_poll.c` — long polling with fork() isolation for libcurl, RSS sampling, file routing
-* `telegram_http.c` — low-level HTTP via libcurl, file download streaming
+* `telegram_http.c` — low-level HTTP via libcurl, file download streaming, API error logging
 * `telegram_parser.c` — JSON parsing, markdown escaping, document update parsing
-* `telegram_offset.c` — update offset persistence
+* `telegram_offset.c` — update offset persistence with fsync
 * `commands.c` — command dispatcher, two-step confirmation logic
 * `security.c` — access control, rate limiting, token validation
 * `totp.c` — TOTP implementation (RFC 6238, HMAC-SHA1 via OpenSSL)
@@ -329,7 +330,7 @@ Modular C design — each module has a single responsibility:
 
 ## 🧪 Production-Ready Details
 
-* Offset saved atomically via temp file + rename (no corruption on crash)
+* Offset saved atomically via temp file + rename + fsync (no corruption on crash)
 * `pipe2(O_CLOEXEC)` — no fd leaks into child processes
 * Deadline-based `select()` — total timeout is always exactly `timeout_ms`
 * Blocking `waitpid()` after pipe EOF — no zombie window
@@ -343,6 +344,7 @@ Modular C design — each module has a single responsibility:
 * f2b-wrapper logs all operations to syslog (`LOG_AUTH`) with PID
 * File downloads streamed directly to disk via `write_file_callback` — no memory buffering
 * Uploaded filenames sanitized — path traversal and injection impossible
+* Telegram API errors logged at WARN level even for fire-and-forget sends
 
 ---
 
@@ -390,10 +392,11 @@ sudo cp tg-bot /usr/local/bin/
 ## Build Notes
 
 Built in Ubuntu 18.04 environment using Docker for reproducibility.
-Two CI/CD workflows are available:
+Three CI/CD workflows are available:
 
 * `build-static.yml` — GCC 7.5.0 (legacy, fallback)
 * `build-static-gcc9.yml` — GCC 9.4.0 (primary)
+* `build-static-gcc14.yml` — GCC 14 (experimental, stricter warnings)
 
 **Linking model:**
 - Fully static: libcurl, OpenSSL, c-ares, cJSON compiled from source with GCC 9.4.0
@@ -427,7 +430,10 @@ Rebuild `f2b-wrapper` locally on the target machine.
 * `/files` — list uploaded files with sizes
 * Hostname in `/status`
 * Binary hardening — Full RELRO, no CAP_SYS_BOOT, mlock for TOTP secret
-* GCC 9.4.0 build — all dependencies compiled with GCC 9.4.0
+* GCC 9.4.0 + GCC 14 builds
+* MarkdownV2 refactor — handlers own escaping, Telegram API errors logged
+* Reboot via `sudo /sbin/reboot` — removed CAP_SYS_BOOT dependency
+* Offset fsync — guaranteed durability on crash
 
 ### Planned
 * lighttpd setup for HTTP access to uploaded files
@@ -441,6 +447,7 @@ Rebuild `f2b-wrapper` locally on the target machine.
 * `/backup` — trigger backup script via Telegram
 
 ### Low Priority
+* MarkdownV2 backtick handling in `/fail2ban` responses
 * Notification on bot stop
 * Unit tests (TOTP RFC 6238 vectors, security.c, logs_filter.c)
 * Prometheus metrics export (requires server with >2GB RAM)
