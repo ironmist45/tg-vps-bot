@@ -64,17 +64,17 @@ tg-bot/
 │   ├── cli.c                    # 🔹 command-line argument parsing
 │   ├── config.c                 # 🔹 config parser, reload, TOTP_SECRET, UPLOAD_ENABLED
 │   ├── logger.c                 # 🔹 thread-safe logging, early buffer, isatty mirror
-│   ├── lifecycle.c              # 🔹 signal handlers, graceful shutdown, reboot/restart
+│   ├── lifecycle.c              # 🔹 signal handlers, graceful shutdown, reboot via sudo
 │   ├── environment.c            # 🔹 startup diagnostics and access checks
 │   ├── exec.c                   # 🔹 external command execution with timeout
 │   ├── metrics.c                # 🔹 bot metrics collection and formatting
 │   ├── diagnostics.c            # 🔹 main loop iteration timing and diagnostics
 │   ├── totp.c                   # 🔹 TOTP implementation (base32, HMAC-SHA1, RFC 6238)
-│   ├── telegram.c               # 🔹 public API (init, send, polling)
-│   ├── telegram_http.c          # 🔹 curl-based HTTP requests, file download streaming
+│   ├── telegram.c               # 🔹 public API (init, send, polling); callers responsible for MarkdownV2 escaping
+│   ├── telegram_http.c          # 🔹 curl-based HTTP requests, file download streaming, API error logging
 │   ├── telegram_parser.c        # 🔹 JSON parsing + markdown escaping + document parsing
 │   ├── telegram_poll.c          # 🔹 long polling with fork() isolation, file routing
-│   ├── telegram_offset.c        # 🔹 offset persistence (crash recovery)
+│   ├── telegram_offset.c        # 🔹 offset persistence with fsync (crash recovery)
 │   ├── commands.c               # 🔹 command routing, two-step confirmation, /confirm
 │   ├── reply.c                  # 🔹 response formatting helpers
 │   ├── security.c               # 🔹 access control, rate limiting, token validation
@@ -110,16 +110,16 @@ tg-bot/
 | **CLI** | `cli.h` | `cli.c` | Command-line argument parsing, help/version output |
 | **Config** | `config.h` | `config.c` | Configuration file loading, validation, reload, TOTP secret, upload flag |
 | **Logger** | `logger.h` | `logger.c` | Thread-safe logging, early buffer, isatty mirror to stderr |
-| **Lifecycle** | `lifecycle.h` | `lifecycle.c` | Signal handlers, graceful shutdown, reboot/restart |
+| **Lifecycle** | `lifecycle.h` | `lifecycle.c` | Signal handlers, graceful shutdown, reboot via sudo /sbin/reboot |
 | **Environment** | `environment.h` | `environment.c` | Startup diagnostics, access checks, CI detection |
 | **Exec** | `exec.h` | `exec.c` | External command execution with deadline timeout |
 | **Diagnostics** | `diagnostics.h` | `diagnostics.c` | Main loop iteration timing, slow iteration warnings |
 | **TOTP** | `totp.h` | `totp.c` | RFC 6238 TOTP (base32, HMAC-SHA1, verify, URI generation) |
-| **Telegram** | `telegram.h` | `telegram.c` | Public API (init, shutdown, send) |
-| **Telegram HTTP** | `telegram_http.h` | `telegram_http.c` | Low-level HTTP requests via libcurl, file download streaming |
+| **Telegram** | `telegram.h` | `telegram.c` | Public API (init, shutdown, send); callers own MarkdownV2 escaping |
+| **Telegram HTTP** | `telegram_http.h` | `telegram_http.c` | Low-level HTTP requests via libcurl, file download streaming, API error logging |
 | **Telegram Parser** | `telegram_parser.h` | `telegram_parser.c` | JSON parsing, markdown escaping, document update parsing |
 | **Telegram Poll** | `telegram_poll.h` | `telegram_poll.c` | Long polling with fork() isolation, file/text routing |
-| **Telegram Offset** | `telegram_offset.h` | `telegram_offset.c` | Update offset persistence (crash recovery) |
+| **Telegram Offset** | `telegram_offset.h` | `telegram_offset.c` | Update offset persistence with fsync (crash recovery) |
 | **Commands** | `commands.h` | `commands.c` | Command routing, two-step confirmation, /confirm dispatcher |
 | **Reply** | `reply.h` | `reply.c` | Unified response formatting for handlers |
 | **Security** | `security.h` | `security.c` | Access control, input validation, tokens, rate limiting |
@@ -297,9 +297,10 @@ security_is_allowed_chat() — access check (same as text commands)
     ↓
 UPLOAD_ENABLED check — if disabled: log INFO + send "⚠️ File upload is disabled"
     ↓
-cmd_handle_upload() — packs file_id+file_name into ctx->args ("id\nname")
+cmd_handle_upload() — packs file_id, file_name, file_size into ctx->args
+                       as "file_id\nfile_name\nfile_size"
     ↓
-telegram_send_message("📥 Uploading...") — immediate acknowledgement
+if file_size > 1 MB → telegram_send_plain("📥 Uploading...")
     ↓
 upload_receive_file() — calls getFile API → gets file_path on Telegram servers
     ↓
@@ -307,17 +308,43 @@ telegram_http_download_file() — streams file directly to disk via write_file_c
     ↓
 Saves to g_cfg.upload_dir/<sanitized_filename>
     ↓
-Reply: "Saved: config.conf (1.2 KB)"
+Reply: "Saved: config.conf (1.2 KB)" (plain text)
 ```
 
-**Filename sanitization:** only `[a-zA-Z0-9._-]` characters kept, leading
-dots replaced with `_`, path traversal impossible.
+**Filename sanitization:**
+- Allowed characters: `[a-zA-Z0-9._-]`
+- Spaces replaced with `_`
+- Names starting with `.` are rejected (covers hidden files and `..`)
+- Path traversal impossible (no slashes)
 
 **Telegram limit:** 20 MB per file.
 
 **Config keys:**
 - `UPLOAD_ENABLED=yes` — enable upload (default: disabled)
 - `UPLOAD_DIR=/var/www/html/uploads` — destination directory
+
+---
+
+## MarkdownV2 Formatting Model
+
+`telegram_send_message()` sends text as-is with `parse_mode=MarkdownV2`.
+It does **not** escape the text — callers are responsible for correct formatting.
+
+**Rules for handlers:**
+- Use `reply_plain()` when response contains dynamic data with special chars
+  (dots in numbers, hyphens in names, etc.)
+- Use `reply_markdown()` only when MarkdownV2 formatting is intentional
+- Wrap dynamic data in backtick inline code (`` `value` ``) — dots and hyphens
+  are safe inside code spans
+- Use ` ``` ` code blocks for multi-line system output — no escaping needed inside
+- Escape user-supplied strings via `telegram_escape_markdown()` before inserting
+  into Markdown responses
+- Special chars that must be escaped outside code spans:
+  `_ [ ] ( ) ~ > # + = | { } . ! \` and in some contexts `-`
+
+**API error logging:** `telegram_http_request()` logs Telegram error responses
+at WARN level when `{"ok":false}` is returned — visible in bot log even when
+`need_response=0` (sendMessage calls).
 
 ---
 
@@ -503,6 +530,7 @@ cause a build error with a descriptive message.
 - **No CAP_SYS_BOOT:** reboot via `sudo /sbin/reboot` only
 - **mlock:** TOTP secret locked in RAM, never swapped to disk
 - **Upload disabled by default:** `UPLOAD_ENABLED=no` reduces attack surface
+- **MarkdownV2 escaping:** handlers own escaping of user data — no silent double-escaping
 
 ---
 
@@ -533,7 +561,7 @@ exec.c (if needed) — fork/exec with timeout
     ↓
 reply_markdown() / reply_plain() — format response
     ↓
-telegram_http.c — sendMessage API call
+telegram_http.c — sendMessage API call (caller owns MarkdownV2 escaping)
 ```
 
 ---
@@ -558,7 +586,7 @@ GCC 9 and GCC 14 workflows add hardening flags: `-Wformat=2`, `-Wnull-dereferenc
 |----------|------|
 | GCC 7.5.0 | 5,735,448 B |
 | GCC 9.4.0 | 5,633,048 B |
-| GCC 14 | 5,620,800 B |
+| GCC 14 | ~5,620,800 B |
 
 ---
 
@@ -571,12 +599,14 @@ GCC 9 and GCC 14 workflows add hardening flags: `-Wformat=2`, `-Wnull-dereferenc
 - **Operational maturity** — systemd integration, logrotate, CI/CD, build numbers
 - **Backward compatibility** — TOTP is optional, classic token flow is fallback
 - **Upload opt-in** — file upload disabled by default, explicit config required
+- **Caller owns escaping** — handlers responsible for correct MarkdownV2 formatting
 
 ---
 
 ## Future Improvements
 
 - lighttpd setup for HTTP access to uploaded files
+- MarkdownV2 backtick escaping in `/fail2ban` responses (currently using plain text workaround)
 - Alerts — bot notifies on service failure or high resource usage
 - Log filtering by time (`--since 1h`)
 - `/df` — disk usage quick view
