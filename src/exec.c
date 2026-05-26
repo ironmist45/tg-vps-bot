@@ -314,12 +314,13 @@ static int exec_command_internal(char *const argv[],
     // Child process: redirect I/O and exec
     // ------------------------------------------------------------------------
     if (pid == 0) {
+        close(pipefd[0]);  /* read end not needed in child */
         if (dup2(pipefd[1], STDOUT_FILENO) < 0 ||
             (capture_stderr && dup2(pipefd[1], STDERR_FILENO) < 0)) {
+            close(pipefd[1]);
             _exit(127);
         }
-        close(pipefd[0]);
-        close(pipefd[1]);
+        close(pipefd[1]);  /* original fd no longer needed after dup2 */
         /*
          * All commands in this bot run via sudo — argv[0] is conventionally
          * the sudo path and argv[1..] are the actual command and arguments.
@@ -425,7 +426,9 @@ static int exec_command_internal(char *const argv[],
             size_t len = strlen(resp + used);
             used += len;
             if (used >= size - 1) {
-                strncat(resp, "\n...truncated...", size - strlen(resp) - 1);
+                size_t cur_len = strlen(resp);
+                if (cur_len + 1 < size)
+                    strncat(resp, "\n...truncated...", size - cur_len - 1);
                 break;
             }
         } else {
