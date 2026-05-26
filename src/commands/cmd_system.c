@@ -224,17 +224,17 @@ int cmd_about_v2(command_ctx_t *ctx)
 
     char msg[256];
     snprintf(msg, sizeof(msg),
-        "*ℹ️ ABOUT*\n\n"
-        "*%s v%s (%s)*\n"
-        "*Main PID:* %d\n"
-        "*Bot uptime:* %dd %dh %dm\n"
-        "*Build:* #%s\n"
-        "*Commit:* %s\n"
-        "*Built:* %s\n"
-        "*libcurl:* %.14s\n"
-        "*OpenSSL:* %s\n"
-        "*c-ares:* %s\n"
-        "*cJSON:* %d.%d.%d",
+        "ℹ️ ABOUT\n\n"
+        "%s v%s (%s)\n"
+        "Main PID: %d\n"
+        "Bot uptime: %dd %dh %dm\n"
+        "Build: #%s\n"
+        "Commit: %s\n"
+        "Built: %s\n"
+        "libcurl: %.14s\n"
+        "OpenSSL: %s\n"
+        "c-ares: %s\n"
+        "cJSON: %d.%d.%d",
         APP_NAME, APP_VERSION, APP_CODENAME,
         getpid(), days, hours, mins,
         TG_BUILD_NUMBER, TG_BUILD_COMMIT, TG_BUILD_DATE,
@@ -364,7 +364,7 @@ int cmd_ping_v2(command_ctx_t *ctx)
         processing_ms, inbound_str, rtt_str, uptime);
 
     METRICS_CMD(ping);
-    return reply_markdown(ctx, msg);
+    return reply_plain(ctx, msg);
 }
 
 // ============================================================================
