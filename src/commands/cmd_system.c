@@ -14,6 +14,7 @@
 #include "logstat.h"
 #include "config.h"
 #include "metrics.h"
+#include "telegram_parser.h"
 #include "telegram_poll.h"
 
 #include <curl/curl.h>
@@ -99,21 +100,29 @@ int cmd_start_v2(command_ctx_t *ctx)
     METRICS_CMD(start);
 
     char msg[512];
+    /* Escape username — may contain MarkdownV2 special chars */
+    char safe_username[128] = {0};
+    if (ctx->username)
+        telegram_escape_markdown(ctx->username, safe_username, sizeof(safe_username));
+    /* Escape check — contains dots in RSS value (e.g. "8.5 MB") */
+    char safe_check[128] = {0};
+    telegram_escape_markdown(check, safe_check, sizeof(safe_check));
+
     snprintf(msg, sizeof(msg),
-        "🚀 %s v%s (%s)\n\n"
-        "Welcome%s%s!\n\n"
-        "System: %s\n"
-        "Uptime: %s\n\n"
+        "🚀 *%s* `v%s \\(%s\\)`\n\n"
+        "Welcome%s%s\\!\n\n"
+        "*System:* %s\n"
+        "*Uptime:* %s\n\n"
         "👉 /help — commands\n"
         "👉 /status — full status\n"
         "👉 /health — quick check",
         APP_NAME, APP_VERSION, APP_CODENAME,
         ctx->username ? " @" : "",
-        ctx->username ? ctx->username : "",
-        check,
+        ctx->username ? safe_username : "",
+        safe_check,
         uptime
     );
-    return reply_plain(ctx, msg);
+    return reply_markdown(ctx, msg);
 }
 
 // ============================================================================
