@@ -92,14 +92,7 @@ int cmd_handle_upload(command_ctx_t *ctx)
 
     /* Format human-readable size */
     char size_str[32];
-    if (saved_bytes < 1024)
-        snprintf(size_str, sizeof(size_str), "%ld B", saved_bytes);
-    else if (saved_bytes < 1024 * 1024)
-        snprintf(size_str, sizeof(size_str), "%.1f KB",
-                 (double)saved_bytes / 1024.0);
-    else
-        snprintf(size_str, sizeof(size_str), "%.1f MB",
-                 (double)saved_bytes / (1024.0 * 1024.0));
+    upload_format_size(saved_bytes, size_str, sizeof(size_str));
 
     /* Extract filename from saved_path for the success message */
     const char *slash    = strrchr(saved_path, '/');
