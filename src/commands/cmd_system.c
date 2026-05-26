@@ -14,6 +14,7 @@
 #include "logstat.h"
 #include "config.h"
 #include "metrics.h"
+#include "telegram_parser.h"
 #include "telegram_poll.h"
 
 #include <curl/curl.h>
@@ -98,6 +99,11 @@ int cmd_start_v2(command_ctx_t *ctx)
     LOG_CMD_CTX(ctx, LOG_INFO, "start: user opened bot");
     METRICS_CMD(start);
 
+    /* Escape username — may contain underscores and other MarkdownV2 special chars */
+    char safe_username[128] = {0};
+    if (ctx->username)
+        telegram_escape_markdown(ctx->username, safe_username, sizeof(safe_username));
+
     /* Format welcome message */
     char msg[512];
     snprintf(msg, sizeof(msg),
@@ -110,11 +116,10 @@ int cmd_start_v2(command_ctx_t *ctx)
         "👉 /health — quick check",
         APP_NAME, APP_VERSION, APP_CODENAME,
         ctx->username ? " @" : "",
-        ctx->username ? ctx->username : "",
+        ctx->username ? safe_username : "",
         check,
         uptime
     );
-
     return reply_markdown(ctx, msg);
 }
 
