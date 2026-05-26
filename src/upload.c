@@ -57,14 +57,21 @@
 
 /**
  * Sanitize a filename — keep only alphanumeric, dot, hyphen, underscore.
+ * Spaces are replaced with underscore.
  *
- * Prevents path traversal (no slashes), shell injection (no spaces or
- * special chars), and hidden files (leading dots replaced with '_').
+ * Prevents path traversal (no slashes), shell injection, and hidden
+ * files / ".." (names starting with '.' are rejected entirely).
+ *
+ * Examples:
+ *   "hello world.pdf" → "hello_world.pdf"
+ *   ".hidden"         → rejected
+ *   "../etc/passwd"   → rejected (starts with '.' after sanitization)
+ *   "config.conf"     → "config.conf"
  *
  * @param src  Original filename from Telegram (may be NULL)
  * @param dst  Output buffer for sanitized name
  * @param size Size of dst buffer
- * @return     0 on success, -1 if result is empty or src is NULL
+ * @return     0 on success, -1 if result is empty, NULL, or starts with '.'
  */
 static int sanitize_filename(const char *src, char *dst, size_t size) {
     if (!src || src[0] == '\0') return -1;
@@ -73,21 +80,23 @@ static int sanitize_filename(const char *src, char *dst, size_t size) {
 
     for (size_t i = 0; src[i] && j < size - 1; i++) {
         char c = src[i];
-        if (isalnum((unsigned char)c) ||
-            c == '.' || c == '-' || c == '_') {
-            /* Replace leading dot to prevent hidden files */
-            if (j == 0 && c == '.')
-                dst[j++] = '_';
-            else
-                dst[j++] = c;
+        if (c == ' ') {
+            dst[j++] = '_';  /* replace spaces with underscore */
+        } else if (isalnum((unsigned char)c) ||
+                   c == '.' || c == '-' || c == '_') {
+            dst[j++] = c;
         }
         /* All other characters are silently dropped */
     }
 
     dst[j] = '\0';
 
-    /* Reject empty result or bare dot */
-    if (j == 0 || (j == 1 && dst[0] == '.'))
+    /* Reject empty result */
+    if (j == 0)
+        return -1;
+
+    /* Reject names starting with '.' — covers hidden files and ".." */
+    if (dst[0] == '.')
         return -1;
 
     return 0;
