@@ -48,7 +48,7 @@ static int legacy_confirm(command_ctx_t *ctx,
     }
 
     int token;
-    if (parse_int(ctx->args, &token) != 0) {
+    if (parse_int_nonneg(ctx->args, &token) != 0) {
         LOG_CMD_CTX(ctx, LOG_WARN, "%s_confirm: invalid token format '%s'",
                     cmd_name, ctx->args);
         return reply_error(ctx, "Invalid token format");
