@@ -86,8 +86,8 @@ int cmd_handle_upload(command_ctx_t *ctx)
     }
     
     LOG_CMD_CTX(ctx, LOG_INFO,
-        "upload: incoming file file_id=%.8s name=%s",
-        file_id, file_name ? file_name : "(none)");
+        "upload: incoming file name=%s file_id=%.16s",
+        file_name ? file_name : "(none)", file_id);
 
     /* Step 1 — send immediate acknowledgement */
     if (file_size > UPLOAD_PROGRESS_THRESHOLD)
