@@ -377,6 +377,6 @@ int upload_list_files(char *buffer, size_t size, unsigned short req_id) {
                  file_count, file_count == 1 ? "" : "s");
     }
 
-    LOG_CMD(LOG_INFO, "req=%04x files: listed %d files", req_id, file_count);
+    LOG_CMD(LOG_INFO, "req=%04x files: listed %d file(s)", req_id, file_count);
     return 0;
 }
