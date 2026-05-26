@@ -32,7 +32,7 @@ void metrics_format_log(char *buf, size_t size) {
 void metrics_format_health(char *buf, size_t size) {
     int pos = snprintf(buf, size,
         "\n📊 *BOT METRICS*\n\n"
-        "`COMMANDS (total: %lu)\n"
+        "```\nCOMMANDS (total: %lu)\n"
         "%-10s %4lu\n"
         "%-10s %4lu\n"
         "%-10s %4lu\n"
@@ -49,17 +49,17 @@ void metrics_format_health(char *buf, size_t size) {
         "%-10s %4lu\n"
         "%-10s %4lu\n"
         "%-10s %4lu\n"
-        " `\n"
-        "`ERRORS\n"
+        "```\n"
+        "```\nERRORS\n"
         "Unauthorized:   %lu\n"
         "Timeouts:       %lu\n"
         "Exec failures:  %lu\n"
-        " `\n"
-        "`PERFORMANCE\n"
+        "```\n"
+        "```\nPERFORMANCE\n"
         "Avg response:  %ldms\n"
         "Max response:  %ldms\n"
         "Poll cycles:   %lu\n"
-        "API calls:     %lu (%lu failed)`",
+        "API calls:     %lu (%lu failed)\n```",
         g_metrics.cmd_total,
         "/start", g_metrics.cmd_start,
         "/help", g_metrics.cmd_help,
