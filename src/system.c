@@ -551,13 +551,15 @@ int system_get_status_mini(char *buffer, size_t size, unsigned short req_id) {
 
     int written = snprintf(buffer, size,
         "⚡ *System Health*\n\n"
-        "%-5s %s %5.2f (1m)\n"
-        "%-5s %s %3d%% (%d/%d MB)\n"
-        "%-5s %s %3d%% (%d/%d GB)\n"
-        "%-5s %dd %dh %dm",
-        "CPU:", cpu_icon,  l1,
-        "MEM:", mem_icon,  mem_pct,  used_mem,  total_mem,
-        "DSK:", disk_icon, disk_pct, used_disk, total_disk,
+        "```\n"
+        "%-5s %5.2f (1m) %s\n"
+        "%-5s %3d%% (%d/%d MB) %s\n"
+        "%-5s %3d%% (%d/%d GB) %s\n"
+        "%-5s %dd %dh %dm\n"
+        "```",
+        "CPU:", l1,       cpu_icon,
+        "MEM:", mem_pct,  used_mem,  total_mem,  mem_icon,
+        "DSK:", disk_pct, used_disk, total_disk, disk_icon,
         "UP:",  days, hours, mins
     );
 
