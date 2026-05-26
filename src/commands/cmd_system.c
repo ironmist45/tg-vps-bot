@@ -215,30 +215,26 @@ int cmd_about_v2(command_ctx_t *ctx)
     int hours = (uptime % 86400) / 3600;
     int mins  = (uptime % 3600) / 60;
 
-    char msg[256];
+    char msg[512];
     snprintf(msg, sizeof(msg),
-        "ℹ️ ABOUT\n\n"
-        "%s v%s (%s)\n"
-        "Main PID: %d\n"
-        "Bot uptime: %dd %dh %dm\n"
-        "Build: #%s\n"
-        "Commit: %s\n"
-        "Built: %s\n"
-        "libcurl: %.14s\n"
-        "OpenSSL: %s\n"
-        "c-ares: %s\n"
-        "cJSON: %d.%d.%d",
+        "*ℹ️ ABOUT*\n\n"
+        "*%s v%s \\(%s\\)*\n"
+        "*Main PID:* %d\n"
+        "*Bot uptime:* %dd %dh %dm\n"
+        "*Build:* \\#%s\n"
+        "*Commit:* %s\n"
+        "*Built:* `%s`\n"
+        "*libcurl:* `%.14s`\n"
+        "*OpenSSL:* `%s`\n"
+        "*c\\-ares:* `%s`\n"
+        "*cJSON:* `%d.%d.%d`",
         APP_NAME, APP_VERSION, APP_CODENAME,
         getpid(), days, hours, mins,
         TG_BUILD_NUMBER, TG_BUILD_COMMIT, TG_BUILD_DATE,
         curl_version(), OpenSSL_version(0),
         ares_version(NULL),
         CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
-
-    LOG_CMD_CTX(ctx, LOG_INFO, "about: requested");
-    METRICS_CMD(about);
-
-    return reply_plain(ctx, msg);
+    return reply_markdown(ctx, msg);
 }
 
 // ============================================================================
