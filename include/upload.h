@@ -65,4 +65,13 @@ int upload_receive_file(const char *file_id,
  */
 int upload_list_files(char *buffer, size_t size, unsigned short req_id);
 
+/**
+ * Format a file size in human-readable form (B / KB / MB).
+ *
+ * @param bytes  File size in bytes
+ * @param buf    Output buffer
+ * @param size   Buffer size
+ */
+void upload_format_size(long bytes, char *buf, size_t size);
+
 #endif // UPLOAD_H
