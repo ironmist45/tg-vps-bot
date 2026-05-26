@@ -41,14 +41,16 @@ int cmd_handle_upload(command_ctx_t *ctx)
      * ctx->args carries "file_id\nfile_name" — packed by telegram_poll.c.
      * Split on '\n' to extract the two fields.
      */
-    if (!ctx->args || ctx->args[0] == '\0') {
-        LOG_CMD_CTX(ctx, LOG_ERROR, "upload: missing file_id in ctx->args");
-        return reply_plain(ctx, "❌ Internal error: missing file_id");
-    }
 
     if (!g_cfg.upload_enabled) {
         LOG_CMD_CTX(ctx, LOG_WARN, "upload: disabled (UPLOAD_ENABLED=no)");
         return reply_plain(ctx, "⚠️ File upload is disabled");
+    }
+
+    
+    if (!ctx->args || ctx->args[0] == '\0') {
+        LOG_CMD_CTX(ctx, LOG_ERROR, "upload: missing file_id in ctx->args");
+        return reply_plain(ctx, "❌ Internal error: missing file_id");
     }
 
     /* Copy to avoid modifying ctx->args */
