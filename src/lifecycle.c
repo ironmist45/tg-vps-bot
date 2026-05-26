@@ -237,15 +237,15 @@ void lifecycle_handle_shutdown(void) {
         sync();
 
         /*
-         * CAP_SYS_BOOT is not set on the binary — use systemctl reboot.
+         * CAP_SYS_BOOT is not set on the binary — reboot via sudo /sbin/reboot.
          */
         if (env_is_ci()) {
             fprintf(stderr, "Skipping systemctl reboot (CI environment)\n");
             return;
         }
 
-        execl(g_cfg.systemctl_path, "systemctl", "reboot", NULL);
-        fprintf(stderr, "execl systemctl reboot failed: errno=%d (%s)\n",
+        execl(g_cfg.sudo_path, "sudo", "/sbin/reboot", NULL);
+        fprintf(stderr, "execl sudo reboot failed: errno=%d (%s)\n",
                 errno, strerror(errno));
         return;
     }
