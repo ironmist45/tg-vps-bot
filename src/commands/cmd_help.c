@@ -46,7 +46,7 @@ int cmd_help_v2(command_ctx_t *ctx)
     size_t size = sizeof(buffer);
     
     // Write header
-    int written = snprintf(buffer, size, "📚 COMMANDS\n\n");
+    int written = snprintf(buffer, size, "*📚 COMMANDS*\n\n");
     if (written < 0 || (size_t)written >= size) {
         return reply_error(ctx, "Response too long");
     }
@@ -61,7 +61,7 @@ int cmd_help_v2(command_ctx_t *ctx)
         if (!current_category ||
             strcmp(current_category, commands[i].category) != 0) {
             written = snprintf(buffer + used, size - used,
-                "%s── %s\n",
+                "%s*── %s*\n",
                 current_category ? "\n" : "",
                 commands[i].category);
             if (written < 0 || (size_t)written >= size - used) break;
@@ -93,5 +93,5 @@ int cmd_help_v2(command_ctx_t *ctx)
     LOG_CMD_CTX(ctx, LOG_INFO, "help: displayed %zu bytes", used);
     METRICS_CMD(help);
     
-    return reply_plain(ctx, buffer);
+    return reply_markdown(ctx, buffer);
 }
