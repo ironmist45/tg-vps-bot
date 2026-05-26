@@ -16,6 +16,13 @@
 #include <string.h>
 #include <sys/stat.h>
 
+/*
+ * Minimum file size in bytes to show "📥 Uploading..." acknowledgement.
+ * For small files the message arrives after the upload is already done
+ * so it adds no value. Only show it for files larger than this threshold.
+ */
+#define UPLOAD_PROGRESS_THRESHOLD (1024 * 1024)  /* 1 MB */
+
 // ============================================================================
 // INCOMING FILE HANDLER
 // ============================================================================
@@ -60,20 +67,30 @@ int cmd_handle_upload(command_ctx_t *ctx)
     char *file_id   = args_copy;
     char *file_name = NULL;
 
+    int file_size = 0;
+
     char *sep = strchr(args_copy, '\n');
     if (sep) {
         *sep      = '\0';
         file_name = sep + 1;
         if (file_name[0] == '\0')
             file_name = NULL;
-    }
 
+        /* Parse file_size from third field "file_id\nfile_name\nfile_size" */
+        char *sep2 = strchr(sep + 1, '\n');
+        if (sep2) {
+            *sep2     = '\0';
+            file_size = atoi(sep2 + 1);
+        }
+    }
+    
     LOG_CMD_CTX(ctx, LOG_INFO,
         "upload: incoming file file_id=%.8s name=%s",
         file_id, file_name ? file_name : "(none)");
 
     /* Step 1 — send immediate acknowledgement */
-    telegram_send_message(ctx->chat_id, "📥 Uploading\\.\\.\\.");
+    if (file_size > UPLOAD_PROGRESS_THRESHOLD)
+        telegram_send_message(ctx->chat_id, "📥 Uploading\\.\\.\\.");
 
     /* Step 2 — download and save the file */
     char saved_path[UPLOAD_PATH_MAX] = {0};
