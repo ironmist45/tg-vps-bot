@@ -21,6 +21,7 @@
 #include "users.h"
 #include "logger.h"
 #include "utils.h"
+#include "telegram_parser.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -181,13 +182,18 @@ static int users_get_logged(char *buffer, size_t size, unsigned short req_id) {
         else
             safe_copy(host, sizeof(host), "local");
 
-        /* Format session entry (Markdown) */
+        /* Escape host and timebuf — may contain MarkdownV2 special chars */
+        char safe_host[MAX_FIELD * 2];
+        char safe_time[128];
+        telegram_escape_markdown(host,    safe_host, sizeof(safe_host));
+        telegram_escape_markdown(timebuf, safe_time, sizeof(safe_time));
+
         int written = snprintf(line, sizeof(line),
             "• 👤 `%s`\n"
             "  🖥 `%s`\n"
             "  🌐 %s\n"
             "  ⏱ %s\n\n",
-            user, tty, host, timebuf);
+            user, tty, safe_host, safe_time);
 
         LOG_CMD(LOG_DEBUG,
             "users_get_logged: session user=%s tty=%s host=%s",
