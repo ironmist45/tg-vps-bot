@@ -202,8 +202,10 @@ int telegram_http_download_file(const char *url, void *fp) {
     curl_easy_cleanup(curl);
 
     if (res != CURLE_OK) {
+        /* Log only the path component — full URL contains the bot TOKEN */
+        const char *safe_url = strstr(url, "/file/bot");
         LOG_NET(LOG_ERROR, "download failed: %s — %s",
-                url, curl_easy_strerror(res));
+                safe_url ? safe_url : "(url masked)", curl_easy_strerror(res));
         return -1;
     }
 
