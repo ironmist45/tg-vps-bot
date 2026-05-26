@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
      * Log a warning if delivery fails — bot continues regardless.
      */
     if (telegram_send_message(g_cfg.chat_id,
-            "🟢 *Bot started*\n\nReady to serve.") != 0) {
+            "🟢 *Bot started*\n\nReady to serve\.") != 0) {
         LOG_NET(LOG_WARN, "Failed to send startup message");
     }
 
