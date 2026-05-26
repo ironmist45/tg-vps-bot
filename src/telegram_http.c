@@ -159,6 +159,11 @@ int telegram_http_request(const char *method, const char *post_fields,
         *out_data = chunk.data;
         if (out_size) *out_size = chunk.size;
     } else {
+        /* Log Telegram error responses even when caller doesn't need the data */
+        if (chunk.data && chunk.size > 0 &&
+            strstr(chunk.data, "\"ok\":false") != NULL) {
+            LOG_NET(LOG_WARN, "%s API error: %.256s", method, chunk.data);
+        }
         free(chunk.data);
         if (out_data) *out_data = NULL;
         if (out_size) *out_size = 0;
