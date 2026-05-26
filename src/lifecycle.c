@@ -22,7 +22,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include <sys/reboot.h>
 #include <time.h>
 #include <stdlib.h>
 
@@ -231,32 +230,23 @@ void lifecycle_handle_shutdown(void) {
 
         clock_gettime(CLOCK_MONOTONIC, &end);
         LOG_SYS(LOG_INFO, "Reboot took %ld ms", elapsed_ms(start, end));
-        LOG_SYS(LOG_WARN, "Rebooting via reboot(RB_AUTOBOOT)...");
 
         /* Close logger before reboot — no more logging after this point */
         logger_close();
         fflush(NULL);
         sync();
 
-        if (reboot(RB_AUTOBOOT) != 0) {
-            /*
-             * logger is already closed — write directly to stderr so the
-             * error is visible in the systemd journal.
-             */
-            fprintf(stderr, "reboot() failed: errno=%d (%s)\n",
-                    errno, strerror(errno));
-
-            if (env_is_ci()) {
-                fprintf(stderr, "Skipping systemctl reboot (CI environment)\n");
-                return;
-            }
-
-            fprintf(stderr, "Fallback: systemctl reboot\n");
-            fflush(stderr);
-            execl(g_cfg.systemctl_path, "systemctl", "reboot", NULL);
-            fprintf(stderr, "fallback exec failed: errno=%d (%s)\n",
-                    errno, strerror(errno));
+        /*
+         * CAP_SYS_BOOT is not set on the binary — use systemctl reboot.
+         */
+        if (env_is_ci()) {
+            fprintf(stderr, "Skipping systemctl reboot (CI environment)\n");
+            return;
         }
+
+        execl(g_cfg.systemctl_path, "systemctl", "reboot", NULL);
+        fprintf(stderr, "execl systemctl reboot failed: errno=%d (%s)\n",
+                errno, strerror(errno));
         return;
     }
 
