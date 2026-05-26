@@ -48,9 +48,10 @@ void telegram_shutdown(void) {
 /**
  * Send a Markdown-formatted message to a chat.
  *
- * Text is truncated to Telegram limits, then escaped for MarkdownV2.
- * Returns -1 if post_fields would be truncated (message too long after
- * escaping) to avoid sending garbled output.
+ * Text is truncated to Telegram limits and sent as-is with
+ * parse_mode=MarkdownV2. Caller is responsible for correct MarkdownV2
+ * formatting and escaping of special characters.
+ * Returns -1 if post_fields would be truncated (message too long).
  */
 int telegram_send_message(long chat_id, const char *text) {
     if (!text) return -1;
@@ -63,14 +64,10 @@ int telegram_send_message(long chat_id, const char *text) {
 
     telegram_truncate_message(tmp);
 
-    char escaped[MSG_BUF_MAX];
-    telegram_escape_markdown(tmp, escaped, sizeof(escaped));
-
     char post_fields[POST_BUF_MAX];
     int n = snprintf(post_fields, sizeof(post_fields),
                      "chat_id=%ld&text=%s&parse_mode=MarkdownV2",
-                     chat_id, escaped);
-
+                     chat_id, tmp);
     if (n < 0 || (size_t)n >= sizeof(post_fields)) {
         LOG_NET(LOG_WARN, "send_message: post_fields truncated for chat_id=%ld",
                 chat_id);
