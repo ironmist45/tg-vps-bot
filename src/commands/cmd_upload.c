@@ -91,7 +91,7 @@ int cmd_handle_upload(command_ctx_t *ctx)
 
     /* Step 1 — send immediate acknowledgement */
     if (file_size > UPLOAD_PROGRESS_THRESHOLD)
-        telegram_send_message(ctx->chat_id, "📥 Uploading\\.\\.\\.");
+        telegram_send_plain(ctx->chat_id, "📥 Uploading...");
 
     /* Step 2 — download and save the file */
     char saved_path[UPLOAD_PATH_MAX] = {0};
