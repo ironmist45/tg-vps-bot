@@ -183,7 +183,7 @@ int cmd_health_v2(command_ctx_t *ctx)
     metrics_format_health(health_buf + strlen(health_buf),
                           sizeof(health_buf) - strlen(health_buf));
 
-    return reply_plain(ctx, health_buf);
+    return reply_markdown(ctx, health_buf);
 }
 
 // ============================================================================
