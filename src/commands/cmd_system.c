@@ -122,6 +122,7 @@ int cmd_start_v2(command_ctx_t *ctx)
         safe_check,
         uptime
     );
+    LOG_CMD_CTX(ctx, LOG_WARN, "start msg: %s", msg); /* Temporary log for debug purposes */
     return reply_markdown(ctx, msg);
 }
 
