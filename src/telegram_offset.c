@@ -42,6 +42,8 @@ void telegram_offset_save(long offset) {
     }
 
     fprintf(f, "%ld\n", offset);
+    fflush(f);
+    fsync(fileno(f));  /* ensure data reaches disk before rename */
     fclose(f);
 
     if (rename(OFFSET_TMP, OFFSET_FILE) != 0) {
