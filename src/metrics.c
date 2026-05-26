@@ -82,7 +82,7 @@ void metrics_format_health(char *buf, size_t size) {
         g_metrics.poll_count,
         g_metrics.api_calls_total, g_metrics.api_calls_failed);
 
-    if (pos >= (int)size) {
+    if (pos < 0 || pos >= (int)size) {
         buf[size - 1] = '\0';
     }
 }
