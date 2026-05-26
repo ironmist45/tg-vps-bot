@@ -80,7 +80,7 @@ int cmd_help_v2(command_ctx_t *ctx)
         if (desc && *desc) {
             telegram_escape_markdown(desc, safe_desc, sizeof(safe_desc));
             written = snprintf(buffer + used, size - used,
-                "%s%s \\— %s\n",
+                "%s%s — %s\n",
                 commands[i].requires_confirmation ? "🔐 " : "",
                 safe_name, safe_desc);
         } else {
