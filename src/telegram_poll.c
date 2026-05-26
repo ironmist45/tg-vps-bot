@@ -418,9 +418,10 @@ static void process_updates(const char *chunk_data, size_t data_len,
             }
 
             char args_buf[UPLOAD_ARGS_BUF_MAX];
-            snprintf(args_buf, sizeof(args_buf), "%s\n%s",
+            snprintf(args_buf, sizeof(args_buf), "%s\n%s\n%d",
                      u->file_id,
-                     u->file_name ? u->file_name : "");
+                     u->file_name ? u->file_name : "",
+                     u->file_size);
 
             command_ctx_t ctx = {
                 .chat_id   = u->chat_id,
