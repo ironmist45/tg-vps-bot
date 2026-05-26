@@ -116,9 +116,9 @@ int cmd_start_v2(command_ctx_t *ctx)
         "Welcome%s%s\\!\n\n"
         "*System:* %s\n"
         "*Uptime:* %s\n\n"
-        "👉 /help \\— commands\n"
-        "👉 /status \\— full status\n"
-        "👉 /health \\— quick check",
+        "👉 /help — commands\n"
+        "👉 /status — full status\n"
+        "👉 /health — quick check",
         safe_version, APP_CODENAME,
         ctx->username ? " @" : "",
         ctx->username ? safe_username : "",
