@@ -151,7 +151,7 @@ int security_validate_text(const char *text) {
 
     for (size_t i = 0; i < len; i++) {
         unsigned char c = text[i];
-        if (c < 32 && c != '\n' && c != '\r' && c != '\t')
+        if ((c < 32 && c != '\n' && c != '\r' && c != '\t') || c == 127)
             return -1;
     }
     return 0;
@@ -198,6 +198,7 @@ static void register_failed_attempt(time_t now, unsigned short req_id) {
 
 int security_rate_limit(void) {
     time_t now = time(NULL);
+    if (now == (time_t)-1) return 0;  /* time() failed — allow command */
 
     if (now == g_last_cmd_time) {
         if (g_cmd_burst < RATE_LIMIT_MAX)
@@ -255,6 +256,11 @@ static unsigned int make_token(long chat_id, time_t ts) {
  * @return  6-digit token (000000–999999)
  */
 int security_generate_reboot_token(long chat_id, unsigned short req_id) {
+    if (g_last_token >= 0)
+        LOG_SEC(LOG_DEBUG,
+            "req=%04x overwriting existing pending token=%06d",
+            req_id, g_last_token);
+    
     time_t ts = time(NULL);
 
     unsigned int raw = make_token(chat_id, ts);
