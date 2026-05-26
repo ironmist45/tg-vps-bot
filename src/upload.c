@@ -109,7 +109,7 @@ static int sanitize_filename(const char *src, char *dst, size_t size) {
  * @param buf    Output buffer
  * @param size   Buffer size
  */
-static void format_size(long bytes, char *buf, size_t size) {
+void upload_format_size(long bytes, char *buf, size_t size) {
     if (bytes < 1024)
         snprintf(buf, size, "%ld B", bytes);
     else if (bytes < 1024 * 1024)
@@ -294,7 +294,7 @@ int upload_receive_file(const char *file_id,
         saved_bytes = (long)st.st_size;
 
     char size_str[SIZE_BUF_MAX];
-    format_size(saved_bytes, size_str, sizeof(size_str));
+    upload_format_size(saved_bytes, size_str, sizeof(size_str));
 
     return 0;
 }
@@ -356,7 +356,7 @@ int upload_list_files(char *buffer, size_t size, unsigned short req_id) {
             continue;
 
         char size_str[SIZE_BUF_MAX];
-        format_size((long)st.st_size, size_str, sizeof(size_str));
+        upload_format_size((long)st.st_size, size_str, sizeof(size_str));
 
         n = snprintf(buffer + used, size - used,
                      "`%s` — %s\n", entry->d_name, size_str);
