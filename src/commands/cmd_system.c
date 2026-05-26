@@ -107,22 +107,24 @@ int cmd_start_v2(command_ctx_t *ctx)
     /* Escape check — contains dots in RSS value (e.g. "8.5 MB") */
     char safe_check[128] = {0};
     telegram_escape_markdown(check, safe_check, sizeof(safe_check));
+    /* Escape version — contains dots (e.g. "1.2.6") */
+    char safe_version[32] = {0};
+    telegram_escape_markdown(APP_VERSION, safe_version, sizeof(safe_version));
 
     snprintf(msg, sizeof(msg),
-        "🚀 *tg\\-bot* `v%s \\(%s\\)`\n\n"
+        "🚀 *tg\\-bot v%s \\(%s\\)*\n\n"
         "Welcome%s%s\\!\n\n"
         "*System:* %s\n"
         "*Uptime:* %s\n\n"
         "👉 /help \\— commands\n"
         "👉 /status \\— full status\n"
         "👉 /health \\— quick check",
-        APP_VERSION, APP_CODENAME,
+        safe_version, APP_CODENAME,
         ctx->username ? " @" : "",
         ctx->username ? safe_username : "",
         safe_check,
         uptime
     );
-    LOG_CMD_CTX(ctx, LOG_WARN, "start msg: %s", msg); /* Temporary log for debug purposes */
     return reply_markdown(ctx, msg);
 }
 
@@ -225,10 +227,14 @@ int cmd_about_v2(command_ctx_t *ctx)
     int hours = (uptime % 86400) / 3600;
     int mins  = (uptime % 3600) / 60;
 
+    /* Escape version — contains dots (e.g. "1.2.6") */
+    char safe_version[32] = {0};
+    telegram_escape_markdown(APP_VERSION, safe_version, sizeof(safe_version));
+
     char msg[512];
     snprintf(msg, sizeof(msg),
         "*ℹ️ ABOUT*\n\n"
-        "*tg\\-bot* `v%s (%s)`\n"
+        "*tg\\-bot v%s \\(%s\\)*\n"
         "*Main PID:* %d\n"
         "*Bot uptime:* %dd %dh %dm\n"
         "*Build:* \\#%s\n"
@@ -238,7 +244,7 @@ int cmd_about_v2(command_ctx_t *ctx)
         "*OpenSSL:* `%s`\n"
         "*c\\-ares:* `%s`\n"
         "*cJSON:* `%d.%d.%d`",
-        APP_VERSION, APP_CODENAME,
+        safe_version, APP_CODENAME,
         getpid(), days, hours, mins,
         TG_BUILD_NUMBER, TG_BUILD_COMMIT, TG_BUILD_DATE,
         curl_version(), OpenSSL_version(0),
