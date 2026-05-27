@@ -60,6 +60,23 @@ void logger_close(void);
 void logger_set_level(log_level_t level);
 
 /**
+ * Control stderr mirroring.
+ *
+ * When enabled (1): log messages are written to both the log file and stderr.
+ * When disabled (0): log messages go to the log file only.
+ *
+ * Normally set automatically by logger_init() via isatty(STDERR_FILENO):
+ *   1 — interactive terminal run (user sees output in terminal)
+ *   0 — systemd service / CI pipeline (prevents double entries)
+ *
+ * Can be overridden explicitly — used by --parse mode to suppress
+ * CFG log output when the logger is redirected to /dev/null.
+ *
+ * @param enabled  1 to enable mirroring, 0 to disable
+ */
+void logger_set_mirror(int enabled);
+
+/**
  * Convert log level enum to human-readable string
  *
  * @param level  Log level to convert
@@ -225,4 +242,4 @@ void log_msg(log_level_t level, const char *fmt, ...);
  */
 int logger_reopen(const char *path);
 
-#endif // LOGGER_H
+#endif /* LOGGER_H */
