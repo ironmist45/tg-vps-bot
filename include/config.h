@@ -99,6 +99,26 @@ typedef struct {
     int  upload_enabled;        /* 1 = accept incoming files, 0 = ignore     */
     char upload_dir[256];       /* Destination directory for uploaded files  */
 
+    /*
+     * SSH authorized_keys file path (optional).
+     *
+     * When set:   /sshkeys reads the file and displays key type and comment
+     *   for each entry — the key itself is not shown.
+     * When empty: /sshkeys returns a configuration hint (default).
+     *
+     * File is read via 'sudo cat' since the bot runs as tg-bot,
+     * not as the user who owns authorized_keys.
+     *
+     * Requires a sudoers entry for the tg-bot user, e.g.:
+     *   tg-bot ALL=(ALL) NOPASSWD: /bin/cat /home/user/.ssh/authorized_keys
+     *
+     * No default path is assumed — the owning user varies per system.
+     *
+     * Config key: SSH_KEYS_PATH=/home/user/.ssh/authorized_keys
+     * Default: empty (feature disabled)
+     */
+    char ssh_keys_path[512];    /* Path to authorized_keys, empty = disabled */
+
 } config_t;
 
 // ============================================================================
@@ -121,6 +141,7 @@ typedef struct {
  *   TOTP_SECRET    - Base32 TOTP secret for 2FA (optional, default: disabled)
  *   UPLOAD_ENABLED - Enable file upload: yes/true/1/enabled (default: disabled)
  *   UPLOAD_DIR     - Directory for uploaded files (default: /var/www/html/uploads)
+ *   SSH_KEYS_PATH  - Path to authorized_keys file (optional, default: disabled)
  *
  * Example:
  *   TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
@@ -129,6 +150,7 @@ typedef struct {
  *   TOTP_SECRET=JBSWY3DPEHPK3PXP
  *   UPLOAD_ENABLED=yes
  *   UPLOAD_DIR=/var/www/html/uploads
+ *   SSH_KEYS_PATH=/home/user/.ssh/authorized_keys
  *
  * @param path  Path to configuration file
  * @param cfg   Output structure to populate
