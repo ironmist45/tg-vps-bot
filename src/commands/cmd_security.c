@@ -314,7 +314,11 @@ static int sshkeys_parse_line(const char *line,
         token[tok_len] = '\0';
 
         if (sshkeys_is_keytype(token)) {
-            snprintf(out_type, type_sz, "%s", sshkeys_pretty_type(token));
+            const char *pretty = sshkeys_pretty_type(token);
+            size_t copy_len = strlen(pretty);
+            if (copy_len >= type_sz) copy_len = type_sz - 1;
+            memcpy(out_type, pretty, copy_len);
+            out_type[copy_len] = '\0';
             keytype_end = pos;
             break;
         }
