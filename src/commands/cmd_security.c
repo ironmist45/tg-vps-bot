@@ -354,7 +354,7 @@ int cmd_sshkeys_v2(command_ctx_t *ctx)
     /* Read via sudo cat — bot runs as tg-bot, not as file owner */
     char *const args[] = {
         (char *)g_cfg.sudo_path, "-n",
-        "cat",
+        "/bin/cat",
         (char *)g_cfg.ssh_keys_path,
         NULL
     };
