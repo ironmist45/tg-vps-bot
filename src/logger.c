@@ -73,6 +73,10 @@ static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
  * True  — running interactively (manual invocation from terminal).
  * False — running as a systemd service (stderr is redirected to a file).
  *
+ * Can be overridden explicitly via logger_set_mirror() — used by
+ * --parse mode to suppress CFG log output when the logger is
+ * redirected to /dev/null.
+ *
  * This prevents double entries in the log file when
  * StandardError= points to the same file as the logger.
  */
@@ -195,6 +199,8 @@ int logger_init(const char *path) {
      * Mirror to stderr only when running interactively.
      * isatty() returns 1 if stderr is a real terminal (./tg-bot run by hand),
      * 0 if it is redirected (systemd unit, CI pipeline, pipe).
+     *
+     * Can be overridden after logger_init() via logger_set_mirror().
      */
     log_mirror_stderr = isatty(STDERR_FILENO);
 
@@ -210,6 +216,23 @@ int logger_init(const char *path) {
  */
 void logger_set_level(log_level_t level) {
     current_log_level = level;
+}
+
+/**
+ * Control stderr mirroring.
+ *
+ * Normally set automatically by logger_init() via isatty().
+ * Call after logger_init() to override the auto-detected value.
+ *
+ * Used by --parse mode: logger is redirected to /dev/null but
+ * isatty() returns 1 in a terminal, which would cause CFG log
+ * lines to appear in the --parse output. Setting mirror=0
+ * suppresses them completely.
+ *
+ * @param enabled  1 to enable mirroring, 0 to disable
+ */
+void logger_set_mirror(int enabled) {
+    log_mirror_stderr = enabled;
 }
 
 /**
@@ -314,6 +337,7 @@ void log_msg(log_level_t level, const char *fmt, ...) {
      * Mirror to stderr when running interactively (isatty = 1).
      * Skipped for systemd service to prevent double entries when
      * StandardError= redirects stderr to the same log file.
+     * Can be overridden via logger_set_mirror().
      */
     if (log_mirror_stderr) {
         fprintf(stderr, "%s", line);
