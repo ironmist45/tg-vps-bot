@@ -162,8 +162,23 @@ int telegram_http_request(const char *method, const char *post_fields,
         /* Log Telegram error responses even when caller doesn't need the data */
         if (chunk.data && chunk.size > 0 &&
             strstr(chunk.data, "\"ok\":false") != NULL) {
-            LOG_NET(LOG_WARN, "%s API error: %.256s", method, chunk.data);
-        }
+
+            /* Extract error_code and description without cJSON dependency */
+            int  error_code = 0;
+            char desc[128]  = "(unknown)";
+
+            const char *ec_pos = strstr(chunk.data, "\"error_code\":");
+            if (ec_pos)
+                sscanf(ec_pos, "\"error_code\":%d", &error_code);
+
+            const char *ds_pos = strstr(chunk.data, "\"description\":\"");
+            if (ds_pos) {
+                ds_pos += 15; /* skip "description":" */
+                sscanf(ds_pos, "%127[^\"]", desc);
+            }
+            
+            LOG_NET(LOG_WARN, "%s API error %d: %s", method, error_code, desc);
+        }        
         free(chunk.data);
         if (out_data) *out_data = NULL;
         if (out_size) *out_size = 0;
