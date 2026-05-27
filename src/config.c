@@ -14,6 +14,7 @@
  *   TOTP_SECRET    - Base32 TOTP secret for 2FA (optional, default: disabled)
  *   UPLOAD_ENABLED - Enable file upload: yes/true/1/enabled (default: disabled)
  *   UPLOAD_DIR     - Directory for uploaded files (default: /var/www/html/uploads)
+ *   SSH_KEYS_PATH  - Path to authorized_keys file (optional, default: disabled)
  */
 
 #include "config.h"
@@ -67,6 +68,9 @@ int config_load(const char *path, config_t *cfg) {
     /* TOTP disabled by default */
     cfg->totp_secret[0]     = '\0';
     cfg->totp_setup_enabled = 0;
+
+    /* SSH keys — disabled by default, must be explicitly configured */
+    cfg->ssh_keys_path[0] = '\0';
 
     char line[CONFIG_LINE_MAX];
     int  line_num = 0;
@@ -203,6 +207,19 @@ int config_load(const char *path, config_t *cfg) {
                 safe_copy(cfg->upload_dir, sizeof(cfg->upload_dir), "/var/www/html/uploads");
             }
         }
+        else if (strcasecmp(key, "SSH_KEYS_PATH") == 0) {
+            /*
+             * Path to authorized_keys file for /sshkeys command.
+             * Feature is disabled when empty — no default path is assumed
+             * since the owning user varies per system.
+             */
+            if (safe_copy(cfg->ssh_keys_path, sizeof(cfg->ssh_keys_path), value) != 0) {
+                LOG_CFG(LOG_WARN, "SSH_KEYS_PATH too long — /sshkeys disabled");
+                cfg->ssh_keys_path[0] = '\0';
+            } else {
+                LOG_CFG(LOG_INFO, "SSH_KEYS_PATH: %s", cfg->ssh_keys_path);
+            }
+        }
         else if (strcasecmp(key, "SUDO_PATH") == 0) {
             safe_copy(cfg->sudo_path, sizeof(cfg->sudo_path), value);
         }
@@ -269,6 +286,8 @@ void config_log(const config_t *cfg) {
             cfg->upload_enabled ? "enabled" : "disabled",
             cfg->upload_enabled ? cfg->upload_dir[0] != '\0'
                 ? "" : " (no dir!)" : "");
+    LOG_CFG(LOG_INFO, "SSH_KEYS_PATH: %s",
+            cfg->ssh_keys_path[0] != '\0' ? cfg->ssh_keys_path : "disabled");
 
     /* Utility paths — useful for diagnosing permission or path issues */
     LOG_CFG(LOG_DEBUG, "SUDO_PATH: %s",        cfg->sudo_path);
@@ -292,6 +311,7 @@ void config_log(const config_t *cfg) {
  *   - Token TTL
  *   - TOTP secret
  *   - Upload enabled flag and directory
+ *   - SSH keys path
  *
  * @param path  Path to configuration file
  * @param cfg   Pointer to current config (updated in-place on success)
