@@ -20,6 +20,7 @@ typedef struct {
     unsigned long cmd_help;
     unsigned long cmd_logs;
     unsigned long cmd_fail2ban;
+    unsigned long cmd_sshkeys;
     unsigned long cmd_reboot;
     unsigned long cmd_restart;
     unsigned long cmd_services;
