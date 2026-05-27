@@ -4,6 +4,7 @@
  *
  * Supports:
  *   -c, --config <path>   Specify configuration file path
+ *   -p, --parse  <path>   Validate config file and print settings
  *   -h, --help            Show usage information
  *   -v, --version         Show program version
  *
@@ -11,6 +12,8 @@
  */
 
 #include "cli.h"
+#include "config.h"
+#include "logger.h"
 #include "version.h"
 #include "build_info.h"
 
@@ -37,6 +40,7 @@ static int cli_parse(int argc, char *argv[], cli_args_t *args) {
 
     static struct option long_options[] = {
         {"config",  required_argument, 0, 'c'},
+        {"parse",   required_argument, 0, 'p'},
         {"help",    no_argument,       0, 'h'},
         {"version", no_argument,       0, 'v'},
         {0, 0, 0, 0}
@@ -45,11 +49,16 @@ static int cli_parse(int argc, char *argv[], cli_args_t *args) {
     opterr = 0;
     int opt;
 
-    while ((opt = getopt_long(argc, argv, "c:hv", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c:p:hv", long_options, NULL)) != -1) {
         switch (opt) {
             case 'c':
                 snprintf(args->config_path, sizeof(args->config_path),
                          "%s", optarg);
+                break;
+            case 'p':
+                snprintf(args->parse_path, sizeof(args->parse_path),
+                         "%s", optarg);
+                args->do_parse = 1;
                 break;
             case 'h':
                 args->show_help = 1;
@@ -81,11 +90,14 @@ static void cli_print_help(void) {
     printf("  %s [OPTIONS]\n\n", APP_NAME);
     printf("Options:\n");
     printf("  -c, --config <path>   Path to config file\n");
+    printf("  -p, --parse  <path>   Validate config file and print settings\n");
     printf("  -h, --help            Show this help message\n");
     printf("  -v, --version         Show program version\n\n");
     printf("Examples:\n");
     printf("  %s -c /etc/tg-bot/config.conf\n", APP_NAME);
     printf("  %s --config=/etc/tg-bot/config.conf\n", APP_NAME);
+    printf("  %s -p /etc/tg-bot/config.conf\n", APP_NAME);
+    printf("  %s --parse=/etc/tg-bot/config.conf\n", APP_NAME);
 }
 
 // ============================================================================
@@ -107,16 +119,16 @@ static void cli_print_version(void) {
 }
 
 // ============================================================================
-// PUBLIC API
+// PUBLIC API — cli_process
 // ============================================================================
 
 /**
- * Process command-line arguments and handle help/version.
+ * Process command-line arguments and handle help/version/parse modes.
  *
  * Return codes:
  *   CLI_OK       (0) — config path parsed, continue startup
- *   CLI_EXIT_OK  (1) — help or version printed, exit with code 0
- *   CLI_EXIT_ERR (2) — parse error, exit with code 1
+ *   CLI_EXIT_OK  (1) — help, version or successful --parse, exit 0
+ *   CLI_EXIT_ERR (2) — parse error or failed --parse, exit 1
  *
  * @param argc        Argument count
  * @param argv        Argument vector
@@ -141,6 +153,11 @@ int cli_process(int argc, char *argv[], char *config_path) {
         return CLI_EXIT_OK;
     }
 
+    if (args.do_parse) {
+        int rc = cli_cmd_parse_config(args.parse_path);
+        return (rc == CLI_PARSE_OK) ? CLI_EXIT_OK : CLI_EXIT_ERR;
+    }
+
     if (args.config_path[0] == '\0') {
         fprintf(stderr, "Config not specified\n");
         return CLI_EXIT_ERR;
@@ -148,4 +165,178 @@ int cli_process(int argc, char *argv[], char *config_path) {
 
     snprintf(config_path, CLI_CONFIG_PATH_MAX, "%s", args.config_path);
     return CLI_OK;
+}
+
+// ============================================================================
+// --parse MODE: config validation and filesystem checks
+// ============================================================================
+
+/* ANSI color and style codes */
+#define C_GREEN  "\033[32m"
+#define C_RED    "\033[31m"
+#define C_YELLOW "\033[33m"
+#define C_BOLD   "\033[1m"
+#define C_RESET  "\033[0m"
+
+/* Section header */
+#define SECTION(name) printf("\n" C_BOLD "[%s]" C_RESET "\n", name)
+
+/* Print a plain key=value line with green checkmark */
+#define PRINT_VAL(k, v) \
+    printf("  " C_GREEN "✓" C_RESET "  %-22s %s\n", k, v)
+
+/*
+ * Check if path exists and has the required access mode.
+ * Prints result with label. Increments errors or warnings as appropriate.
+ * Returns 1 if check passed, 0 otherwise.
+ */
+static int check_path(const char *label, const char *path,
+                      int mode, int *errors, int *warnings)
+{
+    if (!path || path[0] == '\0') {
+        printf("  " C_YELLOW "⚠" C_RESET "  %-22s (not set)\n", label);
+        (*warnings)++;
+        return 0;
+    }
+
+    if (access(path, F_OK) != 0) {
+        printf("  " C_RED "✗" C_RESET "  %-22s %s — not found\n", label, path);
+        (*errors)++;
+        return 0;
+    }
+
+    if (access(path, mode) != 0) {
+        const char *mode_str = (mode == X_OK) ? "not executable"
+                             : (mode == W_OK) ? "not writable"
+                             :                  "not readable";
+        printf("  " C_RED "✗" C_RESET "  %-22s %s — %s\n", label, path, mode_str);
+        (*errors)++;
+        return 0;
+    }
+
+    printf("  " C_GREEN "✓" C_RESET "  %-22s %s\n", label, path);
+    return 1;
+}
+
+/**
+ * Validate config file and print all settings to stdout.
+ *
+ * @param path  Path to configuration file
+ * @return      CLI_PARSE_OK (0) on success, CLI_PARSE_ERR (1) on errors
+ */
+int cli_cmd_parse_config(const char *path)
+{
+    printf(C_BOLD "%s v%s (%s)" C_RESET " — config parser\n",
+           APP_NAME, APP_VERSION, APP_CODENAME);
+    printf("File: %s\n", path);
+
+    /* Load config — reuse existing parser, suppress log output */
+    config_t cfg;
+    if (config_load(path, &cfg) != 0) {
+        printf("\n" C_RED C_BOLD "✗ Failed to load config file" C_RESET "\n");
+        return CLI_PARSE_ERR;
+    }
+
+    int errors   = 0;
+    int warnings = 0;
+
+    /* ------------------------------------------------------------------ */
+    SECTION("REQUIRED");
+
+    if (cfg.token[0] != '\0') {
+        printf("  " C_GREEN "✓" C_RESET "  %-22s set (%zu chars)\n",
+               "TOKEN", strlen(cfg.token));
+    } else {
+        printf("  " C_RED "✗" C_RESET "  %-22s missing\n", "TOKEN");
+        errors++;
+    }
+
+    if (cfg.chat_id != 0) {
+        printf("  " C_GREEN "✓" C_RESET "  %-22s %ld\n", "CHAT_ID", cfg.chat_id);
+    } else {
+        printf("  " C_RED "✗" C_RESET "  %-22s missing or zero\n", "CHAT_ID");
+        errors++;
+    }
+
+    /* ------------------------------------------------------------------ */
+    SECTION("BOT");
+
+    char ttl_buf[32];
+    snprintf(ttl_buf, sizeof(ttl_buf), "%ds", cfg.token_ttl);
+    PRINT_VAL("TOKEN_TTL",  ttl_buf);
+    PRINT_VAL("LOG_FILE",   cfg.log_file);
+    PRINT_VAL("LOG_LEVEL",  logger_level_to_string(cfg.log_level));
+
+    /* Check that LOG_FILE parent directory is writable */
+    {
+        char log_dir[256];
+        snprintf(log_dir, sizeof(log_dir), "%s", cfg.log_file);
+        char *slash = strrchr(log_dir, '/');
+        if (slash && slash != log_dir) {
+            *slash = '\0';
+            check_path("LOG_FILE dir", log_dir, W_OK, &errors, &warnings);
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    SECTION("TOTP");
+
+    if (cfg.totp_secret[0] != '\0') {
+        printf("  " C_GREEN "✓" C_RESET "  %-22s set (TOTP 2FA enabled)\n",
+               "TOTP_SECRET");
+    } else {
+        printf("  " C_YELLOW "⚠" C_RESET "  %-22s not set (token flow)\n",
+               "TOTP_SECRET");
+        warnings++;
+    }
+    PRINT_VAL("TOTP_SETUP", cfg.totp_setup_enabled ? "enabled" : "disabled");
+
+    /* ------------------------------------------------------------------ */
+    SECTION("UPLOAD");
+
+    PRINT_VAL("UPLOAD_ENABLED", cfg.upload_enabled ? "yes" : "no");
+    if (cfg.upload_enabled) {
+        check_path("UPLOAD_DIR", cfg.upload_dir, W_OK, &errors, &warnings);
+    } else {
+        PRINT_VAL("UPLOAD_DIR",
+                  cfg.upload_dir[0] ? cfg.upload_dir : "(not set)");
+    }
+
+    /* ------------------------------------------------------------------ */
+    SECTION("SSH");
+
+    if (cfg.ssh_keys_path[0] != '\0') {
+        check_path("SSH_KEYS_PATH", cfg.ssh_keys_path, R_OK, &errors, &warnings);
+    } else {
+        printf("  " C_YELLOW "⚠" C_RESET "  %-22s not set (/sshkeys disabled)\n",
+               "SSH_KEYS_PATH");
+        warnings++;
+    }
+
+    /* ------------------------------------------------------------------ */
+    SECTION("PATHS");
+
+    check_path("SUDO_PATH",        cfg.sudo_path,        X_OK, &errors, &warnings);
+    check_path("SYSTEMCTL_PATH",   cfg.systemctl_path,   X_OK, &errors, &warnings);
+    check_path("JOURNALCTL_PATH",  cfg.journalctl_path,  X_OK, &errors, &warnings);
+    check_path("F2B_WRAPPER_PATH", cfg.f2b_wrapper_path, X_OK, &errors, &warnings);
+
+    /* ------------------------------------------------------------------ */
+    printf("\n");
+
+    if (errors == 0 && warnings == 0) {
+        printf(C_GREEN C_BOLD "Config OK" C_RESET
+               " — 0 errors, 0 warnings\n");
+    } else if (errors == 0) {
+        printf(C_YELLOW C_BOLD "Config OK" C_RESET
+               " — 0 errors, %d warning%s\n",
+               warnings, warnings == 1 ? "" : "s");
+    } else {
+        printf(C_RED C_BOLD "Config FAILED" C_RESET
+               " — %d error%s, %d warning%s\n",
+               errors,   errors   == 1 ? "" : "s",
+               warnings, warnings == 1 ? "" : "s");
+    }
+
+    return (errors == 0) ? CLI_PARSE_OK : CLI_PARSE_ERR;
 }
