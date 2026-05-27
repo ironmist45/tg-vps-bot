@@ -314,8 +314,7 @@ static int sshkeys_parse_line(const char *line,
         token[tok_len] = '\0';
 
         if (sshkeys_is_keytype(token)) {
-            strncpy(out_type, sshkeys_pretty_type(token), type_sz - 1);
-            out_type[type_sz - 1] = '\0';
+            snprintf(out_type, type_sz, "%s", sshkeys_pretty_type(token));
             keytype_end = pos;
             break;
         }
@@ -331,9 +330,7 @@ static int sshkeys_parse_line(const char *line,
 
     /* Remainder is the comment */
     while (*p2 == ' ' || *p2 == '\t') p2++;
-    strncpy(out_comment, (*p2 != '\0') ? p2 : "(no comment)", comment_sz - 1);
-    out_comment[comment_sz - 1] = '\0';
-
+    snprintf(out_comment, comment_sz, "%s", (*p2 != '\0') ? p2 : "(no comment)");
     return 1;
 }
 
@@ -389,8 +386,8 @@ int cmd_sshkeys_v2(command_ctx_t *ctx)
 
         if (sshkeys_parse_line(line, type, sizeof(type),
                                comment, sizeof(comment))) {
-            strncpy(keys[key_count].type,    type,    sizeof(keys[0].type)    - 1);
-            strncpy(keys[key_count].comment, comment, sizeof(keys[0].comment) - 1);
+            snprintf(keys[key_count].type,    sizeof(keys[0].type),    "%s", type);
+            snprintf(keys[key_count].comment, sizeof(keys[0].comment), "%s", comment);
             key_count++;
         }
 
