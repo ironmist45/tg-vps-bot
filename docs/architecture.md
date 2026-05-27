@@ -24,9 +24,9 @@ tg-bot/
 ├── include/                     # 📂 public headers (module APIs)
 │   ├── version.h                # 🔹 version and build information
 │   ├── build_info.h             # 🔹 generated build info (commit, date, build number, compiler)
-│   ├── cli.h                    # 🔹 command-line interface parsing
-│   ├── config.h                 # 🔹 config loader API (parsing, reload, TOTP secret, upload)
-│   ├── logger.h                 # 🔹 logging system API (levels, macros, early buffer)
+│   ├── cli.h                    # 🔹 command-line interface parsing (-c, -p, -h, -v)
+│   ├── config.h                 # 🔹 config loader API (parsing, reload, TOTP secret, upload, SSH keys)
+│   ├── logger.h                 # 🔹 logging system API (levels, macros, early buffer, mirror control)
 │   ├── lifecycle.h              # 🔹 process lifecycle (signals, shutdown, reboot)
 │   ├── environment.h            # 🔹 runtime environment diagnostics
 │   ├── exec.h                   # 🔹 execution API (command runner with timeout)
@@ -55,15 +55,15 @@ tg-bot/
 │   ├── cmd_help.h               # 🔹 /help command handler API
 │   ├── cmd_system.h             # 🔹 /start, /status, /health, /ping, /about, /logstat API
 │   ├── cmd_services.h           # 🔹 /services, /users, /logs, /service API
-│   ├── cmd_security.h           # 🔹 /fail2ban command handler API
+│   ├── cmd_security.h           # 🔹 /fail2ban, /sshkeys command handlers API
 │   ├── cmd_control.h            # 🔹 /reboot, /restart, /totp_setup API
 │   └── cmd_upload.h             # 🔹 file upload handlers API (/files, incoming files)
 │
 ├── src/                         # 📂 implementation (core modules)
 │   ├── main.c                   # 🚀 entry point (init, orchestration, main loop)
-│   ├── cli.c                    # 🔹 command-line argument parsing
-│   ├── config.c                 # 🔹 config parser, reload, TOTP_SECRET, UPLOAD_ENABLED
-│   ├── logger.c                 # 🔹 thread-safe logging, early buffer, isatty mirror
+│   ├── cli.c                    # 🔹 command-line argument parsing (-c, -p/--parse, -h, -v)
+│   ├── config.c                 # 🔹 config parser, reload, TOTP_SECRET, UPLOAD_ENABLED, SSH_KEYS_PATH
+│   ├── logger.c                 # 🔹 thread-safe logging, early buffer, isatty mirror, set_mirror()
 │   ├── lifecycle.c              # 🔹 signal handlers, graceful shutdown, reboot via sudo
 │   ├── environment.c            # 🔹 startup diagnostics and access checks
 │   ├── exec.c                   # 🔹 external command execution with timeout
@@ -71,7 +71,7 @@ tg-bot/
 │   ├── diagnostics.c            # 🔹 main loop iteration timing and diagnostics
 │   ├── totp.c                   # 🔹 TOTP implementation (base32, HMAC-SHA1, RFC 6238)
 │   ├── telegram.c               # 🔹 public API (init, send, polling); callers responsible for MarkdownV2 escaping
-│   ├── telegram_http.c          # 🔹 curl-based HTTP requests, file download streaming, API error logging
+│   ├── telegram_http.c          # 🔹 curl-based HTTP requests, file download streaming, structured API error logging
 │   ├── telegram_parser.c        # 🔹 JSON parsing + markdown escaping + document parsing
 │   ├── telegram_poll.c          # 🔹 long polling with fork() isolation, file routing
 │   ├── telegram_offset.c        # 🔹 offset persistence with fsync (crash recovery)
@@ -92,7 +92,7 @@ tg-bot/
 │       ├── cmd_help.c           # 🧩 /help
 │       ├── cmd_system.c         # 🧩 /start, /status, /health, /ping, /about, /logstat
 │       ├── cmd_services.c       # 🧩 /services, /users, /logs, /service
-│       ├── cmd_security.c       # 🧩 /fail2ban
+│       ├── cmd_security.c       # 🧩 /fail2ban, /sshkeys
 │       ├── cmd_control.c        # 🧩 /reboot, /restart, /totp_setup
 │       └── cmd_upload.c         # 🧩 incoming files, /files
 │
@@ -107,16 +107,16 @@ tg-bot/
 
 | Module | Header | Source | Responsibility |
 |--------|--------|--------|----------------|
-| **CLI** | `cli.h` | `cli.c` | Command-line argument parsing, help/version output |
-| **Config** | `config.h` | `config.c` | Configuration file loading, validation, reload, TOTP secret, upload flag |
-| **Logger** | `logger.h` | `logger.c` | Thread-safe logging, early buffer, isatty mirror to stderr |
+| **CLI** | `cli.h` | `cli.c` | Command-line argument parsing, help/version output, --parse config validation |
+| **Config** | `config.h` | `config.c` | Configuration file loading, validation, reload, TOTP secret, upload flag, SSH keys path |
+| **Logger** | `logger.h` | `logger.c` | Thread-safe logging, early buffer, isatty mirror to stderr, mirror override |
 | **Lifecycle** | `lifecycle.h` | `lifecycle.c` | Signal handlers, graceful shutdown, reboot via sudo /sbin/reboot |
 | **Environment** | `environment.h` | `environment.c` | Startup diagnostics, access checks, CI detection |
 | **Exec** | `exec.h` | `exec.c` | External command execution with deadline timeout |
 | **Diagnostics** | `diagnostics.h` | `diagnostics.c` | Main loop iteration timing, slow iteration warnings |
 | **TOTP** | `totp.h` | `totp.c` | RFC 6238 TOTP (base32, HMAC-SHA1, verify, URI generation) |
 | **Telegram** | `telegram.h` | `telegram.c` | Public API (init, shutdown, send); callers own MarkdownV2 escaping |
-| **Telegram HTTP** | `telegram_http.h` | `telegram_http.c` | Low-level HTTP requests via libcurl, file download streaming, API error logging |
+| **Telegram HTTP** | `telegram_http.h` | `telegram_http.c` | Low-level HTTP requests via libcurl, file download streaming, structured API error logging |
 | **Telegram Parser** | `telegram_parser.h` | `telegram_parser.c` | JSON parsing, markdown escaping, document update parsing |
 | **Telegram Poll** | `telegram_poll.h` | `telegram_poll.c` | Long polling with fork() isolation, file/text routing |
 | **Telegram Offset** | `telegram_offset.h` | `telegram_offset.c` | Update offset persistence with fsync (crash recovery) |
@@ -136,26 +136,27 @@ tg-bot/
 
 ## Command Handlers
 
-| Command | Handler | Source | Confirmation |
-|---------|---------|--------|--------------|
-| `/start` | `cmd_start_v2` | `cmd_system.c` | — |
-| `/help` | `cmd_help_v2` | `cmd_help.c` | — |
-| `/status` | `cmd_status_v2` | `cmd_system.c` | — |
-| `/health` | `cmd_health_v2` | `cmd_system.c` | — |
-| `/about` | `cmd_about_v2` | `cmd_system.c` | — |
-| `/ping` | `cmd_ping_v2` | `cmd_system.c` | — |
-| `/logstat` | `cmd_logstat_v2` | `cmd_system.c` | — |
-| `/services` | `cmd_services_v2` | `cmd_services.c` | — |
-| `/service` | `cmd_service_v2` | `cmd_services.c` | 🔐 start/stop/restart only |
-| `/users` | `cmd_users_v2` | `cmd_services.c` | — |
-| `/logs` | `cmd_logs_v2` | `cmd_services.c` | — |
-| `/files` | `cmd_files_v2` | `cmd_upload.c` | — |
-| `/fail2ban` | `cmd_fail2ban_v2` | `cmd_security.c` | — |
-| `/reboot` | `cmd_reboot_v2` | `cmd_control.c` | 🔐 required |
-| `/restart` | `cmd_restart_v2` | `cmd_control.c` | 🔐 required |
-| `/totp_setup` | `cmd_totp_setup_v2` | `cmd_control.c` | — |
-| `/confirm` | inline in dispatcher | `commands.c` | — |
-| *(incoming file)* | `cmd_handle_upload` | `cmd_upload.c` | — |
+| Command | Handler | Source | Category | Confirmation |
+|---------|---------|--------|----------|--------------|
+| `/start` | `cmd_start_v2` | `cmd_system.c` | General | — |
+| `/help` | `cmd_help_v2` | `cmd_help.c` | General | — |
+| `/status` | `cmd_status_v2` | `cmd_system.c` | Server | — |
+| `/health` | `cmd_health_v2` | `cmd_system.c` | Bot | — |
+| `/about` | `cmd_about_v2` | `cmd_system.c` | Bot | — |
+| `/ping` | `cmd_ping_v2` | `cmd_system.c` | Bot | — |
+| `/logstat` | `cmd_logstat_v2` | `cmd_system.c` | Bot | — |
+| `/services` | `cmd_services_v2` | `cmd_services.c` | Services | — |
+| `/service` | `cmd_service_v2` | `cmd_services.c` | Services | 🔐 start/stop/restart only |
+| `/users` | `cmd_users_v2` | `cmd_services.c` | Services | — |
+| `/logs` | `cmd_logs_v2` | `cmd_services.c` | Services | — |
+| `/files` | `cmd_files_v2` | `cmd_upload.c` | Services | — |
+| `/fail2ban` | `cmd_fail2ban_v2` | `cmd_security.c` | Security | — |
+| `/sshkeys` | `cmd_sshkeys_v2` | `cmd_security.c` | Security | — |
+| `/reboot` | `cmd_reboot_v2` | `cmd_control.c` | System control | 🔐 required |
+| `/restart` | `cmd_restart_v2` | `cmd_control.c` | System control | 🔐 required |
+| `/totp_setup` | `cmd_totp_setup_v2` | `cmd_control.c` | System control | — |
+| `/confirm` | inline in dispatcher | `commands.c` | — | — |
+| *(incoming file)* | `cmd_handle_upload` | `cmd_upload.c` | — | — |
 
 ---
 
@@ -273,11 +274,91 @@ Responsibilities in order:
 | Services | ✅ V2 | /services, /users, /logs, /service |
 | System | ✅ V2 | /start, /status, /health, /about, /ping, /logstat |
 | Help | ✅ V2 | /help |
-| Security | ✅ V2 | /fail2ban |
+| Security | ✅ V2 | /fail2ban, /sshkeys |
 | Control | ✅ V2 | /reboot, /restart, /totp_setup |
 | Upload | ✅ V2 | /files, incoming files |
 
-**All 17 commands use V2. Legacy code completely removed.**
+**All 18 commands use V2. Legacy code completely removed.**
+
+---
+
+## CLI Mode — --parse
+
+`tg-bot -p <path>` / `tg-bot --parse <path>` validates a config file
+without starting the bot or connecting to Telegram.
+
+```
+tg-bot --parse /etc/tg-bot/config.conf
+    ↓
+cli_cmd_parse_config()
+    ↓
+logger redirected to /dev/null + mirror disabled   (no CFG log output)
+    ↓
+config_load() — full parse, same as normal startup
+    ↓
+logger_close()
+    ↓
+print sections with ANSI color indicators:
+  green ✓  — value present and valid
+  red   ✗  — missing or invalid (counts as error)
+  yellow ⚠ — optional or not accessible by current user (counts as warning)
+    ↓
+filesystem checks:
+  LOG_FILE parent dir  — W_OK, warn_only (owned by tg-bot)
+  UPLOAD_DIR           — W_OK, warn_only (owned by tg-bot)
+  SSH_KEYS_PATH        — R_OK, warn_only (read via sudo cat at runtime)
+  SUDO_PATH            — X_OK, error if missing
+  SYSTEMCTL_PATH       — X_OK, error if missing
+  JOURNALCTL_PATH      — X_OK, error if missing
+  F2B_WRAPPER_PATH     — X_OK, error if missing
+    ↓
+exit 0 (Config OK) or exit 1 (Config FAILED)
+```
+
+**warn_only** paths are owned by `tg-bot` or accessed via sudo at runtime —
+not writable/readable by the invoking user. Missing paths are always errors
+regardless of `warn_only`.
+
+Useful for:
+- Manual config verification before deploying
+- `ExecStartPre=` in systemd unit — bot won't start if config is broken
+- CI/CD validation pipelines
+
+---
+
+## /sshkeys Command
+
+Reads `SSH_KEYS_PATH` (configured in `config.conf`) via `sudo cat` and
+displays key type and comment for each entry. The key blob itself is
+not shown — it is long and provides no useful information.
+
+```
+/sshkeys
+    ↓
+cmd_sshkeys_v2()
+    ↓
+SSH_KEYS_PATH empty? → reply: configuration hint + instructions
+    ↓
+exec_command([sudo, -n, /bin/cat, path])
+    ↓
+sshkeys_parse_line() per line:
+  skip empty lines and # comments
+  skip optional options field (handles quoted values with spaces)
+  identify keytype token via s_key_types[] lookup
+  strip ssh-/ecdsa-sha2- prefix for display (pretty_type)
+  skip base64 blob
+  remainder = comment (or "(no comment)")
+    ↓
+reply_plain(): numbered list of "type — comment" + total count
+```
+
+**Supported key types:** `ssh-rsa`, `ssh-dss`, `ssh-ed25519`,
+`ecdsa-sha2-nistp{256,384,521}`, `sk-ssh-ed25519@openssh.com`,
+`sk-ecdsa-sha2-nistp256@openssh.com`
+
+**Config:** `SSH_KEYS_PATH=/home/user/.ssh/authorized_keys` (default: empty = disabled)
+
+**Sudoers:** `tg-bot ALL=(ALL) NOPASSWD: /bin/cat /home/user/.ssh/authorized_keys`
 
 ---
 
@@ -343,8 +424,9 @@ It does **not** escape the text — callers are responsible for correct formatti
   `_ [ ] ( ) ~ > # + = | { } . ! \` and in some contexts `-`
 
 **API error logging:** `telegram_http_request()` logs Telegram error responses
-at WARN level when `{"ok":false}` is returned — visible in bot log even when
-`need_response=0` (sendMessage calls).
+at WARN level when `{"ok":false}` is returned — parses `error_code` and
+`description` via `strstr/sscanf`, no cJSON dependency in the HTTP layer.
+Format: `sendMessage API error 401: Unauthorized`
 
 ---
 
@@ -384,6 +466,12 @@ in memory (32 × 1088 B) and flushed to the file on first successful
 logs are mirrored to stderr in addition to the file. When running
 as a systemd service (stderr redirected), only the file is written —
 no duplicate entries.
+
+**Mirror override:** `logger_set_mirror(int enabled)` allows explicit
+control after `logger_init()`. Used by `--parse` mode: the logger is
+redirected to `/dev/null` but `isatty()` returns 1 in a terminal —
+`logger_set_mirror(0)` prevents CFG log lines from leaking into the
+`--parse` terminal output.
 
 **Timestamp:** Single `clock_gettime(CLOCK_REALTIME)` call per message —
 no race between `time()` and `clock_gettime()` that could produce
@@ -531,6 +619,7 @@ cause a build error with a descriptive message.
 - **mlock:** TOTP secret locked in RAM, never swapped to disk
 - **Upload disabled by default:** `UPLOAD_ENABLED=no` reduces attack surface
 - **MarkdownV2 escaping:** handlers own escaping of user data — no silent double-escaping
+- **SSH keys read-only:** `/sshkeys` shows type and comment only, key blob never exposed
 
 ---
 
@@ -599,6 +688,7 @@ GCC 9 and GCC 14 workflows add hardening flags: `-Wformat=2`, `-Wnull-dereferenc
 - **Operational maturity** — systemd integration, logrotate, CI/CD, build numbers
 - **Backward compatibility** — TOTP is optional, classic token flow is fallback
 - **Upload opt-in** — file upload disabled by default, explicit config required
+- **SSH keys opt-in** — SSH_KEYS_PATH disabled by default, explicit config required
 - **Caller owns escaping** — handlers responsible for correct MarkdownV2 formatting
 
 ---
@@ -611,6 +701,6 @@ GCC 9 and GCC 14 workflows add hardening flags: `-Wformat=2`, `-Wnull-dereferenc
 - Log filtering by time (`--since 1h`)
 - `/df` — disk usage quick view
 - `/top` — top processes by CPU/RAM
-- `/ssh keys` — show authorized SSH keys
+- `/sshkeygen` — SSH key pair generation, saved to UPLOAD_DIR
 - Unit tests — TOTP RFC 6238 vectors, security.c, logs_filter.c
 - Prometheus metrics export (requires >2GB RAM)
