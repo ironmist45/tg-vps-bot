@@ -187,11 +187,16 @@ int cli_process(int argc, char *argv[], char *config_path) {
 
 /*
  * Check if path exists and has the required access mode.
- * Prints result with label. Increments errors or warnings as appropriate.
+ *
+ * warn_only: if 1, access failures produce ⚠ warnings instead of ✗ errors.
+ * Use warn_only=1 for paths owned by tg-bot when running as another user
+ * (e.g. LOG_FILE dir, UPLOAD_DIR) — the bot itself has the required access.
+ *
  * Returns 1 if check passed, 0 otherwise.
  */
 static int check_path(const char *label, const char *path,
-                      int mode, int *errors, int *warnings)
+                      int mode, int warn_only,
+                      int *errors, int *warnings)
 {
     if (!path || path[0] == '\0') {
         printf("  " C_YELLOW "⚠" C_RESET "  %-22s (not set)\n", label);
@@ -200,6 +205,7 @@ static int check_path(const char *label, const char *path,
     }
 
     if (access(path, F_OK) != 0) {
+        /* Path does not exist — always an error regardless of warn_only */
         printf("  " C_RED "✗" C_RESET "  %-22s %s — not found\n", label, path);
         (*errors)++;
         return 0;
@@ -209,8 +215,15 @@ static int check_path(const char *label, const char *path,
         const char *mode_str = (mode == X_OK) ? "not executable"
                              : (mode == W_OK) ? "not writable"
                              :                  "not readable";
-        printf("  " C_RED "✗" C_RESET "  %-22s %s — %s\n", label, path, mode_str);
-        (*errors)++;
+        if (warn_only) {
+            printf("  " C_YELLOW "⚠" C_RESET "  %-22s %s — %s (run as tg-bot)\n",
+                   label, path, mode_str);
+            (*warnings)++;
+        } else {
+            printf("  " C_RED "✗" C_RESET "  %-22s %s — %s\n",
+                   label, path, mode_str);
+            (*errors)++;
+        }
         return 0;
     }
 
@@ -221,6 +234,9 @@ static int check_path(const char *label, const char *path,
 /**
  * Validate config file and print all settings to stdout.
  *
+ * Logger is redirected to /dev/null during config_load() to suppress
+ * CFG log lines from appearing in --parse terminal output.
+ *
  * @param path  Path to configuration file
  * @return      CLI_PARSE_OK (0) on success, CLI_PARSE_ERR (1) on errors
  */
@@ -230,9 +246,18 @@ int cli_cmd_parse_config(const char *path)
            APP_NAME, APP_VERSION, APP_CODENAME);
     printf("File: %s\n", path);
 
-    /* Load config — reuse existing parser, suppress log output */
+    /*
+     * Redirect logger to /dev/null so config_load() LOG_CFG calls
+     * don't pollute the --parse terminal output.
+     */
+    logger_init("/dev/null");
+
     config_t cfg;
-    if (config_load(path, &cfg) != 0) {
+    int load_rc = config_load(path, &cfg);
+
+    logger_close();
+
+    if (load_rc != 0) {
         printf("\n" C_RED C_BOLD "✗ Failed to load config file" C_RESET "\n");
         return CLI_PARSE_ERR;
     }
@@ -263,18 +288,38 @@ int cli_cmd_parse_config(const char *path)
 
     char ttl_buf[32];
     snprintf(ttl_buf, sizeof(ttl_buf), "%ds", cfg.token_ttl);
-    PRINT_VAL("TOKEN_TTL",  ttl_buf);
-    PRINT_VAL("LOG_FILE",   cfg.log_file);
-    PRINT_VAL("LOG_LEVEL",  logger_level_to_string(cfg.log_level));
+    PRINT_VAL("TOKEN_TTL", ttl_buf);
+    PRINT_VAL("LOG_FILE",  cfg.log_file);
 
-    /* Check that LOG_FILE parent directory is writable */
+    /*
+     * logger_level_to_string() may return a value with surrounding spaces
+     * if the config has them (e.g. "LOG_LEVEL= INFO "). Trim for display.
+     */
+    {
+        const char *lvl_raw = logger_level_to_string(cfg.log_level);
+        char lvl_buf[32];
+        snprintf(lvl_buf, sizeof(lvl_buf), "%s", lvl_raw);
+        /* trim leading spaces */
+        char *lvl = lvl_buf;
+        while (*lvl == ' ') lvl++;
+        /* trim trailing spaces */
+        char *end = lvl + strlen(lvl) - 1;
+        while (end > lvl && *end == ' ') *end-- = '\0';
+        PRINT_VAL("LOG_LEVEL", lvl);
+    }
+
+    /*
+     * LOG_FILE parent directory — check existence and writability.
+     * warn_only=1: directory is owned by root/tg-bot, not by current user.
+     * Missing directory is still an error (bot won't start).
+     */
     {
         char log_dir[256];
         snprintf(log_dir, sizeof(log_dir), "%s", cfg.log_file);
         char *slash = strrchr(log_dir, '/');
         if (slash && slash != log_dir) {
             *slash = '\0';
-            check_path("LOG_FILE dir", log_dir, W_OK, &errors, &warnings);
+            check_path("LOG_FILE dir", log_dir, W_OK, 1, &errors, &warnings);
         }
     }
 
@@ -296,7 +341,11 @@ int cli_cmd_parse_config(const char *path)
 
     PRINT_VAL("UPLOAD_ENABLED", cfg.upload_enabled ? "yes" : "no");
     if (cfg.upload_enabled) {
-        check_path("UPLOAD_DIR", cfg.upload_dir, W_OK, &errors, &warnings);
+        /*
+         * warn_only=1: UPLOAD_DIR is owned by tg-bot.
+         * Missing directory is still an error.
+         */
+        check_path("UPLOAD_DIR", cfg.upload_dir, W_OK, 1, &errors, &warnings);
     } else {
         PRINT_VAL("UPLOAD_DIR",
                   cfg.upload_dir[0] ? cfg.upload_dir : "(not set)");
@@ -306,7 +355,11 @@ int cli_cmd_parse_config(const char *path)
     SECTION("SSH");
 
     if (cfg.ssh_keys_path[0] != '\0') {
-        check_path("SSH_KEYS_PATH", cfg.ssh_keys_path, R_OK, &errors, &warnings);
+        /*
+         * warn_only=1: authorized_keys is owned by user, not tg-bot.
+         * Readable by tg-bot via sudo cat — not by current user directly.
+         */
+        check_path("SSH_KEYS_PATH", cfg.ssh_keys_path, R_OK, 1, &errors, &warnings);
     } else {
         printf("  " C_YELLOW "⚠" C_RESET "  %-22s not set (/sshkeys disabled)\n",
                "SSH_KEYS_PATH");
@@ -316,10 +369,11 @@ int cli_cmd_parse_config(const char *path)
     /* ------------------------------------------------------------------ */
     SECTION("PATHS");
 
-    check_path("SUDO_PATH",        cfg.sudo_path,        X_OK, &errors, &warnings);
-    check_path("SYSTEMCTL_PATH",   cfg.systemctl_path,   X_OK, &errors, &warnings);
-    check_path("JOURNALCTL_PATH",  cfg.journalctl_path,  X_OK, &errors, &warnings);
-    check_path("F2B_WRAPPER_PATH", cfg.f2b_wrapper_path, X_OK, &errors, &warnings);
+    /* System binaries — must exist and be executable by anyone */
+    check_path("SUDO_PATH",        cfg.sudo_path,        X_OK, 0, &errors, &warnings);
+    check_path("SYSTEMCTL_PATH",   cfg.systemctl_path,   X_OK, 0, &errors, &warnings);
+    check_path("JOURNALCTL_PATH",  cfg.journalctl_path,  X_OK, 0, &errors, &warnings);
+    check_path("F2B_WRAPPER_PATH", cfg.f2b_wrapper_path, X_OK, 0, &errors, &warnings);
 
     /* ------------------------------------------------------------------ */
     printf("\n");
