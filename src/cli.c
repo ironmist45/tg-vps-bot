@@ -251,6 +251,7 @@ int cli_cmd_parse_config(const char *path)
      * don't pollute the --parse terminal output.
      */
     logger_init("/dev/null");
+    logger_set_mirror(0);  /* suppress stderr mirroring — isatty()=1 in terminal */
 
     config_t cfg;
     int load_rc = config_load(path, &cfg);
