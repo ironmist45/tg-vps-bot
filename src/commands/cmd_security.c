@@ -418,7 +418,7 @@ int cmd_sshkeys_v2(command_ctx_t *ctx)
                         key_count, key_count == 1 ? "" : "s");
     }
 
-    LOG_CMD_CTX(ctx, LOG_INFO, "sshkeys: found %d keys", key_count);
+    LOG_CMD_CTX(ctx, LOG_INFO, "sshkeys: found %d %s", key_count, key_count == 1 ? "key" : "keys");
     METRICS_CMD(sshkeys);
 
     return reply_plain(ctx, reply);
