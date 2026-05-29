@@ -216,6 +216,10 @@ int cmd_fail2ban_v2(command_ctx_t *ctx)
  * Correctly handles an optional leading options field, including quoted
  * values with embedded spaces (e.g. from="1.2.3.4", command="...").
  *
+ * Reply buffer: uses RESP_MAX (8192 bytes).
+ * Worst-case output: 64 keys × (32 type + 128 comment + overhead) ~10 KB.
+ * The build loop guards against overflow and logs a warning if truncated.
+ *
  * Requires sudoers entry:
  *   tg-bot ALL=(ALL) NOPASSWD: /bin/cat /home/user/.ssh/authorized_keys
  *
@@ -335,6 +339,7 @@ static int sshkeys_parse_line(const char *line,
     /* Remainder is the comment */
     while (*p2 == ' ' || *p2 == '\t') p2++;
     snprintf(out_comment, comment_sz, "%s", (*p2 != '\0') ? p2 : "(no comment)");
+
     return 1;
 }
 
@@ -398,8 +403,13 @@ int cmd_sshkeys_v2(command_ctx_t *ctx)
         line = next ? next + 1 : NULL;
     }
 
-    /* Build reply — plain text, comments may contain arbitrary characters */
-    char reply[1024];
+    /*
+     * Build reply — plain text, comments may contain arbitrary characters.
+     * Uses RESP_MAX (8192 bytes) — consistent with other handlers.
+     * Worst case: 64 keys × (32 type + 128 comment + ~10 overhead) ~10 KB,
+     * so the overflow guard below may trigger for very large key files.
+     */
+    char reply[RESP_MAX];
     int  off = 0;
 
     off += snprintf(reply + off, sizeof(reply) - off, "🔑 SSH Keys\n\n");
@@ -408,17 +418,25 @@ int cmd_sshkeys_v2(command_ctx_t *ctx)
         off += snprintf(reply + off, sizeof(reply) - off,
                         "No keys found in:\n%s", g_cfg.ssh_keys_path);
     } else {
-        for (int i = 0; i < key_count && off < (int)sizeof(reply) - 64; i++) {
+        for (int i = 0; i < key_count; i++) {
+            int remaining = (int)sizeof(reply) - off - 64;
+            if (remaining <= 0) {
+                LOG_CMD_CTX(ctx, LOG_WARN,
+                    "sshkeys: reply buffer full at key %d/%d — truncated",
+                    i, key_count);
+                break;
+            }
             off += snprintf(reply + off, sizeof(reply) - off,
                             "%d. %s — %s\n",
                             i + 1, keys[i].type, keys[i].comment);
         }
         off += snprintf(reply + off, sizeof(reply) - off,
-                        "\nTotal: %d key%s",
-                        key_count, key_count == 1 ? "" : "s");
+                        "\nTotal: %d %s",
+                        key_count, key_count == 1 ? "key" : "keys");
     }
 
-    LOG_CMD_CTX(ctx, LOG_INFO, "sshkeys: found %d %s", key_count, key_count == 1 ? "key" : "keys");
+    LOG_CMD_CTX(ctx, LOG_INFO, "sshkeys: found %d %s",
+                key_count, key_count == 1 ? "key" : "keys");
     METRICS_CMD(sshkeys);
 
     return reply_plain(ctx, reply);
