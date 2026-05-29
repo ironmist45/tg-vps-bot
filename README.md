@@ -69,7 +69,7 @@ Built-in metrics collected since last bot start:
 
 **Commands:**
 - Total commands processed
-- Per-command counters (`/start`, `/help`, `/logs`, `/fail2ban`, `/reboot`, `/restart`, `/services`, `/service`, `/files`, `/users`, `/health`, `/logstat`)
+- Per-command counters (`/start`, `/help`, `/logs`, `/fail2ban`, `/sshkeys`, `/reboot`, `/restart`, `/services`, `/service`, `/files`, `/users`, `/health`, `/logstat`)
 
 **Errors:**
 - Unauthorized access attempts
@@ -109,6 +109,17 @@ Built-in metrics collected since last bot start:
 * 🔒 **Binary hardening:** Full RELRO, Stack Canary, NX, PIE, FORTIFY
 * 🔒 **No capabilities** — `CAP_SYS_BOOT` removed, reboot via `sudo /sbin/reboot`
 * 🔒 **TOTP secret locked in RAM** via `mlock()` — never swapped to disk
+* 🔑 **SSH keys read-only** — `/sshkeys` shows type and comment only, key blob never exposed
+
+---
+
+### 🔑 SSH Keys
+
+* `/sshkeys` — list authorized SSH public keys from `authorized_keys`
+* Shows key type (`ed25519`, `rsa`, `nistp256`, ...) and comment — key blob not shown
+* Configurable path via `SSH_KEYS_PATH` in config (disabled by default)
+* File is read via `sudo cat` — bot runs as `tg-bot`, not as file owner
+* Handles options field in authorized_keys (e.g. `from="..."`, `command="..."`)
 
 ---
 
@@ -137,7 +148,8 @@ Built-in metrics collected since last bot start:
 * Dynamic pipe buffer — handles large Telegram responses (100+ updates) without truncation
 * Offset persistence with atomic write + fsync (crash recovery, no duplicate messages)
 * Runtime duplicate detection
-* MarkdownV2 formatting — handlers own escaping of user data, Telegram API errors logged at WARN
+* MarkdownV2 formatting — handlers own escaping of user data
+* Telegram API errors logged at WARN with structured format: `method API error <code>: <description>`
 * Automatic message truncation (4096 char limit)
 * Incoming file (document) handling — streamed directly to disk, no memory buffering
 
@@ -251,8 +263,57 @@ cp config/config.example.conf config/config.conf
 ### 🔧 Options
 
 * `-c`, `--config <path>` — config file path
+* `-p`, `--parse <path>` — validate config file and print all settings
 * `-h`, `--help` — show help
 * `-v`, `--version` — show version with build info
+
+### ✅ Config Validation
+
+Validate your config without starting the bot:
+
+```bash
+tg-bot --parse /etc/tg-bot/config.conf
+```
+
+Output example:
+```
+tg-bot v1.2.6 (Orion) — config parser
+File: /etc/tg-bot/config.conf
+
+[REQUIRED]
+  ✓  TOKEN                  set (46 chars)
+  ✓  CHAT_ID                123456789
+
+[BOT]
+  ✓  TOKEN_TTL              60s
+  ✓  LOG_FILE               /var/log/tg-bot.log
+  ✓  LOG_LEVEL              INFO
+  ⚠  LOG_FILE dir           /var/log — not writable (run as tg-bot)
+
+[TOTP]
+  ✓  TOTP_SECRET            set (TOTP 2FA enabled)
+  ✓  TOTP_SETUP             disabled
+
+[UPLOAD]
+  ✓  UPLOAD_ENABLED         yes
+  ⚠  UPLOAD_DIR             /var/www/html/uploads — not writable (run as tg-bot)
+
+[SSH]
+  ✓  SSH_KEYS_PATH          /home/user/.ssh/authorized_keys
+
+[PATHS]
+  ✓  SUDO_PATH              /usr/bin/sudo
+  ✓  SYSTEMCTL_PATH         /bin/systemctl
+  ✓  JOURNALCTL_PATH        /bin/journalctl
+  ✓  F2B_WRAPPER_PATH       /usr/local/bin/f2b-wrapper
+
+Config OK — 0 errors, 2 warnings
+```
+
+Exit code: `0` on success, `1` on errors. Useful for `ExecStartPre=` in systemd unit.
+
+⚠️ warnings for `LOG_FILE dir`, `UPLOAD_DIR` and `SSH_KEYS_PATH` are expected when
+running as a regular user — those paths are owned by `tg-bot` or accessed via `sudo` at runtime.
 
 ---
 
@@ -263,12 +324,8 @@ General
 /start   — welcome message with system summary + selfcheck (RSS, log file)
 /help    — list all commands
 
-System info
-/status  — detailed system status (CPU, memory, disk, uptime, hostname)
-/health  — compact health check + bot metrics (with used/total MB and GB)
-/about   — bot version, build info, library versions
-/ping    — latency test (processing time, inbound, RTT)
-/logstat — bot log file statistics (SSE4.2 accelerated)
+Server
+/status  — full system status (CPU, memory, disk, uptime, hostname)
 
 Services
 /services                      — status of all monitored services
@@ -286,10 +343,17 @@ Files
 (send any file to the bot)     — saves to UPLOAD_DIR, confirms with filename and size
 
 Security
-/fail2ban status           — show all jails
-/fail2ban status sshd      — show sshd jail
-/fail2ban ban 1.2.3.4      — ban IP
-/fail2ban unban 1.2.3.4    — unban IP
+/sshkeys                       — list SSH authorized keys (type and comment)
+/fail2ban status               — show all jails
+/fail2ban status sshd          — show sshd jail
+/fail2ban ban 1.2.3.4          — ban IP
+/fail2ban unban 1.2.3.4        — unban IP
+
+Bot
+/health  — bot health + metrics
+/ping    — latency test (processing time, inbound, RTT)
+/logstat — bot log file statistics (SSE4.2 accelerated)
+/about   — version, build info, library versions
 
 System control (two-step confirmation required)
 /reboot      — reboot the server
@@ -305,16 +369,17 @@ System control (two-step confirmation required)
 Modular C design — each module has a single responsibility:
 
 * `main.c` — orchestration, main event loop, signal handling
+* `cli.c` — command-line argument parsing (`-c`, `-p/--parse`, `-h`, `-v`)
 * `lifecycle.c` — process lifecycle (signals, shutdown, reboot via sudo, restart)
 * `telegram_poll.c` — long polling with fork() isolation for libcurl, RSS sampling, file routing
-* `telegram_http.c` — low-level HTTP via libcurl, file download streaming, API error logging
+* `telegram_http.c` — low-level HTTP via libcurl, file download streaming, structured API error logging
 * `telegram_parser.c` — JSON parsing, markdown escaping, document update parsing
 * `telegram_offset.c` — update offset persistence with fsync
 * `commands.c` — command dispatcher, two-step confirmation logic
 * `security.c` — access control, rate limiting, token validation
 * `totp.c` — TOTP implementation (RFC 6238, HMAC-SHA1 via OpenSSL)
-* `config.c` — configuration file parsing and reload
-* `logger.c` — thread-safe logging with early buffer
+* `config.c` — configuration file parsing and reload (TOKEN, CHAT_ID, TOTP, UPLOAD, SSH_KEYS_PATH)
+* `logger.c` — thread-safe logging with early buffer and mirror control
 * `diagnostics.c` — runtime diagnostics (loop timing)
 * `services_config.c` — shared service definitions (single source of truth)
 * `services.c` — systemd service status queries and control
@@ -344,7 +409,8 @@ Modular C design — each module has a single responsibility:
 * f2b-wrapper logs all operations to syslog (`LOG_AUTH`) with PID
 * File downloads streamed directly to disk via `write_file_callback` — no memory buffering
 * Uploaded filenames sanitized — path traversal and injection impossible
-* Telegram API errors logged at WARN level even for fire-and-forget sends
+* Telegram API errors logged at WARN with `method API error <code>: <description>`
+* `--parse` mode redirects logger to `/dev/null` + disables stderr mirror — clean terminal output
 
 ---
 
@@ -361,6 +427,7 @@ Modular C design — each module has a single responsibility:
 * **Full RELRO** (`-Wl,-z,relro,-z,now`) — GOT is read-only after dynamic linking
 * **No CAP_SYS_BOOT** on binary — reboot via `sudo /sbin/reboot` only
 * **TOTP secret locked in RAM** via `mlock()` — not swapped to disk even when swap is active
+* **SSH key blob never shown** — `/sshkeys` displays type and comment only
 
 ---
 
@@ -434,6 +501,11 @@ Rebuild `f2b-wrapper` locally on the target machine.
 * MarkdownV2 refactor — handlers own escaping, Telegram API errors logged
 * Reboot via `sudo /sbin/reboot` — removed CAP_SYS_BOOT dependency
 * Offset fsync — guaranteed durability on crash
+* `/sshkeys` — list SSH authorized keys (type and comment, key blob not shown)
+* `/help` categories refactored — Server / Bot / Security / System control
+* `tg-bot --parse` — config validation with filesystem checks and color output
+* Telegram API error log improved — structured `method error_code: description`
+* `logger_set_mirror()` — explicit stderr mirror control for --parse mode
 
 ### Planned
 * lighttpd setup for HTTP access to uploaded files
@@ -441,7 +513,7 @@ Rebuild `f2b-wrapper` locally on the target machine.
 * `/df` — disk usage quick view
 * `/top` — top processes by CPU/RAM
 * `/fail2ban status <jail>` — detailed jail statistics
-* `/ssh keys` — show authorized SSH keys
+* `/sshkeygen` — SSH key pair generation, saved to UPLOAD_DIR
 * Scheduled commands (`/reboot in 5`)
 * Alerts — bot notifies on high CPU/RAM load
 * `/backup` — trigger backup script via Telegram
