@@ -112,7 +112,7 @@ command_t commands[] = {
     {"/status",   cmd_status_v2,  "Full system status", "Server", 0},
 
     /* Bot */
-    {"/health",   cmd_health_v2,  "Bot health + metrics", "Bot", 0},
+    {"/health", cmd_health_v2,    "Bot health and metrics", "Bot", 0},
     {"/about",    cmd_about_v2,   "Version, build info",  "Bot", 0},
     {"/ping",     cmd_ping_v2,    "Latency test",         "Bot", 0},
     {"/logstat",  cmd_logstat_v2, "Bot log statistics",   "Bot", 0},
