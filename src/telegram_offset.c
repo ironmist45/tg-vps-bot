@@ -5,7 +5,7 @@
  */
 
 #include "telegram_offset.h"
-#include "paths.h"
+#include "tg_paths.h"
 #include "logger.h"
 
 #include <stdio.h>
