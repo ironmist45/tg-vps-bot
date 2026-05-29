@@ -7,7 +7,7 @@
  *   - cmd_system.c   (/status, /health, /about, /ping)
  *   - cmd_services.c (/services, /users, /logs, /service)
  *   - cmd_help.c     (/help)
- *   - cmd_security.c (/fail2ban)
+ *   - cmd_security.c (/fail2ban, /sshkeys)
  *   - cmd_control.c  (/start, /reboot, /restart, /totp_setup)
  *
  * Two-step confirmation flow:
@@ -22,6 +22,13 @@
  *   Commands with requires_confirmation = 0 that need conditional confirmation
  *   (e.g. /service — only start/stop/restart need it, not status) handle
  *   the confirmation gate themselves inside the handler.
+ *
+ * Pending slot overwrite behaviour:
+ *   Single slot — at most one command awaits confirmation at any time.
+ *   If a new confirmable command arrives while a different command is pending,
+ *   the old slot is overwritten and the user is notified via an inline warning
+ *   prepended to the new confirmation request. This prevents silent loss of
+ *   a pending /reboot when /restart (or /service) is sent immediately after.
  */
 
 #include "commands.h"
@@ -112,10 +119,10 @@ command_t commands[] = {
     {"/status",   cmd_status_v2,  "Full system status", "Server", 0},
 
     /* Bot */
-    {"/health", cmd_health_v2,    "Bot health and metrics", "Bot", 0},
-    {"/about",    cmd_about_v2,   "Version, build info",  "Bot", 0},
-    {"/ping",     cmd_ping_v2,    "Latency test",         "Bot", 0},
-    {"/logstat",  cmd_logstat_v2, "Bot log statistics",   "Bot", 0},
+    {"/health",   cmd_health_v2,  "Bot health and metrics", "Bot", 0},
+    {"/about",    cmd_about_v2,   "Version, build info",    "Bot", 0},
+    {"/ping",     cmd_ping_v2,    "Latency test",           "Bot", 0},
+    {"/logstat",  cmd_logstat_v2, "Bot log statistics",     "Bot", 0},
 
     /* Services */
     {"/services", cmd_services_v2, "All services status",   "Services", 0},
@@ -163,11 +170,30 @@ const int commands_count = sizeof(commands) / sizeof(commands[0]);
  * Stores the pending slot so /confirm knows what to execute.
  * args is saved into g_pending.args so the handler can retrieve the
  * original arguments after confirmation (e.g. "ssh restart" for /service).
+ *
+ * If a different command was already pending (e.g. /reboot pending when
+ * /restart arrives), prepends a cancellation notice to the response so
+ * the user knows the previous request was replaced.
  */
 static int request_confirmation(command_ctx_t *ctx, const char *cmd_name,
                                 const char *args)
 {
     int ttl = security_get_token_ttl();
+
+    /*
+     * Detect slot overwrite: active pending slot for a *different* command.
+     * Save the cancelled command name for the warning message before
+     * overwriting the slot.
+     */
+    char cancelled_cmd[32] = {0};
+    if (g_pending.active && !pending_expired()
+        && g_pending.chat_id == ctx->chat_id
+        && strcmp(g_pending.command, cmd_name) != 0) {
+        safe_copy(cancelled_cmd, sizeof(cancelled_cmd), g_pending.command);
+        LOG_SEC(LOG_WARN,
+            "req=%04x confirm: replacing pending %s with %s",
+            ctx->req_id, g_pending.command, cmd_name);
+    }
 
     g_pending.active     = 1;
     g_pending.chat_id    = ctx->chat_id;
@@ -180,17 +206,29 @@ static int request_confirmation(command_ctx_t *ctx, const char *cmd_name,
     else
         g_pending.args[0] = '\0';
 
+    /*
+     * Build confirmation message.
+     * If a previous command was cancelled, prepend a one-line notice
+     * so the user is not surprised by the slot replacement.
+     */
+    char prefix[64] = {0};
+    if (cancelled_cmd[0] != '\0') {
+        snprintf(prefix, sizeof(prefix),
+            "⚠️ `%s` cancelled\\.\n\n", cancelled_cmd);
+    }
+
     if (g_cfg.totp_secret[0] != '\0') {
         /* TOTP flow */
         LOG_SEC(LOG_INFO, "req=%04x confirm: TOTP requested for %s (args='%s')",
                 ctx->req_id, cmd_name, g_pending.args);
 
         snprintf(ctx->response, ctx->resp_size,
+            "%s"
             "🔐 *Confirm:* `%s`\n\n"
             "Enter the code from your authenticator app:\n"
             "`/confirm <code>`\n\n"
             "_Valid for %d seconds_",
-            cmd_name, ttl);
+            prefix, cmd_name, ttl);
     } else {
         /* Classic token flow (fallback) */
         int token = security_generate_reboot_token(ctx->chat_id, ctx->req_id);
@@ -200,10 +238,11 @@ static int request_confirmation(command_ctx_t *ctx, const char *cmd_name,
                 ctx->req_id, token, cmd_name, g_pending.args);
 
         snprintf(ctx->response, ctx->resp_size,
+            "%s"
             "⚠️ *Confirm:* `%s`\n\n"
             "`/confirm %d`\n\n"
             "_Token valid for %d seconds_",
-            cmd_name, token, ttl);
+            prefix, cmd_name, token, ttl);
     }
 
     *ctx->resp_type = RESP_MARKDOWN;
@@ -315,7 +354,7 @@ static int handle_confirm(command_ctx_t *ctx) {
  *
  * Delegates to the internal request_confirmation() so the flow is identical
  * to the dispatcher-initiated path — same pending slot, same TOTP/token
- * logic, same message format.
+ * logic, same message format, same overwrite warning.
  */
 int commands_request_confirm(command_ctx_t *ctx,
                              const char *cmd_name,
@@ -446,9 +485,10 @@ int commands_handle(const char *text,
          * ------------------------------------------------------------------- */
         if (commands[i].requires_confirmation) {
             /*
-             * If there is already an active pending slot for this chat_id
-             * and the same command — the user sent the command twice without
-             * confirming. Overwrite the slot (refreshes the expiry).
+             * Same command re-sent while pending — log and refresh expiry.
+             * Different command — request_confirmation() will detect the
+             * overwrite, log SEC WARN, and prepend a cancellation notice
+             * to the response so the user is informed.
              */
             if (g_pending.active && !pending_expired()
                 && g_pending.chat_id == chat_id
