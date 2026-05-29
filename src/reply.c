@@ -13,6 +13,7 @@
  */
 
 #include "reply.h"
+#include "utils.h"
 #include "logger.h"
 
 #include <stdio.h>
@@ -43,12 +44,10 @@ static int reply_write(command_ctx_t *ctx,
 {
     if (!ctx || !ctx->response || ctx->resp_size == 0)
         return -1;
-
     if (!text)
         text = "";
 
     int written = snprintf(ctx->response, ctx->resp_size, "%s", text);
-
     if (written < 0 || (size_t)written >= ctx->resp_size) {
         ctx->response[ctx->resp_size - 1] = '\0';
         LOG_CTX(LOG_CMD, ctx, LOG_WARN,
@@ -116,6 +115,7 @@ int reply_ok(command_ctx_t *ctx, const char *text)
  * Send error response with warning emoji prefix
  *
  * Automatically prepends "⚠️ " to the error message.
+ * Buffer sized to RESP_MAX for consistency with other handlers.
  *
  * @param ctx   Command context
  * @param text  Error message (NULL for generic "Error")
@@ -123,13 +123,11 @@ int reply_ok(command_ctx_t *ctx, const char *text)
  */
 int reply_error(command_ctx_t *ctx, const char *text)
 {
-    char buffer[512];
-
+    char buffer[RESP_MAX];
     if (!text)
         text = "Error";
 
     int written = snprintf(buffer, sizeof(buffer), "⚠️ %s", text);
-
     if (written < 0 || (size_t)written >= sizeof(buffer))
         return reply_markdown(ctx, "⚠️ Error");
 
