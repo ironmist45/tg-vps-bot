@@ -103,6 +103,15 @@ tg-bot ALL=(ALL) NOPASSWD: \
 /usr/local/bin/f2b-wrapper *
 ```
 
+If you plan to use `/sshkeys` (see step 13), also add:
+
+```
+tg-bot ALL=(ALL) NOPASSWD: /bin/cat /home/user/.ssh/authorized_keys
+```
+
+Replace `/home/user/.ssh/authorized_keys` with the actual path to your
+`authorized_keys` file. The path must be explicit — no wildcards.
+
 Verify syntax:
 
 ```bash
@@ -144,6 +153,30 @@ systemctl start tg-bot
 
 ## 10. Verify
 
+Before starting the bot, validate the config file:
+
+```bash
+tg-bot --parse /etc/tg-bot.conf
+```
+
+Expected output (green checkmarks for all required fields):
+
+```
+tg-bot v1.x.x (Codename) — config parser
+File: /etc/tg-bot.conf
+
+[REQUIRED]
+  ✓  TOKEN                  set (46 chars)
+  ✓  CHAT_ID                123456789
+...
+Config OK — 0 errors, 2 warnings
+```
+
+> Warnings for `LOG_FILE dir` and `UPLOAD_DIR` are expected when running
+> as a regular user — those paths are owned by `tg-bot` at runtime.
+
+Then check the service is running:
+
 ```bash
 systemctl status tg-bot
 journalctl -u tg-bot -n 50
@@ -156,6 +189,7 @@ Expected in log:
 [ INFO ] [ SYS ] tg-bot v1.x.x (Codename)
 [ INFO ] [ SYS ] Process started (Main PID=...)
 [ INFO ] [ CFG ] UPLOAD: disabled
+[ INFO ] [ CFG ] SSH_KEYS_PATH: disabled
 [ INFO ] [STATE] Bot started
 [ INFO ] [ SYS ] sd_notify: READY=1 sent
 [ INFO ] [STATE] Entering main loop
@@ -231,6 +265,39 @@ to the upload directory. Use `/files` to list uploaded files.
 > **Note:** The upload directory is designed to work as a lighttpd document
 > root so files become accessible via HTTP once lighttpd is configured.
 > Without lighttpd files are saved to disk but not served over HTTP.
+
+---
+
+## 13. Enable SSH keys listing (optional)
+
+The `/sshkeys` command lists authorized SSH public keys (type and comment only —
+the key blob is never shown). Disabled by default.
+
+**Add the sudoers entry** (if not done in step 7):
+
+```bash
+visudo -f /etc/sudoers.d/tg-bot
+```
+
+Add:
+
+```
+tg-bot ALL=(ALL) NOPASSWD: /bin/cat /home/user/.ssh/authorized_keys
+```
+
+**Add to `/etc/tg-bot.conf`:**
+
+```ini
+SSH_KEYS_PATH=/home/user/.ssh/authorized_keys
+```
+
+Reload config:
+
+```bash
+kill -HUP $(pidof tg-bot)
+```
+
+Send `/sshkeys` to the bot to verify.
 
 ---
 
