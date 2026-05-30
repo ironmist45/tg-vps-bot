@@ -16,7 +16,7 @@ tg-bot/
 │   └── workflows/
 │       ├── build-static.yml          # 🔧 CI/CD pipeline GCC 7.5 (legacy, fallback)
 │       ├── build-static-gcc9.yml     # 🔧 CI/CD pipeline GCC 9.4.0 (primary)
-│       └── build-static-gcc14.yml    # 🔧 CI/CD pipeline GCC 14 (experimental)
+│       └── build-static-gcc14.yml    # 🔧 CI/CD pipeline GCC 14
 │
 ├── config/
 │   └── config.example.conf      # 🔧 example configuration (env template)
@@ -40,6 +40,7 @@ tg-bot/
 │   ├── telegram_poll.h          # 🔹 long polling with fork isolation
 │   ├── telegram_offset.h        # 🔹 update offset persistence
 │   ├── telegram_timeouts.h      # 🔹 timeout constants with _Static_assert chain
+│   ├── tg_paths.h               # 🔹 compile-time filesystem path constants (data dir, offset file)
 │   ├── commands.h               # 🔹 command dispatcher, requires_confirmation, pending_confirm_t, commands_request_confirm()
 │   ├── reply.h                  # 🔹 unified response formatting API
 │   ├── security.h               # 🔹 security layer (access control, tokens, rate limiting)
@@ -51,7 +52,7 @@ tg-bot/
 │   ├── logs.h                   # 🔹 logs retrieval API (journalctl integration)
 │   ├── logs_filter.h            # 🔹 log filtering API (semantic + multi-keyword)
 │   ├── logstat.h                # 🔹 log statistics analyzer (SSE4.2 accelerated)
-│   ├── utils.h                  # 🔹 shared helpers (strings, parsing, formatting)
+│   ├── utils.h                  # 🔹 shared helpers (strings, parsing, formatting, RESP_MAX)
 │   ├── cmd_help.h               # 🔹 /help command handler API
 │   ├── cmd_system.h             # 🔹 /start, /status, /health, /ping, /about, /logstat API
 │   ├── cmd_services.h           # 🔹 /services, /users, /logs, /service API
@@ -74,9 +75,9 @@ tg-bot/
 │   ├── telegram_http.c          # 🔹 curl-based HTTP requests, file download streaming, structured API error logging
 │   ├── telegram_parser.c        # 🔹 JSON parsing + markdown escaping + document parsing
 │   ├── telegram_poll.c          # 🔹 long polling with fork() isolation, file routing
-│   ├── telegram_offset.c        # 🔹 offset persistence with fsync (crash recovery)
-│   ├── commands.c               # 🔹 command routing, two-step confirmation, /confirm
-│   ├── reply.c                  # 🔹 response formatting helpers
+│   ├── telegram_offset.c        # 🔹 offset persistence with fsync (crash recovery), uses tg_paths.h
+│   ├── commands.c               # 🔹 command routing, two-step confirmation, /confirm, slot overwrite warning
+│   ├── reply.c                  # 🔹 response formatting helpers (RESP_MAX throughout)
 │   ├── security.c               # 🔹 access control, rate limiting, token validation
 │   ├── system.c                 # 🔹 system metrics, hostname, OS/hardware info
 │   ├── services.c               # 🔹 systemd service status queries and actions
@@ -120,8 +121,9 @@ tg-bot/
 | **Telegram Parser** | `telegram_parser.h` | `telegram_parser.c` | JSON parsing, markdown escaping, document update parsing |
 | **Telegram Poll** | `telegram_poll.h` | `telegram_poll.c` | Long polling with fork() isolation, file/text routing |
 | **Telegram Offset** | `telegram_offset.h` | `telegram_offset.c` | Update offset persistence with fsync (crash recovery) |
-| **Commands** | `commands.h` | `commands.c` | Command routing, two-step confirmation, /confirm dispatcher |
-| **Reply** | `reply.h` | `reply.c` | Unified response formatting for handlers |
+| **Paths** | `tg_paths.h` | — | Compile-time filesystem constants (TG_DATA_DIR, TG_OFFSET_FILE, TG_OFFSET_TMP) |
+| **Commands** | `commands.h` | `commands.c` | Command routing, two-step confirmation, /confirm dispatcher, slot overwrite warning |
+| **Reply** | `reply.h` | `reply.c` | Unified response formatting for handlers (RESP_MAX = 8192) |
 | **Security** | `security.h` | `security.c` | Access control, input validation, tokens, rate limiting |
 | **System** | `system.h` | `system.c` | System metrics, uptime, hostname, OS/hardware info |
 | **Services** | `services.h` | `services.c` | Systemd service status queries and start/stop/restart |
@@ -131,7 +133,7 @@ tg-bot/
 | **Logs** | `logs.h` | `logs.c` | Journalctl log retrieval and formatting |
 | **Logs Filter** | `logs_filter.h` | `logs_filter.c` | Semantic and multi-keyword log filtering |
 | **Logstat** | `logstat.h` | `logstat.c` | SSE4.2 log file statistics analyzer |
-| **Utils** | `utils.h` | `utils.c` | String manipulation, parsing, time measurement |
+| **Utils** | `utils.h` | `utils.c` | String manipulation, parsing, time measurement, RESP_MAX |
 | **Metrics** | `metrics.h` | `metrics.c` | Bot usage statistics collection and formatting |
 
 ## Command Handlers
@@ -233,6 +235,22 @@ dispatcher validates code, restores ctx->args = "ssh restart"
     ↓
 calls cmd_service_v2() again → re-parses args → executes service_action()
 ```
+
+**Slot overwrite behaviour:**
+If a new confirmable command arrives while a *different* command is pending
+(e.g. `/restart` while `/reboot` is awaiting confirmation), the old slot is
+overwritten and the user receives an inline cancellation notice prepended to
+the new confirmation request:
+
+```
+⚠️ `/reboot` cancelled.
+
+🔐 Confirm: `/restart`
+...
+```
+
+This prevents silent loss of a pending confirmation and applies to both
+dispatcher-initiated and handler-initiated (commands_request_confirm) paths.
 
 **pending_confirm_t:**
 ```c
@@ -362,6 +380,25 @@ reply_plain(): numbered list of "type — comment" + total count
 
 ---
 
+## Paths Architecture
+
+Internal filesystem paths are defined as compile-time constants in `tg_paths.h`
+(named `tg_paths.h` to avoid shadowing the system `<paths.h>` header which
+defines `_PATH_UTMP` used by `users.c`).
+
+```c
+#define TG_DATA_DIR    "/var/lib/tg-bot"
+#define TG_OFFSET_FILE TG_DATA_DIR "/offset.dat"
+#define TG_OFFSET_TMP  TG_DATA_DIR "/offset.tmp"
+```
+
+**Principle:** internal state paths (offset file, future state) belong in
+`tg_paths.h`; user-configurable paths (LOG_FILE, UPLOAD_DIR, SSH_KEYS_PATH)
+belong in the config file. Changing `TG_DATA_DIR` updates all derived paths
+automatically at compile time.
+
+---
+
 ## File Upload Architecture
 
 File upload is disabled by default (`UPLOAD_ENABLED=no`). When enabled,
@@ -403,6 +440,31 @@ Reply: "Saved: config.conf (1.2 KB)" (plain text)
 **Config keys:**
 - `UPLOAD_ENABLED=yes` — enable upload (default: disabled)
 - `UPLOAD_DIR=/var/www/html/uploads` — destination directory
+
+---
+
+## Response Buffer Architecture
+
+All command handlers write responses via `reply_plain()` / `reply_markdown()`
+from `reply.c`. The buffer chain is:
+
+```
+telegram_poll.c: char response[BOT_RESP_MAX=8192]
+    ↓ passed as ctx->response / ctx->resp_size
+reply_write(): snprintf(ctx->response, ctx->resp_size, ...)
+    ↓ on overflow: null-terminate, log WARN, graceful degradation
+telegram_send_message()
+    ↓
+telegram_truncate_message(): hard cap at TG_LIMIT=4096 (Telegram API limit)
+```
+
+**Constants:**
+- `RESP_MAX = 8192` (utils.h) — handler internal buffers (`char tmp[RESP_MAX]`)
+- `BOT_RESP_MAX = 8192` (telegram_poll.c) — response buffer allocated per request
+- `TG_LIMIT = 4096` (telegram_parser.c) — Telegram message length limit
+
+Handlers use `RESP_MAX` for consistency. `telegram_truncate_message()` ensures
+nothing exceeds the Telegram API limit regardless of handler output size.
 
 ---
 
@@ -547,6 +609,10 @@ POPCNT    eax,  eax           →  eax  = 1  (one newline found)
 
 On a 1MB log file: ~65,000 SSE4.2 iterations vs ~1,000,000 scalar comparisons.
 
+SSE4.2 is guarded by `#if defined(__SSE4_2__) && defined(__x86_64__)` — if the
+compiler does not support SSE4.2, the entire block is skipped and the scalar
+loop handles the full buffer.
+
 ### Scalar pass
 
 After newline counting, a scalar pass extracts metadata from each line
@@ -620,6 +686,7 @@ cause a build error with a descriptive message.
 - **Upload disabled by default:** `UPLOAD_ENABLED=no` reduces attack surface
 - **MarkdownV2 escaping:** handlers own escaping of user data — no silent double-escaping
 - **SSH keys read-only:** `/sshkeys` shows type and comment only, key blob never exposed
+- **Pending slot overwrite warning:** user notified when a new confirmation request replaces an existing one
 
 ---
 
@@ -663,7 +730,7 @@ Three parallel build workflows — all produce fully static binaries:
 |----------|----------|-------|--------|----------|
 | `build-static.yml` | GCC 7.5.0 | 2.27 | legacy fallback | `tg-bot-static-gcc7` |
 | `build-static-gcc9.yml` | GCC 9.4.0 | 2.27 | primary | `tg-bot-static-gcc9` |
-| `build-static-gcc14.yml` | GCC 14 | 2.27 | experimental | `tg-bot-static-gcc14` |
+| `build-static-gcc14.yml` | GCC 14 | 2.27 | active | `tg-bot-static-gcc14` |
 
 All run in Ubuntu 18.04 Docker container to preserve glibc 2.27 compatibility.
 GCC 9 and GCC 14 workflows add hardening flags: `-Wformat=2`, `-Wnull-dereference`,
@@ -690,6 +757,7 @@ GCC 9 and GCC 14 workflows add hardening flags: `-Wformat=2`, `-Wnull-dereferenc
 - **Upload opt-in** — file upload disabled by default, explicit config required
 - **SSH keys opt-in** — SSH_KEYS_PATH disabled by default, explicit config required
 - **Caller owns escaping** — handlers responsible for correct MarkdownV2 formatting
+- **Single source of truth** — compile-time paths in tg_paths.h, runtime paths in config
 
 ---
 
