@@ -216,8 +216,6 @@ int config_load(const char *path, config_t *cfg) {
             if (safe_copy(cfg->ssh_keys_path, sizeof(cfg->ssh_keys_path), value) != 0) {
                 LOG_CFG(LOG_WARN, "SSH_KEYS_PATH too long — /sshkeys disabled");
                 cfg->ssh_keys_path[0] = '\0';
-            } else {
-                LOG_CFG(LOG_INFO, "SSH_KEYS_PATH: %s", cfg->ssh_keys_path);
             }
         }
         else if (strcasecmp(key, "SUDO_PATH") == 0) {
