@@ -7,7 +7,7 @@
  *   - Configurable line count (default 30, max LOGS_MAX_LINES)
  *   - Case-insensitive multi-keyword filtering
  *   - Automatic fallback to global journal if service has no logs
- *   - ANSI escape code stripping
+ *   - ANSI escape sequence stripping (full sequence, not line truncation)
  *   - Reboot marker detection
  *   - Output truncation protection
  *
@@ -117,6 +117,35 @@ static size_t append_at(char *dst, size_t size, size_t pos, const char *src)
  */
 static void sanitize_line(char *line) {
     line[strcspn(line, "\r")] = '\0';
+}
+
+/**
+ * Strip ANSI escape sequences from line in-place.
+ *
+ * Handles the common ESC [ ... m format (SGR — Select Graphic Rendition)
+ * used by journalctl for color output. Characters after an unrecognised
+ * escape are preserved rather than dropped.
+ *
+ * Previous approach (truncate at first ESC) discarded all text after the
+ * first color code when journalctl emitted color mid-line.
+ *
+ * @param line  Null-terminated string, modified in-place
+ */
+static void strip_ansi(char *line) {
+    char *r = line;
+    char *w = line;
+
+    while (*r) {
+        if (*r == '\x1b' && *(r + 1) == '[') {
+            /* Skip ESC [ ... m sequence */
+            r += 2;
+            while (*r && *r != 'm') r++;
+            if (*r == 'm') r++;   /* skip the terminating 'm' */
+        } else {
+            *w++ = *r++;
+        }
+    }
+    *w = '\0';
 }
 
 /**
@@ -239,9 +268,15 @@ static logs_result_t process_logs_output(char *tmp,
             continue;
         }
 
-        /* Strip ANSI escape codes */
-        char *esc = strchr(line, '\x1b');
-        if (esc) *esc = '\0';
+        /*
+         * Strip ANSI escape sequences.
+         *
+         * Uses strip_ansi() which removes full ESC[...m sequences in-place,
+         * preserving all text after them. The previous approach (truncate at
+         * first ESC) discarded the rest of the line when color codes appeared
+         * mid-line.
+         */
+        strip_ansi(line);
 
         /* Apply multi-keyword filter */
         if (!match_filter_multi(line, &f)) {
