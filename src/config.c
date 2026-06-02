@@ -15,6 +15,9 @@
  *   UPLOAD_ENABLED - Enable file upload: yes/true/1/enabled (default: disabled)
  *   UPLOAD_DIR     - Directory for uploaded files (default: /var/www/html/uploads)
  *   SSH_KEYS_PATH  - Path to authorized_keys file (optional, default: disabled)
+ *   CLOAK_PUBLIC_KEY - Curve25519 public key for /ssconfig (optional)
+ *   CLOAK_SS_CONFIG  - Path to SS server config (default: /etc/shadowsocks-libev/config.json)
+ *   CLOAK_CK_CONFIG  - Path to Cloak server config (default: /etc/shadowsocks-libev/ckserver.json)
  */
 
 #include "config.h"
@@ -72,6 +75,13 @@ int config_load(const char *path, config_t *cfg) {
     /* SSH keys — disabled by default, must be explicitly configured */
     cfg->ssh_keys_path[0] = '\0';
 
+    /* Shadowsocks+Cloak — disabled by default, default paths provided */
+    cfg->cloak_public_key[0] = '\0';
+    safe_copy(cfg->cloak_ss_config, sizeof(cfg->cloak_ss_config),
+              "/etc/shadowsocks-libev/config.json");
+    safe_copy(cfg->cloak_ck_config, sizeof(cfg->cloak_ck_config),
+              "/etc/shadowsocks-libev/ckserver.json");
+
     char line[CONFIG_LINE_MAX];
     int  line_num = 0;
 
@@ -103,8 +113,9 @@ int config_load(const char *path, config_t *cfg) {
          * Mask sensitive values in debug output — TOKEN and TOTP_SECRET
          * must never appear in log files even at DEBUG level.
          */
-        int is_sensitive = (strcasecmp(key, "TOKEN")       == 0 ||
-                            strcasecmp(key, "TOTP_SECRET") == 0);
+        int is_sensitive = (strcasecmp(key, "TOKEN")            == 0 ||
+                            strcasecmp(key, "TOTP_SECRET")      == 0 ||
+                            strcasecmp(key, "CLOAK_PUBLIC_KEY") == 0);
         LOG_CFG(LOG_DEBUG, "line=%d key='%s' value='%s'",
                 line_num, key, is_sensitive ? "***" : value);
 
@@ -218,6 +229,38 @@ int config_load(const char *path, config_t *cfg) {
                 cfg->ssh_keys_path[0] = '\0';
             }
         }
+        else if (strcasecmp(key, "CLOAK_PUBLIC_KEY") == 0) {
+            /*
+             * Curve25519 public key for /ssconfig client config generation.
+             * Feature is disabled when empty — must be explicitly configured.
+             * Masked in debug output (treated as sensitive).
+             */
+            if (safe_copy(cfg->cloak_public_key,
+                          sizeof(cfg->cloak_public_key), value) != 0) {
+                LOG_CFG(LOG_WARN, "CLOAK_PUBLIC_KEY too long — /ssconfig disabled");
+                cfg->cloak_public_key[0] = '\0';
+            }
+        }
+        else if (strcasecmp(key, "CLOAK_SS_CONFIG") == 0) {
+            /*
+             * Path to shadowsocks-libev config.json.
+             * Falls back to default if value is too long.
+             */
+            if (safe_copy(cfg->cloak_ss_config,
+                          sizeof(cfg->cloak_ss_config), value) != 0) {
+                LOG_CFG(LOG_WARN, "CLOAK_SS_CONFIG too long, using default");
+            }
+        }
+        else if (strcasecmp(key, "CLOAK_CK_CONFIG") == 0) {
+            /*
+             * Path to Cloak ckserver.json.
+             * Falls back to default if value is too long.
+             */
+            if (safe_copy(cfg->cloak_ck_config,
+                          sizeof(cfg->cloak_ck_config), value) != 0) {
+                LOG_CFG(LOG_WARN, "CLOAK_CK_CONFIG too long, using default");
+            }
+        }
         else if (strcasecmp(key, "SUDO_PATH") == 0) {
             safe_copy(cfg->sudo_path, sizeof(cfg->sudo_path), value);
         }
@@ -286,6 +329,8 @@ void config_log(const config_t *cfg) {
                 ? "" : " (no dir!)" : "");
     LOG_CFG(LOG_INFO, "SSH_KEYS_PATH: %s",
             cfg->ssh_keys_path[0] != '\0' ? cfg->ssh_keys_path : "disabled");
+    LOG_CFG(LOG_INFO, "CLOAK_PUBLIC_KEY: %s",
+            cfg->cloak_public_key[0] != '\0' ? "set" : "disabled");
 
     /* Utility paths — useful for diagnosing permission or path issues */
     LOG_CFG(LOG_DEBUG, "SUDO_PATH: %s",        cfg->sudo_path);
@@ -293,6 +338,8 @@ void config_log(const config_t *cfg) {
     LOG_CFG(LOG_DEBUG, "JOURNALCTL_PATH: %s",  cfg->journalctl_path);
     LOG_CFG(LOG_DEBUG, "F2B_WRAPPER_PATH: %s", cfg->f2b_wrapper_path);
     LOG_CFG(LOG_DEBUG, "UPLOAD_DIR: %s",       cfg->upload_dir);
+    LOG_CFG(LOG_DEBUG, "CLOAK_SS_CONFIG: %s",  cfg->cloak_ss_config);
+    LOG_CFG(LOG_DEBUG, "CLOAK_CK_CONFIG: %s",  cfg->cloak_ck_config);
 }
 
 // ============================================================================
@@ -310,6 +357,7 @@ void config_log(const config_t *cfg) {
  *   - TOTP secret
  *   - Upload enabled flag and directory
  *   - SSH keys path
+ *   - Shadowsocks+Cloak config paths and public key
  *
  * @param path  Path to configuration file
  * @param cfg   Pointer to current config (updated in-place on success)
