@@ -168,12 +168,40 @@ File: /etc/tg-bot.conf
 [REQUIRED]
   ✓  TOKEN                  set (46 chars)
   ✓  CHAT_ID                123456789
-...
-Config OK — 0 errors, 2 warnings
+
+[BOT]
+  ✓  TOKEN_TTL              60s
+  ✓  LOG_FILE               /var/log/tg-bot.log
+  ✓  LOG_LEVEL              INFO
+  ⚠  LOG_FILE dir           /var/log — not writable (run as tg-bot)
+
+[TOTP]
+  ⚠  TOTP_SECRET            not set (token flow)
+  ✓  TOTP_SETUP             disabled
+
+[UPLOAD]
+  ✓  UPLOAD_ENABLED         no
+  ✓  UPLOAD_DIR             /var/www/html/uploads
+
+[SSH]
+  ⚠  SSH_KEYS_PATH          not set (/sshkeys disabled)
+
+[SHADOWSOCKS]
+  ⚠  CLOAK_PUBLIC_KEY       not set (/ssconfig disabled)
+  ✓  CLOAK_SS_CONFIG        /etc/shadowsocks-libev/config.json
+  ✓  CLOAK_CK_CONFIG        /etc/shadowsocks-libev/ckserver.json
+
+[PATHS]
+  ✓  SUDO_PATH              /usr/bin/sudo
+  ✓  SYSTEMCTL_PATH         /bin/systemctl
+  ✓  JOURNALCTL_PATH        /bin/journalctl
+  ✓  F2B_WRAPPER_PATH       /usr/local/bin/f2b-wrapper
+
+Config OK — 0 errors, 3 warnings
 ```
 
-> Warnings for `LOG_FILE dir` and `UPLOAD_DIR` are expected when running
-> as a regular user — those paths are owned by `tg-bot` at runtime.
+> ⚠ warnings for `LOG_FILE dir`, `SSH_KEYS_PATH` and `CLOAK_PUBLIC_KEY` are expected
+> on a minimal install — optional features are disabled by default.
 
 Then check the service is running:
 
@@ -190,6 +218,7 @@ Expected in log:
 [ INFO ] [ SYS ] Process started (Main PID=...)
 [ INFO ] [ CFG ] UPLOAD: disabled
 [ INFO ] [ CFG ] SSH_KEYS_PATH: disabled
+[ INFO ] [ CFG ] CLOAK_PUBLIC_KEY: disabled
 [ INFO ] [STATE] Bot started
 [ INFO ] [ SYS ] sd_notify: READY=1 sent
 [ INFO ] [STATE] Entering main loop
@@ -298,6 +327,52 @@ kill -HUP $(pidof tg-bot)
 ```
 
 Send `/sshkeys` to the bot to verify.
+
+---
+
+## 14. Enable Shadowsocks + Cloak config generation (optional)
+
+The `/ssconfig` command generates ready-to-use client config files for
+Shadowsocks with the Cloak plugin. Saves two JSON files to `UPLOAD_DIR`:
+`cloak-client-<timestamp>.json` and `ss-client-<timestamp>.json`.
+
+Requires `UPLOAD_ENABLED=yes` and `UPLOAD_DIR` (step 12) to be configured first.
+
+**Get the Curve25519 public key** paired with your `PrivateKey` in `ckserver.json`:
+
+```bash
+ck-server -key
+```
+
+The command prints both keys — copy the `PublicKey` value.
+
+**Add to `/etc/tg-bot.conf`:**
+
+```ini
+CLOAK_PUBLIC_KEY=your_curve25519_public_key_here
+```
+
+Override config file paths only if your setup differs from the defaults:
+
+```ini
+# Default: /etc/shadowsocks-libev/config.json
+# CLOAK_SS_CONFIG=/etc/shadowsocks-libev/config.json
+
+# Default: /etc/shadowsocks-libev/ckserver.json
+# CLOAK_CK_CONFIG=/etc/shadowsocks-libev/ckserver.json
+```
+
+Both files must be readable by the `tg-bot` user. Standard `644` permissions
+are sufficient — no sudo needed.
+
+Reload config:
+
+```bash
+kill -HUP $(pidof tg-bot)
+```
+
+Send `/ssconfig` to the bot. It will reply with server parameters and
+`scp` download commands for the generated files.
 
 ---
 
