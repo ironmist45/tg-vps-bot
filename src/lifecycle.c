@@ -17,6 +17,7 @@
 #include "telegram.h"
 #include "config.h"
 #include "utils.h"
+#include "sd_notify.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -100,9 +101,16 @@ void lifecycle_clear_rotate(void) {
     g_rotate_log = 0;
 }
 
+/**
+ * Clear config reload flag.
+ *
+ * Only clears g_reload_config — does NOT touch g_rotate_log.
+ * SIGUSR1 (rotate) and SIGHUP (reload) are independent signals and
+ * must be handled independently. Clearing rotate here would silently
+ * drop a concurrent SIGUSR1 if both signals arrive close together.
+ */
 void lifecycle_clear_reload(void) {
     g_reload_config = 0;
-    g_rotate_log    = 0;
 }
 
 void lifecycle_request_shutdown(int mode, long requested_by) {
@@ -231,6 +239,13 @@ void lifecycle_handle_shutdown(void) {
         clock_gettime(CLOCK_MONOTONIC, &end);
         LOG_SYS(LOG_INFO, "Reboot took %ld ms", elapsed_ms(start, end));
 
+        /*
+         * Notify systemd that the service is stopping intentionally.
+         * Without this, systemd may log a spurious watchdog timeout
+         * or unexpected exit warning for /reboot and /restart paths.
+         */
+        sd_notify_send("STOPPING=1");
+
         /* Close logger before reboot — no more logging after this point */
         logger_close();
         fflush(NULL);
@@ -263,6 +278,12 @@ void lifecycle_handle_shutdown(void) {
         clock_gettime(CLOCK_MONOTONIC, &end);
         LOG_SYS(LOG_INFO, "Restart took %ld ms", elapsed_ms(start, end));
 
+        /*
+         * Notify systemd that the service is stopping intentionally
+         * before exec'ing into systemctl restart.
+         */
+        sd_notify_send("STOPPING=1");
+
         /* Close logger before exec — no more logging after this point */
         logger_close();
         fflush(NULL);
@@ -273,7 +294,13 @@ void lifecycle_handle_shutdown(void) {
             return;
         }
 
-        execl(g_cfg.systemctl_path, "systemctl", "restart", "tg-bot", NULL);
+        /*
+         * Execute via sudo — bot runs as tg-bot which does not have
+         * permission to restart systemd units directly. The sudoers
+         * rule allows: tg-bot ALL=(ALL) NOPASSWD: /bin/systemctl restart tg-bot
+         */
+        execl(g_cfg.sudo_path, "sudo",
+              g_cfg.systemctl_path, "restart", "tg-bot", NULL);
         fprintf(stderr, "exec restart failed: errno=%d (%s)\n",
                 errno, strerror(errno));
         return;
