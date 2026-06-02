@@ -44,4 +44,11 @@
  */
 #define TG_OFFSET_TMP   TG_DATA_DIR "/offset.tmp"
 
+/*
+ * Fallback log file path — used by main.c before config is loaded.
+ * Once config is parsed, logger switches to g_cfg.log_file.
+ * Should match the default LOG_FILE value in config.c.
+ */
+#define TG_DEFAULT_LOG_FILE  "/var/log/tg-bot.log"
+
 #endif /* TG_PATHS_H */
