@@ -45,6 +45,7 @@
 #include "cmd_services.h"
 #include "cmd_help.h"
 #include "cmd_security.h"
+#include "cmd_ssconfig.h"
 #include "cmd_control.h"
 #include "cmd_upload.h"
 #include "metrics.h"
@@ -130,11 +131,12 @@ command_t commands[] = {
     {"/users",    cmd_users_v2,    "Active user sessions",  "Services", 0},
     {"/logs",     cmd_logs_v2,     "View service logs",     "Services", 0},
     {"/files",    cmd_files_v2,    "List uploaded files",   "Services", 0},
+    {"/ssconfig", cmd_ssconfig_v2, "Generate SS+Cloak client config", "Services", 0},
 
     /* Security */
-    {"/fail2ban",   cmd_fail2ban_v2,   "Manage Fail2Ban",        "Security", 0},
+    {"/fail2ban",   cmd_fail2ban_v2,   "Manage Fail2Ban",         "Security", 0},
     {"/sshkeys",    cmd_sshkeys_v2,    "List SSH authorized keys","Security", 0},
-    {"/totp_setup", cmd_totp_setup_v2, "TOTP 2FA setup",         "Security", 0},
+    {"/totp_setup", cmd_totp_setup_v2, "TOTP 2FA setup",          "Security", 0},
 
     /*
      * System control — requires two-step confirmation.
