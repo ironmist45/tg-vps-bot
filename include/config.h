@@ -119,6 +119,33 @@ typedef struct {
      */
     char ssh_keys_path[512];    /* Path to authorized_keys, empty = disabled */
 
+    /*
+     * Shadowsocks + Cloak client config generation (/ssconfig).
+     *
+     * cloak_public_key: Curve25519 public key paired with PrivateKey
+     *   stored in ckserver.json. Required for /ssconfig. To obtain:
+     *     ck-server -key   (prints PrivateKey + PublicKey pair)
+     *   When empty: /ssconfig returns a configuration hint (default).
+     *
+     * cloak_ss_config: path to shadowsocks-libev server config.json.
+     *   Read directly by tg-bot (no sudo needed, file is world-readable).
+     *   Default: /etc/shadowsocks-libev/config.json
+     *
+     * cloak_ck_config: path to Cloak server config ckserver.json.
+     *   Read directly by tg-bot (no sudo needed, file is world-readable).
+     *   Default: /etc/shadowsocks-libev/ckserver.json
+     *
+     * Also requires UPLOAD_ENABLED=yes and UPLOAD_DIR to save output files.
+     *
+     * Config keys:
+     *   CLOAK_PUBLIC_KEY=your_curve25519_public_key
+     *   CLOAK_SS_CONFIG=/etc/shadowsocks-libev/config.json
+     *   CLOAK_CK_CONFIG=/etc/shadowsocks-libev/ckserver.json
+     */
+    char cloak_public_key[128]; /* Curve25519 public key, empty = disabled   */
+    char cloak_ss_config[256];  /* Path to config.json                       */
+    char cloak_ck_config[256];  /* Path to ckserver.json                     */
+
 } config_t;
 
 // ============================================================================
@@ -142,6 +169,9 @@ typedef struct {
  *   UPLOAD_ENABLED - Enable file upload: yes/true/1/enabled (default: disabled)
  *   UPLOAD_DIR     - Directory for uploaded files (default: /var/www/html/uploads)
  *   SSH_KEYS_PATH  - Path to authorized_keys file (optional, default: disabled)
+ *   CLOAK_PUBLIC_KEY - Curve25519 public key for /ssconfig (optional)
+ *   CLOAK_SS_CONFIG  - Path to SS server config (default: /etc/shadowsocks-libev/config.json)
+ *   CLOAK_CK_CONFIG  - Path to Cloak server config (default: /etc/shadowsocks-libev/ckserver.json)
  *
  * Example:
  *   TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
@@ -151,6 +181,7 @@ typedef struct {
  *   UPLOAD_ENABLED=yes
  *   UPLOAD_DIR=/var/www/html/uploads
  *   SSH_KEYS_PATH=/home/user/.ssh/authorized_keys
+ *   CLOAK_PUBLIC_KEY=your_curve25519_public_key
  *
  * @param path  Path to configuration file
  * @param cfg   Output structure to populate
