@@ -368,6 +368,25 @@ int cli_cmd_parse_config(const char *path)
     }
 
     /* ------------------------------------------------------------------ */
+    SECTION("SHADOWSOCKS");
+
+    if (cfg.cloak_public_key[0] != '\0') {
+        printf("  " C_GREEN "✓" C_RESET "  %-22s set (%zu chars)\n",
+               "CLOAK_PUBLIC_KEY", strlen(cfg.cloak_public_key));
+    } else {
+        printf("  " C_YELLOW "⚠" C_RESET "  %-22s not set (/ssconfig disabled)\n",
+               "CLOAK_PUBLIC_KEY");
+        warnings++;
+    }
+    /*
+     * Config files are world-readable (644) — readable by current user directly.
+     * warn_only=0: missing file is an error even when key is not set,
+     * because the defaults point to standard paths that should exist.
+     */
+    check_path("CLOAK_SS_CONFIG", cfg.cloak_ss_config, R_OK, 0, &errors, &warnings);
+    check_path("CLOAK_CK_CONFIG", cfg.cloak_ck_config, R_OK, 0, &errors, &warnings);
+
+    /* ------------------------------------------------------------------ */
     SECTION("PATHS");
 
     /* System binaries — must exist and be executable by anyone */
