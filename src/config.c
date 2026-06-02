@@ -329,8 +329,13 @@ void config_log(const config_t *cfg) {
                 ? "" : " (no dir!)" : "");
     LOG_CFG(LOG_INFO, "SSH_KEYS_PATH: %s",
             cfg->ssh_keys_path[0] != '\0' ? cfg->ssh_keys_path : "disabled");
-    LOG_CFG(LOG_INFO, "CLOAK_PUBLIC_KEY: %s",
-            cfg->cloak_public_key[0] != '\0' ? "set" : "disabled");
+    if (cfg->cloak_public_key[0] != '\0') {
+        LOG_CFG(LOG_INFO, "CLOAK_PUBLIC_KEY: set");
+        LOG_CFG(LOG_INFO, "CLOAK_SS_CONFIG: %s", cfg->cloak_ss_config);
+        LOG_CFG(LOG_INFO, "CLOAK_CK_CONFIG: %s", cfg->cloak_ck_config);
+    } else {
+        LOG_CFG(LOG_INFO, "CLOAK_PUBLIC_KEY: disabled");
+    }
 
     /* Utility paths — useful for diagnosing permission or path issues */
     LOG_CFG(LOG_DEBUG, "SUDO_PATH: %s",        cfg->sudo_path);
@@ -338,8 +343,6 @@ void config_log(const config_t *cfg) {
     LOG_CFG(LOG_DEBUG, "JOURNALCTL_PATH: %s",  cfg->journalctl_path);
     LOG_CFG(LOG_DEBUG, "F2B_WRAPPER_PATH: %s", cfg->f2b_wrapper_path);
     LOG_CFG(LOG_DEBUG, "UPLOAD_DIR: %s",       cfg->upload_dir);
-    LOG_CFG(LOG_DEBUG, "CLOAK_SS_CONFIG: %s",  cfg->cloak_ss_config);
-    LOG_CFG(LOG_DEBUG, "CLOAK_CK_CONFIG: %s",  cfg->cloak_ck_config);
 }
 
 // ============================================================================
