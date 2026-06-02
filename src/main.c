@@ -27,6 +27,7 @@
 #include "environment.h"
 #include "metrics.h"
 #include "sd_notify.h"
+#include "tg_paths.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -77,8 +78,7 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------------------
     // 4. Logger initialization with fallback path
     // -----------------------------------------------------------------------
-    const char *fallback_log = "/var/log/tg-bot.log";
-    logger_init(fallback_log);
+    logger_init(TG_DEFAULT_LOG_FILE);
 
     // -----------------------------------------------------------------------
     // 5. Startup logging
@@ -227,7 +227,7 @@ int main(int argc, char *argv[]) {
                  * Trigger graceful shutdown to save offset and flush state —
                  * same path as SIGTERM so no data is lost on network failure.
                  */
-                g_shutdown_requested = SHUTDOWN_STOP;
+                lifecycle_request_shutdown(SHUTDOWN_STOP, 0);
                 lifecycle_handle_shutdown();
                 break;
             }
@@ -250,7 +250,7 @@ int main(int argc, char *argv[]) {
     // -----------------------------------------------------------------------
     // 12. Shutdown
     // -----------------------------------------------------------------------
-    char metrics_buf[512];
+    char metrics_buf[1024];
     metrics_format_log(metrics_buf, sizeof(metrics_buf));
     LOG_SYS(LOG_INFO, "%s", metrics_buf);
 
