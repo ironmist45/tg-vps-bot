@@ -69,7 +69,7 @@ Built-in metrics collected since last bot start:
 
 **Commands:**
 - Total commands processed
-- Per-command counters (`/start`, `/help`, `/logs`, `/fail2ban`, `/sshkeys`, `/reboot`, `/restart`, `/services`, `/service`, `/files`, `/users`, `/health`, `/logstat`)
+- Per-command counters (`/start`, `/help`, `/logs`, `/fail2ban`, `/sshkeys`, `/ssconfig`, `/reboot`, `/restart`, `/services`, `/service`, `/files`, `/users`, `/health`, `/logstat`)
 
 **Errors:**
 - Unauthorized access attempts
@@ -120,6 +120,19 @@ Built-in metrics collected since last bot start:
 * Configurable path via `SSH_KEYS_PATH` in config (disabled by default)
 * File is read via `sudo cat` — bot runs as `tg-bot`, not as file owner
 * Handles options field in authorized_keys (e.g. `from="..."`, `command="..."`)
+
+---
+
+### ⚙️ Shadowsocks + Cloak Config Generation
+
+* `/ssconfig` — generate client config files for Shadowsocks with Cloak plugin
+* Reads server parameters from `config.json` and `ckserver.json` automatically
+* Auto-detects server IPv4 via `hostname -I`
+* Generates two ready-to-use JSON files saved to `UPLOAD_DIR`:
+  * `cloak-client-<timestamp>.json` — Cloak client config
+  * `ss-client-<timestamp>.json` — Shadowsocks client config
+* Requires `CLOAK_PUBLIC_KEY`, `UPLOAD_ENABLED=yes` and `UPLOAD_DIR` in config
+* Config files are read directly (world-readable `644`) — no sudo needed
 
 ---
 
@@ -301,6 +314,11 @@ File: /etc/tg-bot/config.conf
 [SSH]
   ✓  SSH_KEYS_PATH          /home/user/.ssh/authorized_keys
 
+[SHADOWSOCKS]
+  ✓  CLOAK_PUBLIC_KEY       set (44 chars)
+  ✓  CLOAK_SS_CONFIG        /etc/shadowsocks-libev/config.json
+  ✓  CLOAK_CK_CONFIG        /etc/shadowsocks-libev/ckserver.json
+
 [PATHS]
   ✓  SUDO_PATH              /usr/bin/sudo
   ✓  SYSTEMCTL_PATH         /bin/systemctl
@@ -337,10 +355,9 @@ Services
 /logs ssh 50                   — last 50 lines
 /logs ssh error                — filtered by "error" (semantic)
 /logs ssh 100 brute            — last 100 lines filtered for brute-force patterns
-
-Files
 /files                         — list uploaded files with sizes
 (send any file to the bot)     — saves to UPLOAD_DIR, confirms with filename and size
+/ssconfig                      — generate Shadowsocks + Cloak client config files
 
 Security
 /sshkeys                       — list SSH authorized keys (type and comment)
@@ -378,7 +395,7 @@ Modular C design — each module has a single responsibility:
 * `commands.c` — command dispatcher, two-step confirmation logic
 * `security.c` — access control, rate limiting, token validation
 * `totp.c` — TOTP implementation (RFC 6238, HMAC-SHA1 via OpenSSL)
-* `config.c` — configuration file parsing and reload (TOKEN, CHAT_ID, TOTP, UPLOAD, SSH_KEYS_PATH)
+* `config.c` — configuration file parsing and reload (TOKEN, CHAT_ID, TOTP, UPLOAD, SSH_KEYS_PATH, CLOAK_*)
 * `logger.c` — thread-safe logging with early buffer and mirror control
 * `diagnostics.c` — runtime diagnostics (loop timing)
 * `services_config.c` — shared service definitions (single source of truth)
@@ -405,7 +422,7 @@ Modular C design — each module has a single responsibility:
 * Config reload on `SIGHUP` without restart
 * Log reopen on `SIGUSR1` for logrotate integration
 * TOTP verification uses ±1 step window to compensate for clock skew
-* TOKEN and TOTP_SECRET never appear in log files — masked even at DEBUG level
+* TOKEN, TOTP_SECRET and CLOAK_PUBLIC_KEY never appear in log files — masked even at DEBUG level
 * f2b-wrapper logs all operations to syslog (`LOG_AUTH`) with PID
 * File downloads streamed directly to disk via `write_file_callback` — no memory buffering
 * Uploaded filenames sanitized — path traversal and injection impossible
@@ -428,6 +445,7 @@ Modular C design — each module has a single responsibility:
 * **No CAP_SYS_BOOT** on binary — reboot via `sudo /sbin/reboot` only
 * **TOTP secret locked in RAM** via `mlock()` — not swapped to disk even when swap is active
 * **SSH key blob never shown** — `/sshkeys` displays type and comment only
+* **CLOAK_PUBLIC_KEY masked in logs** — not logged even at DEBUG level
 
 ---
 
@@ -463,7 +481,7 @@ Three CI/CD workflows are available:
 
 * `build-static.yml` — GCC 7.5.0 (legacy, fallback)
 * `build-static-gcc9.yml` — GCC 9.4.0 (primary)
-* `build-static-gcc14.yml` — GCC 14 (experimental, stricter warnings)
+* `build-static-gcc14.yml` — GCC 14 (active)
 
 **Linking model:**
 - Fully static: libcurl, OpenSSL, c-ares, cJSON compiled from source with GCC 9.4.0
@@ -506,6 +524,9 @@ Rebuild `f2b-wrapper` locally on the target machine.
 * `tg-bot --parse` — config validation with filesystem checks and color output
 * Telegram API error log improved — structured `method error_code: description`
 * `logger_set_mirror()` — explicit stderr mirror control for --parse mode
+* `/ssconfig` — generate Shadowsocks + Cloak client config files
+* lifecycle.c fixes — sudo for restart, sd_notify STOPPING=1, clear_reload fix
+* Code audit — buffer safety, ANSI strip, pending slot overwrite warning
 
 ### Planned
 * lighttpd setup for HTTP access to uploaded files
