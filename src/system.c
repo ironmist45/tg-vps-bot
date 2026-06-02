@@ -549,18 +549,29 @@ int system_get_status_mini(char *buffer, size_t size, unsigned short req_id) {
         (l1 > SYS_CPU_CRIT_LOAD) ? "🔴" :
         (l1 > SYS_CPU_WARN_LOAD) ? "🟡" : "🟢";
 
+    /*
+     * Icons are placed at the start of each line so that emoji width
+     * does not affect column alignment. Each icon is a fixed-width
+     * colored circle followed by a space — visually consistent
+     * regardless of the numeric values on the same line.
+     *
+     *   🟢 CPU   0.06  1m load
+     *   🟢 MEM   16%   335/1992 MB
+     *   🟢 DSK   13%   5/39 GB
+     *      UP    5d 19h 20m
+     */
     int written = snprintf(buffer, size,
         "⚡ *System Health*\n\n"
         "```\n"
-        "%-5s %5.2f (1m) %s\n"
-        "%-5s %3d%% (%d/%d MB) %s\n"
-        "%-5s %3d%% (%d/%d GB) %s\n"
-        "%-5s %dd %dh %dm\n"
+        "%s CPU  %5.2f  1m load\n"
+        "%s MEM  %3d%%   %d/%d MB\n"
+        "%s DSK  %3d%%   %d/%d GB\n"
+        "   UP   %dd %dh %dm\n"
         "```",
-        "CPU:", l1,       cpu_icon,
-        "MEM:", mem_pct,  used_mem,  total_mem,  mem_icon,
-        "DSK:", disk_pct, used_disk, total_disk, disk_icon,
-        "UP:",  days, hours, mins
+        cpu_icon,  l1,
+        mem_icon,  mem_pct,  used_mem,  total_mem,
+        disk_icon, disk_pct, used_disk, total_disk,
+        days, hours, mins
     );
 
     if (written < 0) {
