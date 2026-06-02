@@ -25,13 +25,13 @@ tg-bot/
 │   ├── version.h                # 🔹 version and build information
 │   ├── build_info.h             # 🔹 generated build info (commit, date, build number, compiler)
 │   ├── cli.h                    # 🔹 command-line interface parsing (-c, -p, -h, -v)
-│   ├── config.h                 # 🔹 config loader API (parsing, reload, TOTP secret, upload, SSH keys)
+│   ├── config.h                 # 🔹 config loader API (parsing, reload, TOTP secret, upload, SSH keys, Cloak)
 │   ├── logger.h                 # 🔹 logging system API (levels, macros, early buffer, mirror control)
 │   ├── lifecycle.h              # 🔹 process lifecycle (signals, shutdown, reboot)
 │   ├── environment.h            # 🔹 runtime environment diagnostics
 │   ├── exec.h                   # 🔹 execution API (command runner with timeout)
 │   ├── metrics.h                # 🔹 bot usage metrics and statistics
-│   ├── sd_notify.h              # 🔹 minimal systemd notify (READY/WATCHDOG, no libsystemd)
+│   ├── sd_notify.h              # 🔹 minimal systemd notify (READY/WATCHDOG/STOPPING, no libsystemd)
 │   ├── diagnostics.h            # 🔹 runtime diagnostics (main loop timing)
 │   ├── totp.h                   # 🔹 TOTP 2FA (RFC 6238, HMAC-SHA1 via OpenSSL)
 │   ├── telegram.h               # 🔹 Telegram API client interface (public)
@@ -40,7 +40,7 @@ tg-bot/
 │   ├── telegram_poll.h          # 🔹 long polling with fork isolation
 │   ├── telegram_offset.h        # 🔹 update offset persistence
 │   ├── telegram_timeouts.h      # 🔹 timeout constants with _Static_assert chain
-│   ├── tg_paths.h               # 🔹 compile-time filesystem path constants (data dir, offset file)
+│   ├── tg_paths.h               # 🔹 compile-time filesystem path constants (data dir, offset file, default log)
 │   ├── commands.h               # 🔹 command dispatcher, requires_confirmation, pending_confirm_t, commands_request_confirm()
 │   ├── reply.h                  # 🔹 unified response formatting API
 │   ├── security.h               # 🔹 security layer (access control, tokens, rate limiting)
@@ -57,15 +57,16 @@ tg-bot/
 │   ├── cmd_system.h             # 🔹 /start, /status, /health, /ping, /about, /logstat API
 │   ├── cmd_services.h           # 🔹 /services, /users, /logs, /service API
 │   ├── cmd_security.h           # 🔹 /fail2ban, /sshkeys command handlers API
+│   ├── cmd_ssconfig.h           # 🔹 /ssconfig Shadowsocks+Cloak client config generation API
 │   ├── cmd_control.h            # 🔹 /reboot, /restart, /totp_setup API
 │   └── cmd_upload.h             # 🔹 file upload handlers API (/files, incoming files)
 │
 ├── src/                         # 📂 implementation (core modules)
 │   ├── main.c                   # 🚀 entry point (init, orchestration, main loop)
 │   ├── cli.c                    # 🔹 command-line argument parsing (-c, -p/--parse, -h, -v)
-│   ├── config.c                 # 🔹 config parser, reload, TOTP_SECRET, UPLOAD_ENABLED, SSH_KEYS_PATH
+│   ├── config.c                 # 🔹 config parser, reload, TOTP_SECRET, UPLOAD_ENABLED, SSH_KEYS_PATH, CLOAK_*
 │   ├── logger.c                 # 🔹 thread-safe logging, early buffer, isatty mirror, set_mirror()
-│   ├── lifecycle.c              # 🔹 signal handlers, graceful shutdown, reboot via sudo
+│   ├── lifecycle.c              # 🔹 signal handlers, graceful shutdown, reboot/restart via sudo, sd_notify STOPPING=1
 │   ├── environment.c            # 🔹 startup diagnostics and access checks
 │   ├── exec.c                   # 🔹 external command execution with timeout
 │   ├── metrics.c                # 🔹 bot metrics collection and formatting
@@ -84,7 +85,7 @@ tg-bot/
 │   ├── services_config.c        # 🔹 service table (single source of truth)
 │   ├── upload.c                 # 🔹 Telegram file receiving (getFile API, disk streaming)
 │   ├── users.c                  # 🔹 active user session enumeration via utmp
-│   ├── logs.c                   # 🔹 journalctl log retrieval and formatting
+│   ├── logs.c                   # 🔹 journalctl log retrieval and formatting (full ANSI sequence stripping)
 │   ├── logs_filter.c            # 🔹 semantic log filtering engine
 │   ├── logstat.c                # 🔹 SSE4.2 log file statistics analyzer
 │   ├── utils.c                  # 🔹 helper functions implementation
@@ -94,6 +95,7 @@ tg-bot/
 │       ├── cmd_system.c         # 🧩 /start, /status, /health, /ping, /about, /logstat
 │       ├── cmd_services.c       # 🧩 /services, /users, /logs, /service
 │       ├── cmd_security.c       # 🧩 /fail2ban, /sshkeys
+│       ├── cmd_ssconfig.c       # 🧩 /ssconfig (Shadowsocks+Cloak client config generation)
 │       ├── cmd_control.c        # 🧩 /reboot, /restart, /totp_setup
 │       └── cmd_upload.c         # 🧩 incoming files, /files
 │
@@ -109,9 +111,9 @@ tg-bot/
 | Module | Header | Source | Responsibility |
 |--------|--------|--------|----------------|
 | **CLI** | `cli.h` | `cli.c` | Command-line argument parsing, help/version output, --parse config validation |
-| **Config** | `config.h` | `config.c` | Configuration file loading, validation, reload, TOTP secret, upload flag, SSH keys path |
+| **Config** | `config.h` | `config.c` | Configuration file loading, validation, reload, TOTP secret, upload flag, SSH keys path, Cloak keys |
 | **Logger** | `logger.h` | `logger.c` | Thread-safe logging, early buffer, isatty mirror to stderr, mirror override |
-| **Lifecycle** | `lifecycle.h` | `lifecycle.c` | Signal handlers, graceful shutdown, reboot via sudo /sbin/reboot |
+| **Lifecycle** | `lifecycle.h` | `lifecycle.c` | Signal handlers, graceful shutdown, reboot/restart via sudo, sd_notify STOPPING=1 |
 | **Environment** | `environment.h` | `environment.c` | Startup diagnostics, access checks, CI detection |
 | **Exec** | `exec.h` | `exec.c` | External command execution with deadline timeout |
 | **Diagnostics** | `diagnostics.h` | `diagnostics.c` | Main loop iteration timing, slow iteration warnings |
@@ -121,7 +123,7 @@ tg-bot/
 | **Telegram Parser** | `telegram_parser.h` | `telegram_parser.c` | JSON parsing, markdown escaping, document update parsing |
 | **Telegram Poll** | `telegram_poll.h` | `telegram_poll.c` | Long polling with fork() isolation, file/text routing |
 | **Telegram Offset** | `telegram_offset.h` | `telegram_offset.c` | Update offset persistence with fsync (crash recovery) |
-| **Paths** | `tg_paths.h` | — | Compile-time filesystem constants (TG_DATA_DIR, TG_OFFSET_FILE, TG_OFFSET_TMP) |
+| **Paths** | `tg_paths.h` | — | Compile-time filesystem constants (TG_DATA_DIR, TG_OFFSET_FILE, TG_OFFSET_TMP, TG_DEFAULT_LOG_FILE) |
 | **Commands** | `commands.h` | `commands.c` | Command routing, two-step confirmation, /confirm dispatcher, slot overwrite warning |
 | **Reply** | `reply.h` | `reply.c` | Unified response formatting for handlers (RESP_MAX = 8192) |
 | **Security** | `security.h` | `security.c` | Access control, input validation, tokens, rate limiting |
@@ -130,7 +132,7 @@ tg-bot/
 | **Services Config** | `services_config.h` | `services_config.c` | Service definitions (single source of truth) |
 | **Upload** | `upload.h` | `upload.c` | Telegram file receiving, getFile API, disk streaming, file listing |
 | **Users** | `users.h` | `users.c` | Active user session enumeration via utmp |
-| **Logs** | `logs.h` | `logs.c` | Journalctl log retrieval and formatting |
+| **Logs** | `logs.h` | `logs.c` | Journalctl log retrieval, formatting, full ANSI sequence stripping |
 | **Logs Filter** | `logs_filter.h` | `logs_filter.c` | Semantic and multi-keyword log filtering |
 | **Logstat** | `logstat.h` | `logstat.c` | SSE4.2 log file statistics analyzer |
 | **Utils** | `utils.h` | `utils.c` | String manipulation, parsing, time measurement, RESP_MAX |
@@ -152,6 +154,7 @@ tg-bot/
 | `/users` | `cmd_users_v2` | `cmd_services.c` | Services | — |
 | `/logs` | `cmd_logs_v2` | `cmd_services.c` | Services | — |
 | `/files` | `cmd_files_v2` | `cmd_upload.c` | Services | — |
+| `/ssconfig` | `cmd_ssconfig_v2` | `cmd_ssconfig.c` | Services | — |
 | `/fail2ban` | `cmd_fail2ban_v2` | `cmd_security.c` | Security | — |
 | `/sshkeys` | `cmd_sshkeys_v2` | `cmd_security.c` | Security | — |
 | `/reboot` | `cmd_reboot_v2` | `cmd_control.c` | System control | 🔐 required |
@@ -289,14 +292,14 @@ Responsibilities in order:
 
 | Module | Status | Commands |
 |--------|--------|----------|
-| Services | ✅ V2 | /services, /users, /logs, /service |
+| Services | ✅ V2 | /services, /users, /logs, /service, /ssconfig |
 | System | ✅ V2 | /start, /status, /health, /about, /ping, /logstat |
 | Help | ✅ V2 | /help |
 | Security | ✅ V2 | /fail2ban, /sshkeys |
 | Control | ✅ V2 | /reboot, /restart, /totp_setup |
 | Upload | ✅ V2 | /files, incoming files |
 
-**All 18 commands use V2. Legacy code completely removed.**
+**All 19 commands use V2. Legacy code completely removed.**
 
 ---
 
@@ -325,6 +328,8 @@ filesystem checks:
   LOG_FILE parent dir  — W_OK, warn_only (owned by tg-bot)
   UPLOAD_DIR           — W_OK, warn_only (owned by tg-bot)
   SSH_KEYS_PATH        — R_OK, warn_only (read via sudo cat at runtime)
+  CLOAK_SS_CONFIG      — R_OK, error if missing (644, world-readable)
+  CLOAK_CK_CONFIG      — R_OK, error if missing (644, world-readable)
   SUDO_PATH            — X_OK, error if missing
   SYSTEMCTL_PATH       — X_OK, error if missing
   JOURNALCTL_PATH      — X_OK, error if missing
@@ -380,6 +385,51 @@ reply_plain(): numbered list of "type — comment" + total count
 
 ---
 
+## /ssconfig Command
+
+Generates Shadowsocks + Cloak client config files from server-side configuration.
+
+```
+/ssconfig
+    ↓
+cmd_ssconfig_v2()
+    ↓
+CLOAK_PUBLIC_KEY empty? → reply: configuration hint
+UPLOAD_ENABLED=no?      → reply: configuration hint
+    ↓
+get_server_ipv4() — hostname -I, first non-IPv6 token
+    ↓
+json_read_int(CLOAK_SS_CONFIG, "server_port")
+json_read_string(CLOAK_SS_CONFIG, "password")
+json_read_string(CLOAK_SS_CONFIG, "method")
+    ↓
+json_read_array_first(CLOAK_CK_CONFIG, "BypassUID")
+json_read_string(CLOAK_CK_CONFIG, "RedirAddr")
+    ↓
+write cloak-client-<ts>.json to UPLOAD_DIR:
+  Transport, ProxyMethod, EncryptionMethod, UID,
+  PublicKey (from CLOAK_PUBLIC_KEY), ServerName,
+  NumConn=4, BrowserSig=chrome, StreamTimeout=300
+    ↓
+write ss-client-<ts>.json to UPLOAD_DIR:
+  server (detected IPv4), server_port, local_port=1080,
+  password, method, plugin=ck-client,
+  plugin_opts=cloak-client-<ts>.json
+    ↓
+reply_plain(): summary with server params + scp download commands
+```
+
+**Config keys:**
+- `CLOAK_PUBLIC_KEY` — Curve25519 public key (required, masked in logs)
+- `CLOAK_SS_CONFIG` — path to config.json (default: `/etc/shadowsocks-libev/config.json`)
+- `CLOAK_CK_CONFIG` — path to ckserver.json (default: `/etc/shadowsocks-libev/ckserver.json`)
+
+**Also requires:** `UPLOAD_ENABLED=yes` and `UPLOAD_DIR`
+
+**File permissions:** Both config files read directly (644, world-readable) — no sudo needed.
+
+---
+
 ## Paths Architecture
 
 Internal filesystem paths are defined as compile-time constants in `tg_paths.h`
@@ -387,15 +437,16 @@ Internal filesystem paths are defined as compile-time constants in `tg_paths.h`
 defines `_PATH_UTMP` used by `users.c`).
 
 ```c
-#define TG_DATA_DIR    "/var/lib/tg-bot"
-#define TG_OFFSET_FILE TG_DATA_DIR "/offset.dat"
-#define TG_OFFSET_TMP  TG_DATA_DIR "/offset.tmp"
+#define TG_DATA_DIR          "/var/lib/tg-bot"
+#define TG_OFFSET_FILE       TG_DATA_DIR "/offset.dat"
+#define TG_OFFSET_TMP        TG_DATA_DIR "/offset.tmp"
+#define TG_DEFAULT_LOG_FILE  "/var/log/tg-bot.log"
 ```
 
-**Principle:** internal state paths (offset file, future state) belong in
-`tg_paths.h`; user-configurable paths (LOG_FILE, UPLOAD_DIR, SSH_KEYS_PATH)
-belong in the config file. Changing `TG_DATA_DIR` updates all derived paths
-automatically at compile time.
+**Principle:** internal state paths (offset file, future state) and compile-time
+defaults (fallback log) belong in `tg_paths.h`; user-configurable paths
+(LOG_FILE, UPLOAD_DIR, SSH_KEYS_PATH, CLOAK_*) belong in the config file.
+Changing `TG_DATA_DIR` updates all derived paths automatically at compile time.
 
 ---
 
@@ -551,6 +602,28 @@ Fields are center-aligned to fixed widths:
 
 ---
 
+## Lifecycle Architecture
+
+`lifecycle.c` centralises all process shutdown logic. Key fixes applied:
+
+**Signal handlers** use only async-signal-safe operations (volatile writes).
+All logging is deferred to the main loop which checks flags after each iteration.
+
+**`lifecycle_clear_reload()`** clears only `g_reload_config` — does not touch
+`g_rotate_log`. SIGHUP (reload) and SIGUSR1 (rotate) are independent signals
+and must be handled independently to avoid silent SIGUSR1 loss.
+
+**RESTART uses sudo:** `execl(g_cfg.sudo_path, "sudo", g_cfg.systemctl_path, "restart", "tg-bot", NULL)`  
+Bot runs as `tg-bot` without systemd unit management privileges. By analogy
+with reboot, restart must go through sudo. The sudoers rule already covers
+`/bin/systemctl restart tg-bot`.
+
+**`sd_notify("STOPPING=1")`** is sent before `execl` in both REBOOT and RESTART
+paths so systemd knows the service is stopping intentionally — prevents spurious
+watchdog timeout or unexpected exit warnings in journalctl.
+
+---
+
 ## Execution Layer
 
 `exec.c` provides fork/exec abstraction with:
@@ -679,7 +752,7 @@ cause a build error with a descriptive message.
 - **No shell injection:** IP validation via `inet_pton`, service names via whitelist
 - **No direct root:** all privileged operations via sudo whitelist
 - **Unpredictable salt:** `getrandom(2)` at startup, never logged
-- **Secret masking:** TOKEN and TOTP_SECRET never appear in log files
+- **Secret masking:** TOKEN, TOTP_SECRET and CLOAK_PUBLIC_KEY never appear in log files
 - **Full RELRO:** `-Wl,-z,relro,-z,now` — GOT read-only after dynamic linking
 - **No CAP_SYS_BOOT:** reboot via `sudo /sbin/reboot` only
 - **mlock:** TOTP secret locked in RAM, never swapped to disk
@@ -687,6 +760,7 @@ cause a build error with a descriptive message.
 - **MarkdownV2 escaping:** handlers own escaping of user data — no silent double-escaping
 - **SSH keys read-only:** `/sshkeys` shows type and comment only, key blob never exposed
 - **Pending slot overwrite warning:** user notified when a new confirmation request replaces an existing one
+- **ssconfig opt-in:** CLOAK_PUBLIC_KEY disabled by default, /ssconfig returns hint until configured
 
 ---
 
@@ -756,6 +830,7 @@ GCC 9 and GCC 14 workflows add hardening flags: `-Wformat=2`, `-Wnull-dereferenc
 - **Backward compatibility** — TOTP is optional, classic token flow is fallback
 - **Upload opt-in** — file upload disabled by default, explicit config required
 - **SSH keys opt-in** — SSH_KEYS_PATH disabled by default, explicit config required
+- **ssconfig opt-in** — CLOAK_PUBLIC_KEY disabled by default, /ssconfig returns hint
 - **Caller owns escaping** — handlers responsible for correct MarkdownV2 formatting
 - **Single source of truth** — compile-time paths in tg_paths.h, runtime paths in config
 
