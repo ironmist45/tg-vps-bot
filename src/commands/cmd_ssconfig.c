@@ -21,48 +21,67 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <ifaddrs.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <cjson/cJSON.h>
 
 /* Max length for generated file paths */
 #define SSCONFIG_PATH_MAX 512
+
+/* Extra bytes for ".tmp" suffix in atomic write temp path */
+#define SSCONFIG_TMP_SUFFIX_LEN 4
 
 // ============================================================================
 // INTERNAL HELPERS
 // ============================================================================
 
 /**
- * Get first IPv4 address via hostname -I.
+ * Get first non-loopback IPv4 address via getifaddrs(3).
  *
- * hostname -I returns space-separated addresses — we take the first
- * token that does not contain ':' (to skip IPv6 addresses).
+ * Iterates network interfaces and returns the first AF_INET address
+ * that is not on the loopback interface (127.x.x.x).
  *
- * @param out   Output buffer
- * @param size  Buffer size
- * @return      0 on success, -1 on error
+ * Replaces the previous popen("hostname -I") implementation which
+ * depended on shell availability and PATH. getifaddrs(3) is a direct
+ * system call with no external dependencies.
+ *
+ * @param out   Output buffer (receives dotted-decimal IPv4 string)
+ * @param size  Buffer size (INET_ADDRSTRLEN = 16 is sufficient)
+ * @return      0 on success, -1 if no suitable address found
  */
 static int get_server_ipv4(char *out, size_t size)
 {
-    FILE *fp = popen("hostname -I 2>/dev/null", "r");
-    if (!fp) return -1;
+    struct ifaddrs *ifaddr = NULL;
 
-    char buf[256] = {0};
-    if (!fgets(buf, sizeof(buf), fp)) {
-        pclose(fp);
+    if (getifaddrs(&ifaddr) != 0)
         return -1;
-    }
-    pclose(fp);
 
-    /* Walk tokens, skip IPv6 (contain ':'), take first IPv4 */
-    char *token = strtok(buf, " \t\n");
-    while (token) {
-        if (!strchr(token, ':')) {
-            snprintf(out, size, "%s", token);
-            return 0;
+    int found = 0;
+
+    for (struct ifaddrs *ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if (!ifa->ifa_addr)
+            continue;
+
+        if (ifa->ifa_addr->sa_family != AF_INET)
+            continue;
+
+        struct sockaddr_in *addr = (struct sockaddr_in *)ifa->ifa_addr;
+        uint32_t ip = ntohl(addr->sin_addr.s_addr);
+
+        /* Skip loopback (127.0.0.0/8) */
+        if ((ip >> 24) == 127)
+            continue;
+
+        if (inet_ntop(AF_INET, &addr->sin_addr, out, (socklen_t)size)) {
+            found = 1;
+            break;
         }
-        token = strtok(NULL, " \t\n");
     }
 
-    return -1;
+    freeifaddrs(ifaddr);
+    return found ? 0 : -1;
 }
 
 /**
@@ -75,7 +94,6 @@ static char *read_file(const char *path)
     FILE *fp = fopen(path, "r");
     if (!fp) return NULL;
 
-    /* Get file size */
     if (fseek(fp, 0, SEEK_END) != 0) { fclose(fp); return NULL; }
     long sz = ftell(fp);
     if (sz <= 0 || sz > 65536) { fclose(fp); return NULL; } /* sanity cap */
@@ -188,26 +206,49 @@ static int json_read_array_first(const char *path, const char *field,
 }
 
 /**
- * Write a cJSON object to a file as formatted JSON.
+ * Write a cJSON object to a file atomically via tmp + rename.
+ *
+ * Writes to <path>.tmp first, then rename(2) to <path>.
+ * rename(2) is atomic on POSIX filesystems when both paths are on
+ * the same filesystem — guaranteed here since tmp is in the same
+ * directory as the final file (same UPLOAD_DIR).
+ *
+ * If the process crashes after writing .tmp but before rename,
+ * the .tmp file is left behind but the final file is untouched.
+ * On next run a new timestamp is used so there is no collision.
  *
  * @param path  Destination file path
  * @param json  cJSON object to serialise
  * @return      0 on success, -1 on error
  */
-static int write_json_file(const char *path, cJSON *json)
+static int write_json_file_atomic(const char *path, cJSON *json)
 {
+    char tmp_path[SSCONFIG_PATH_MAX + SSCONFIG_TMP_SUFFIX_LEN];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
+
     char *str = cJSON_Print(json);
     if (!str) return -1;
 
-    FILE *fp = fopen(path, "w");
+    FILE *fp = fopen(tmp_path, "w");
     if (!fp) {
         free(str);
         return -1;
     }
 
-    fputs(str, fp);
+    int write_ok = (fputs(str, fp) != EOF);
     fclose(fp);
     free(str);
+
+    if (!write_ok) {
+        remove(tmp_path);
+        return -1;
+    }
+
+    if (rename(tmp_path, path) != 0) {
+        remove(tmp_path);
+        return -1;
+    }
+
     return 0;
 }
 
@@ -220,11 +261,11 @@ static int write_json_file(const char *path, cJSON *json)
  *
  * Flow:
  *   1. Check prerequisites (CLOAK_PUBLIC_KEY, UPLOAD_ENABLED)
- *   2. Detect server IPv4 via hostname -I
+ *   2. Detect server IPv4 via getifaddrs(3)
  *   3. Read server_port, password, method from config.json
  *   4. Read BypassUID, RedirAddr from ckserver.json
- *   5. Write cloak-client-<ts>.json to UPLOAD_DIR
- *   6. Write ss-client-<ts>.json to UPLOAD_DIR
+ *   5. Write cloak-client-<ts>.json to UPLOAD_DIR (atomic)
+ *   6. Write ss-client-<ts>.json to UPLOAD_DIR (atomic)
  *   7. Reply with summary and download instructions
  *
  * @param ctx  Command context
@@ -257,12 +298,12 @@ int cmd_ssconfig_v2(command_ctx_t *ctx)
     /* ------------------------------------------------------------------ */
     /* 1. Detect server IPv4                                               */
     /* ------------------------------------------------------------------ */
-    char server_ip[64] = {0};
+    char server_ip[INET_ADDRSTRLEN] = {0};
     if (get_server_ipv4(server_ip, sizeof(server_ip)) != 0) {
         LOG_CMD_CTX(ctx, LOG_WARN, "ssconfig: failed to get server IPv4");
         return reply_error(ctx,
             "Failed to determine server IP\n"
-            "Check: hostname -I");
+            "No non-loopback IPv4 interface found");
     }
     LOG_CMD_CTX(ctx, LOG_DEBUG, "ssconfig: server_ip=%s", server_ip);
 
@@ -332,7 +373,7 @@ int cmd_ssconfig_v2(command_ctx_t *ctx)
              g_cfg.upload_dir, (long)ts);
 
     /* ------------------------------------------------------------------ */
-    /* 5. Write cloak-client-<ts>.json                                     */
+    /* 5. Write cloak-client-<ts>.json (atomic)                           */
     /* ------------------------------------------------------------------ */
     cJSON *ck_json = cJSON_CreateObject();
     if (!ck_json) return reply_error(ctx, "Out of memory");
@@ -347,7 +388,7 @@ int cmd_ssconfig_v2(command_ctx_t *ctx)
     cJSON_AddStringToObject(ck_json, "BrowserSig",       "chrome");
     cJSON_AddNumberToObject(ck_json, "StreamTimeout",    300);
 
-    if (write_json_file(ck_path, ck_json) != 0) {
+    if (write_json_file_atomic(ck_path, ck_json) != 0) {
         cJSON_Delete(ck_json);
         LOG_CMD_CTX(ctx, LOG_WARN, "ssconfig: failed to write %s", ck_path);
         return reply_error(ctx,
@@ -357,7 +398,7 @@ int cmd_ssconfig_v2(command_ctx_t *ctx)
     cJSON_Delete(ck_json);
 
     /* ------------------------------------------------------------------ */
-    /* 6. Write ss-client-<ts>.json                                        */
+    /* 6. Write ss-client-<ts>.json (atomic)                              */
     /* ------------------------------------------------------------------ */
 
     /*
@@ -382,7 +423,7 @@ int cmd_ssconfig_v2(command_ctx_t *ctx)
     cJSON_AddStringToObject(ss_json, "plugin",      "ck-client");
     cJSON_AddStringToObject(ss_json, "plugin_opts", ck_filename);
 
-    if (write_json_file(ss_path, ss_json) != 0) {
+    if (write_json_file_atomic(ss_path, ss_json) != 0) {
         cJSON_Delete(ss_json);
         remove(ck_path);  /* clean up first file on failure */
         LOG_CMD_CTX(ctx, LOG_WARN, "ssconfig: failed to write %s", ss_path);
