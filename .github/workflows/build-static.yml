@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       CI: true
-      VER_OPENSSL: "3.0.20"
+      VER_OPENSSL: "3.0.21"
       VER_CARES: "1.34.6"
       VER_CURL: "8.20.0"
       VER_CJSON: "1.7.19"
