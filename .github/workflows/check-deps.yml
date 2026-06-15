@@ -10,13 +10,11 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       issues: write
-
     env:
-      VER_OPENSSL: "3.0.20"
+      VER_OPENSSL: "3.0.21"
       VER_CARES: "1.34.6"
       VER_CURL: "8.20.0"
       VER_CJSON: "1.7.19"
-
     steps:
       - name: Check for dependency updates
         env:
@@ -82,9 +80,26 @@ jobs:
             exit 0
           fi
 
-          echo "[INFO] Updates found, creating GitHub Issue"
+          echo "[INFO] Updates found, checking for existing open issue"
 
-          BODY="## Dependency updates available\n\nThe following static dependencies have newer versions available:\n${UPDATES}\n\n### Next steps\n1. Review changelog for breaking changes\n2. Update version in \`build-static.yml\` \`env:\` section\n3. Run build and verify\n\n_This issue was created automatically by the check-deps workflow._"
+          # Avoid duplicate issues: skip if an open issue with this
+          # title already exists. Without this the cron would create a
+          # new issue every Monday until the versions are bumped.
+          existing=$(gh issue list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --search "deps: new versions available in:title" \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -n "$existing" ]; then
+            echo "[INFO] Issue #${existing} already open — skipping creation"
+            exit 0
+          fi
+
+          echo "[INFO] No existing issue, creating GitHub Issue"
+
+          BODY="## Dependency updates available\n\nThe following static dependencies have newer versions available:\n${UPDATES}\n\n### Next steps\n1. Review changelog for breaking changes\n2. Update version in \`build-static.yml\` \`env:\` section (and other workflows)\n3. Update version in \`check-deps.yml\` \`env:\` section to stop repeat alerts\n4. Run build and verify\n\n_This issue was created automatically by the check-deps workflow._"
 
           gh issue create \
             --repo "$GITHUB_REPOSITORY" \
