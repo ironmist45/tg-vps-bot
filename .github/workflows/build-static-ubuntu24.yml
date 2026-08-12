@@ -9,8 +9,8 @@ jobs:
     env:
       CI: true
       VER_OPENSSL: "3.0.21"
-      VER_CARES: "1.34.6"
-      VER_CURL: "8.20.0"
+      VER_CARES: "1.34.8"
+      VER_CURL: "8.21.0"
       VER_CJSON: "1.7.19"
 
     steps:
