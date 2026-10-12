@@ -72,13 +72,17 @@ jobs:
             BUILD_COMMIT=\$(git -C /app rev-parse --short HEAD 2>/dev/null || echo 'unknown')
             BUILD_DATE=\$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
+            GCC_VER=\$(gcc --version | head -1 | awk '{print \$NF}')
+            echo \"[INFO] GCC_VER=\${GCC_VER}\"
+
             echo \"#ifndef BUILD_INFO_H\"                                > /app/include/build_info.h
             echo \"#define BUILD_INFO_H\"                               >> /app/include/build_info.h
             echo \"#define TG_BUILD_COMMIT \\\"\${BUILD_COMMIT}\\\"\"  >> /app/include/build_info.h
             echo \"#define TG_BUILD_DATE \\\"\${BUILD_DATE}\\\"\"      >> /app/include/build_info.h
             echo \"#define TG_BUILD_NUMBER \\\"\${BUILD_NUMBER}\\\"\"  >> /app/include/build_info.h
+            echo \"#define TG_BUILD_COMPILER \\\"GCC \${GCC_VER}\\\"\"  >> /app/include/build_info.h
             echo \"#endif\"                                             >> /app/include/build_info.h
-            echo \"[INFO] Build info: commit=\${BUILD_COMMIT} date=\${BUILD_DATE} build=\${BUILD_NUMBER}\"
+            echo \"[INFO] Build info: commit=\${BUILD_COMMIT} date=\${BUILD_DATE} build=\${BUILD_NUMBER} compiler=GCC \${GCC_VER}\"
 
             if [ \"\${CACHE_HIT}\" = \"true\" ]; then
               echo '[INFO] Cache hit — skipping dependency builds'
